@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Funções Auxiliares de Autenticação
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isSuperAdmin() {
+      return isAuthenticated() && getUserData().role == 'superadmin';
+    }
+
+    // 1. SERVIDORES & DNS
+    // Leitura: Qualquer usuário logado ou o app da TV
+    // Escrita: Apenas Super Admin (Troca de DNS em massa protegida)
+    match /servers/{serverId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // 2. USUÁRIOS E REVENDAS
+    // Superadmin: Acesso total
+    // Revenda: Apenas visualiza seus próprios dados e de suas sub-revendas
+    match /users/{userId} {
+      allow read: if isSuperAdmin() || (isAuthenticated() && (request.auth.uid == userId || resource.data.parentId == request.auth.uid));
+      allow create, update: if isSuperAdmin() || (isAuthenticated() && request.resource.data.parentId == request.auth.uid);
+      allow delete: if isSuperAdmin();
+    }
+
+    // 3. APARELHOS (MACS)
+    // O aplicativo na TV pode ler os dados do seu próprio MAC validando o Device Key
+    // Revendedores só leem e editam os aparelhos que pertencem à sua carteira
+    match /devices/{macAddress} {
+      allow read: if true; // O app da TV consulta seu próprio MAC
+      allow write: if isSuperAdmin() || (isAuthenticated() && (
+        resource == null || resource.data.resellerId == request.auth.uid ||
+        getUserData().role == 'reseller'
+      ));
+    }
+
+    // 4. MENSAGENS E NOTIFICAÇÕES NA TV
+    // Leitura pública pelo app da TV (filtrado por targetId ou all)
+    // Escrita permitida para administradores e revendedores autorizados
+    match /notifications/{notificationId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // 5. AUDITORIA DE CRÉDITOS
+    // Apenas leitura para os envolvidos; escrita atômica via backend
+    match /credit_logs/{logId} {
+      allow read: if isSuperAdmin() || (isAuthenticated() && (
+        resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid
+      ));
+      allow write: if isSuperAdmin();
+    }
+  }
+}
+

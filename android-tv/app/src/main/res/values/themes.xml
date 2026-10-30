@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.ZyveronPlay" parent="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+        <item name="android:windowBackground">#090D12</item>
+        <item name="android:windowOverscan">true</item>
+    </style>
+</resources>
+
