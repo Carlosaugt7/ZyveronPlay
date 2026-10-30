@@ -303,7 +303,9 @@ class LocalStore {
     newExpirationDate: string,
     newServerId?: string,
     newServerName?: string,
-    newServerDns?: string
+    newServerDns?: string,
+    newUsername?: string,
+    newPassword?: string
   ): DeviceDocument {
     this.init();
     const cleanOldMac = oldMac.trim().toUpperCase();
@@ -338,6 +340,12 @@ class LocalStore {
     }
     if (newServerDns !== undefined && newServerDns.trim() !== "") {
       dev.serverDns = normalizeDnsUrl(newServerDns);
+    }
+    if (newUsername !== undefined && newUsername.trim() !== "") {
+      dev.username = newUsername.trim();
+    }
+    if (newPassword !== undefined && newPassword.trim() !== "") {
+      dev.password = newPassword.trim();
     }
 
     this.devices[devIndex] = dev;

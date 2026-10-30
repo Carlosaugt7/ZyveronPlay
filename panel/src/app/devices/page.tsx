@@ -45,6 +45,8 @@ export default function DevicesPage() {
   const [editingDevice, setEditingDevice] = useState<DeviceDocument | null>(null);
   const [editMacInput, setEditMacInput] = useState("");
   const [editDeviceKeyInput, setEditDeviceKeyInput] = useState("");
+  const [editUsernameInput, setEditUsernameInput] = useState("");
+  const [editPasswordInput, setEditPasswordInput] = useState("");
   const [editExpDateInput, setEditExpDateInput] = useState("");
   const [editServerIdInput, setEditServerIdInput] = useState("");
   const [editServerDnsInput, setEditServerDnsInput] = useState("");
@@ -151,6 +153,8 @@ export default function DevicesPage() {
     setEditingDevice(dev);
     setEditMacInput(dev.mac);
     setEditDeviceKeyInput(dev.deviceKey);
+    setEditUsernameInput(dev.username || "");
+    setEditPasswordInput(dev.password || "");
     try {
       const datePart = new Date(dev.expirationDate).toISOString().split("T")[0];
       setEditExpDateInput(datePart);
@@ -191,6 +195,14 @@ export default function DevicesPage() {
       setEditErrorMsg("Informe a Device Key (PIN de 6 dígitos).");
       return;
     }
+    if (!editUsernameInput.trim()) {
+      setEditErrorMsg("Informe o Usuário da Lista (Xtream).");
+      return;
+    }
+    if (!editPasswordInput.trim()) {
+      setEditErrorMsg("Informe a Senha da Lista (Xtream).");
+      return;
+    }
     if (!editExpDateInput) {
       setEditErrorMsg("Selecione uma data de vencimento válida.");
       return;
@@ -212,7 +224,9 @@ export default function DevicesPage() {
         targetDate,
         editServerIdInput,
         serverName,
-        editServerDnsInput.trim()
+        editServerDnsInput.trim(),
+        editUsernameInput.trim(),
+        editPasswordInput.trim()
       );
       setIsEditModalOpen(false);
       setEditingDevice(null);
@@ -677,6 +691,37 @@ export default function DevicesPage() {
                       required
                     />
                     <p className="text-[10px] text-zinc-400 mt-1">DNS ativo entregue à TV</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">
+                      Usuário da Lista (Xtream) *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="usuario_iptv"
+                      value={editUsernameInput}
+                      onChange={(e) => setEditUsernameInput(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-sky-500"
+                      required
+                    />
+                    <p className="text-[10px] text-zinc-400 mt-1">Conta atribuída ao aparelho</p>
+                  </div>
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">
+                      Senha da Lista (Xtream) *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="••••••••"
+                      value={editPasswordInput}
+                      onChange={(e) => setEditPasswordInput(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-sky-500"
+                      required
+                    />
+                    <p className="text-[10px] text-zinc-400 mt-1">Senha de acesso Xtream</p>
                   </div>
                 </div>
 
