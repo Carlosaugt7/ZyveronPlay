@@ -1,6 +1,7 @@
 package com.zyveron.play
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
@@ -30,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -43,10 +45,13 @@ import com.zyveron.play.data.remote.DeviceAuthState
 import com.zyveron.play.data.remote.FirestoreDeviceManager
 import com.zyveron.play.data.repository.ZyveronRepository
 import com.zyveron.play.player.ZyveronPlayerManager
+import com.zyveron.play.ui.accounts.AccountsScreen
 import com.zyveron.play.ui.activation.ActivationScreen
 import com.zyveron.play.ui.activation.BlockedOrExpiredScreen
 import com.zyveron.play.ui.components.TvNotificationOverlay
+import com.zyveron.play.ui.home.HomeScreen
 import com.zyveron.play.ui.live.LivePlayerScreen
+import com.zyveron.play.ui.settings.SettingsScreen
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentRose
 import com.zyveron.play.ui.theme.AccentSky
@@ -57,7 +62,17 @@ import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
 import com.zyveron.play.ui.theme.ZyveronTvTheme
+import com.zyveron.play.util.ContentSafetyFilter
 import com.zyveron.play.util.UrlHelper
+import java.net.URI
+
+enum class ActiveScreen {
+    HOME,
+    LIVE_PLAYER,
+    SPORTS_PLAYER,
+    ACCOUNTS,
+    SETTINGS
+}
 
 class MainActivity : ComponentActivity() {
 
@@ -100,11 +115,15 @@ fun MainContent(
     playerManager: ZyveronPlayerManager,
     onFinish: () -> Unit
 ) {
+    val context = LocalContext.current
     val authState by deviceManager.authState.collectAsState()
     val activeBroadcast by deviceManager.activeBroadcast.collectAsState()
 
     // Cache-First local com canais observados do SQLite Room
     val localChannels by repository.getAllChannels().collectAsState(initial = emptyList())
+
+    // Sub-navegação interna quando o dispositivo está ativo
+    var currentScreen by remember { mutableStateOf(ActiveScreen.HOME) }
 
     Box(
         modifier = Modifier
@@ -163,6 +182,15 @@ fun MainContent(
                     UrlHelper.normalizeUrl(state.serverDns)
                 }
 
+                val serverDisplayName = remember(cleanDns) {
+                    try {
+                        val host = URI(cleanDns).host
+                        if (!host.isNullOrBlank()) host else "Zyveron Play"
+                    } catch (_: Exception) {
+                        "Zyveron Play"
+                    }
+                }
+
                 var syncRetryTrigger by remember { mutableIntStateOf(0) }
                 var isSyncing by remember { mutableStateOf(false) }
                 var syncError by remember { mutableStateOf<String?>(null) }
@@ -186,7 +214,7 @@ fun MainContent(
                 }
 
                 if (localChannels.isEmpty()) {
-                    // Tela de carregamento / sincronização inicial de canais (sem canais mock)
+                    // Tela de carregamento / sincronização inicial de canais
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -352,14 +380,90 @@ fun MainContent(
                         }
                     }
                 } else {
-                    LivePlayerScreen(
-                        playerManager = playerManager,
-                        channels = localChannels,
-                        serverDns = cleanDns,
-                        username = state.username,
-                        password = state.password,
-                        onBack = onFinish
-                    )
+                    // Canais com filtro anti-adulto obrigatório aplicado
+                    val safeChannels = remember(localChannels) {
+                        localChannels.filter { ContentSafetyFilter.isSafe(it.name, it.categoryId) }
+                    }
+                    val sportsChannels = remember(safeChannels) {
+                        safeChannels.filter { ContentSafetyFilter.isSportsChannel(it.name, it.categoryId) }
+                    }
+
+                    // Navegação entre as telas do APK
+                    when (currentScreen) {
+                        ActiveScreen.HOME -> {
+                            HomeScreen(
+                                serverName = serverDisplayName,
+                                channels = safeChannels,
+                                onOpenLiveTv = {
+                                    currentScreen = ActiveScreen.LIVE_PLAYER
+                                },
+                                onOpenMovies = {
+                                    Toast.makeText(context, "Abrindo catálogo de TV ao Vivo", Toast.LENGTH_SHORT).show()
+                                    currentScreen = ActiveScreen.LIVE_PLAYER
+                                },
+                                onOpenSeries = {
+                                    Toast.makeText(context, "Abrindo catálogo de TV ao Vivo", Toast.LENGTH_SHORT).show()
+                                    currentScreen = ActiveScreen.LIVE_PLAYER
+                                },
+                                onOpenSports = {
+                                    currentScreen = ActiveScreen.SPORTS_PLAYER
+                                },
+                                onOpenAccounts = {
+                                    currentScreen = ActiveScreen.ACCOUNTS
+                                },
+                                onOpenSettings = {
+                                    currentScreen = ActiveScreen.SETTINGS
+                                },
+                                onReloadCatalog = {
+                                    Toast.makeText(context, "Sincronizando com o servidor...", Toast.LENGTH_SHORT).show()
+                                    syncRetryTrigger++
+                                },
+                                onExit = onFinish
+                            )
+                        }
+
+                        ActiveScreen.LIVE_PLAYER -> {
+                            LivePlayerScreen(
+                                playerManager = playerManager,
+                                channels = safeChannels,
+                                serverDns = cleanDns,
+                                username = state.username,
+                                password = state.password,
+                                onBack = { currentScreen = ActiveScreen.HOME }
+                            )
+                        }
+
+                        ActiveScreen.SPORTS_PLAYER -> {
+                            LivePlayerScreen(
+                                playerManager = playerManager,
+                                channels = if (sportsChannels.isNotEmpty()) sportsChannels else safeChannels,
+                                serverDns = cleanDns,
+                                username = state.username,
+                                password = state.password,
+                                onBack = { currentScreen = ActiveScreen.HOME }
+                            )
+                        }
+
+                        ActiveScreen.ACCOUNTS -> {
+                            AccountsScreen(
+                                mac = deviceManager.virtualMac,
+                                deviceKey = deviceManager.deviceKey,
+                                serverName = serverDisplayName,
+                                username = state.username,
+                                expirationDate = state.expirationDate.ifBlank { "Ativo" },
+                                onBack = { currentScreen = ActiveScreen.HOME }
+                            )
+                        }
+
+                        ActiveScreen.SETTINGS -> {
+                            SettingsScreen(
+                                mac = deviceManager.virtualMac,
+                                deviceKey = deviceManager.deviceKey,
+                                expirationDate = state.expirationDate.ifBlank { "Ativo" },
+                                onBack = { currentScreen = ActiveScreen.HOME }
+                            )
+                        }
+                    }
                 }
             }
         }
