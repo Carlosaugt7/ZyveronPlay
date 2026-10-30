@@ -43,7 +43,8 @@ fun BlockedOrExpiredScreen(
     title: String,
     message: String,
     isExpired: Boolean,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onExit: () -> Unit = {}
 ) {
     val accentColor = if (isExpired) AccentAmber else AccentRose
 
@@ -121,26 +122,53 @@ fun BlockedOrExpiredScreen(
 
                 Spacer(modifier = Modifier.height(28.dp))
 
-                Button(
-                    onClick = onRetry,
-                    colors = ButtonDefaults.colors(
-                        containerColor = accentColor,
-                        focusedContainerColor = Color.White,
-                        contentColor = Color.Black,
-                        focusedContentColor = Color.Black
-                    ),
-                    border = ButtonDefaults.border(
-                        border = Border(border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark)),
-                        focusedBorder = Border(border = androidx.compose.foundation.BorderStroke(2.dp, accentColor))
-                    ),
-                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(12.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Verificar Regularização",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                    )
+                    Button(
+                        onClick = onRetry,
+                        colors = ButtonDefaults.colors(
+                            containerColor = accentColor,
+                            focusedContainerColor = Color.White,
+                            contentColor = Color.Black,
+                            focusedContentColor = Color.Black
+                        ),
+                        border = ButtonDefaults.border(
+                            border = Border(border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark)),
+                            focusedBorder = Border(border = androidx.compose.foundation.BorderStroke(2.dp, accentColor))
+                        ),
+                        shape = ButtonDefaults.shape(shape = RoundedCornerShape(12.dp))
+                    ) {
+                        Text(
+                            text = "🔄 Verificar Novamente",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                        )
+                    }
+
+                    Button(
+                        onClick = onExit,
+                        colors = ButtonDefaults.colors(
+                            containerColor = BgSurfaceDark,
+                            focusedContainerColor = AccentRose,
+                            contentColor = TextPrimary,
+                            focusedContentColor = Color.White
+                        ),
+                        border = ButtonDefaults.border(
+                            border = Border(border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark)),
+                            focusedBorder = Border(border = androidx.compose.foundation.BorderStroke(2.dp, Color.White))
+                        ),
+                        shape = ButtonDefaults.shape(shape = RoundedCornerShape(12.dp))
+                    ) {
+                        Text(
+                            text = "✕ Sair",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                        )
+                    }
                 }
             }
         }

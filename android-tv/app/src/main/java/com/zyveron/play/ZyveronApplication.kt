@@ -39,6 +39,11 @@ class ZyveronApplication : Application() {
                 }
                 startActivity(intent)
 
+                // Aguarda 500ms para permitir que a CrashActivity inicie no processo isolado :crash
+                try {
+                    Thread.sleep(500)
+                } catch (_: InterruptedException) {}
+
                 android.os.Process.killProcess(android.os.Process.myPid())
                 System.exit(10)
             } catch (e: Exception) {

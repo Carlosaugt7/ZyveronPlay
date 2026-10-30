@@ -72,64 +72,80 @@ class ZyveronRepository(context: Context) {
 
             Log.d("ZyveronRepo", "Iniciando sincronização diferencial do catálogo em $cleanDns...")
 
+            // Salva IDs favoritos existentes antes da atualização
+            val savedFavoriteIds = try {
+                channelDao.getFavoriteStreamIds()
+            } catch (e: Exception) {
+                emptyList()
+            }
+
             // 1. Busca Categorias
             val catUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_live_categories"
             val catRequest = Request.Builder().url(catUrl).build()
-            val catResponse = client.newCall(catRequest).execute()
+            client.newCall(catRequest).execute().use { catResponse ->
+                if (!catResponse.isSuccessful) {
+                    return@withContext Result.failure(Exception("Falha na API Xtream (Categorias): HTTP ${catResponse.code}"))
+                }
 
-            if (!catResponse.isSuccessful) {
-                return@withContext Result.failure(Exception("Falha na API Xtream: HTTP ${catResponse.code}"))
-            }
-
-            val catJson = JSONArray(catResponse.body?.string() ?: "[]")
-            val categoriesList = mutableListOf<CategoryEntity>()
-            for (i in 0 until catJson.length()) {
-                val item = catJson.getJSONObject(i)
-                categoriesList.add(
-                    CategoryEntity(
-                        categoryId = item.optString("category_id", "$i"),
-                        categoryName = item.optString("category_name", "Geral"),
-                        parentId = item.optInt("parent_id", 0)
+                val catJson = JSONArray(catResponse.body?.string() ?: "[]")
+                val categoriesList = mutableListOf<CategoryEntity>()
+                for (i in 0 until catJson.length()) {
+                    val item = catJson.getJSONObject(i)
+                    categoriesList.add(
+                        CategoryEntity(
+                            categoryId = item.optString("category_id", "$i"),
+                            categoryName = item.optString("category_name", "Geral"),
+                            parentId = item.optInt("parent_id", 0)
+                        )
                     )
-                )
+                }
+                channelDao.insertCategoriesBatch(categoriesList)
             }
-            channelDao.insertCategoriesBatch(categoriesList)
 
             // 2. Busca Canais Ao Vivo
             val liveUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_live_streams"
             val liveRequest = Request.Builder().url(liveUrl).build()
-            val liveResponse = client.newCall(liveRequest).execute()
+            client.newCall(liveRequest).execute().use { liveResponse ->
+                if (!liveResponse.isSuccessful) {
+                    return@withContext Result.failure(Exception("Falha ao obter canais: HTTP ${liveResponse.code}"))
+                }
 
-            if (!liveResponse.isSuccessful) {
-                return@withContext Result.failure(Exception("Falha ao obter canais: HTTP ${liveResponse.code}"))
-            }
+                val liveJson = JSONArray(liveResponse.body?.string() ?: "[]")
+                val channelsList = mutableListOf<ChannelEntity>()
 
-            val liveJson = JSONArray(liveResponse.body?.string() ?: "[]")
-            val channelsList = mutableListOf<ChannelEntity>()
-
-            for (i in 0 until liveJson.length()) {
-                val item = liveJson.getJSONObject(i)
-                channelsList.add(
-                    ChannelEntity(
-                        streamId = item.optInt("stream_id", i),
-                        num = item.optInt("num", i + 1),
-                        name = item.optString("name", "Canal $i"),
-                        streamIcon = item.optString("stream_icon").takeIf { it.isNotEmpty() },
-                        epgChannelId = item.optString("epg_channel_id").takeIf { it.isNotEmpty() },
-                        categoryId = item.optString("category_id", "0"),
-                        isFavorite = false
+                for (i in 0 until liveJson.length()) {
+                    val item = liveJson.getJSONObject(i)
+                    channelsList.add(
+                        ChannelEntity(
+                            streamId = item.optInt("stream_id", i),
+                            num = item.optInt("num", i + 1),
+                            name = item.optString("name", "Canal $i"),
+                            streamIcon = item.optString("stream_icon").takeIf { it.isNotEmpty() },
+                            epgChannelId = item.optString("epg_channel_id").takeIf { it.isNotEmpty() },
+                            categoryId = item.optString("category_id", "0"),
+                            isFavorite = false
+                        )
                     )
-                )
 
-                // Inserção em lotes de 2.000 para manter o consumo de RAM ultra baixo
-                if (channelsList.size >= 2000) {
+                    // Inserção em lotes de 2.000 para manter o consumo de RAM ultra baixo
+                    if (channelsList.size >= 2000) {
+                        channelDao.insertChannelsBatch(channelsList)
+                        channelsList.clear()
+                    }
+                }
+
+                if (channelsList.isNotEmpty()) {
                     channelDao.insertChannelsBatch(channelsList)
-                    channelsList.clear()
                 }
             }
 
-            if (channelsList.isNotEmpty()) {
-                channelDao.insertChannelsBatch(channelsList)
+            // Restaura favoritos salvos
+            if (savedFavoriteIds.isNotEmpty()) {
+                try {
+                    channelDao.markFavorites(savedFavoriteIds)
+                } catch (e: Exception) {
+                    Log.w("ZyveronRepo", "Erro ao restaurar canais favoritos", e)
+                }
             }
 
             val total = channelDao.getChannelCount()

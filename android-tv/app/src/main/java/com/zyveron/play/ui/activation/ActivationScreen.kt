@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +42,7 @@ import com.zyveron.play.ui.theme.BgSurfaceDark
 import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
 
 @Composable
 fun ActivationScreen(
@@ -50,6 +52,13 @@ fun ActivationScreen(
     onExit: () -> Unit
 ) {
     var isChecking by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isChecking) {
+        if (isChecking) {
+            delay(3000)
+            isChecking = false
+        }
+    }
 
     Box(
         modifier = Modifier

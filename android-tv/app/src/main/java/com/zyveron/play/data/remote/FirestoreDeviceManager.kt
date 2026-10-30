@@ -183,7 +183,8 @@ class FirestoreDeviceManager(private val context: Context) {
                             val status = snapshot.getString("status") ?: "active"
                             val expDateStr = snapshot.getString("expirationDate") ?: ""
                             val serverId = snapshot.getString("serverId") ?: ""
-                            val serverDns = snapshot.getString("serverDns") ?: "http://localhost:8080"
+                            val rawServerDns = snapshot.getString("serverDns") ?: ""
+                            val serverDns = UrlHelper.normalizeUrl(rawServerDns)
                             val username = snapshot.getString("username") ?: ""
                             val password = snapshot.getString("password") ?: ""
 
@@ -201,6 +202,9 @@ class FirestoreDeviceManager(private val context: Context) {
                                     password = password,
                                     expirationDate = expDateStr
                                 )
+                                if (serverId.isNotEmpty()) {
+                                    listenToServer(serverId, username, password, expDateStr, serverDns)
+                                }
                             }
                         } else {
                             Log.d("FirestoreDeviceManager", "Documento $virtualMac ainda não encontrado.")

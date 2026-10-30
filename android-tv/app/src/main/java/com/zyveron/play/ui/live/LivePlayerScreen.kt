@@ -5,6 +5,7 @@ import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -39,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -57,6 +60,7 @@ import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentRose
 import com.zyveron.play.ui.theme.AccentSky
 import com.zyveron.play.ui.theme.BgCardDark
+import com.zyveron.play.ui.theme.BgSurfaceDark
 import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
@@ -75,9 +79,26 @@ fun LivePlayerScreen(
     var currentChannelIndex by remember { mutableIntStateOf(0) }
     var showOsd by remember { mutableStateOf(true) }
     var showChannelList by remember { mutableStateOf(false) }
+    val channelListState = rememberLazyListState()
 
     val playbackState by playerManager.playbackState.collectAsState()
     val currentChannel = channels.getOrNull(currentChannelIndex)
+
+    // Interrompe reprodução ao sair da tela
+    DisposableEffect(Unit) {
+        onDispose {
+            playerManager.stop()
+        }
+    }
+
+    // Auto-scroll da lista de canais para o canal ativo
+    LaunchedEffect(showChannelList) {
+        if (showChannelList && currentChannelIndex in channels.indices) {
+            try {
+                channelListState.scrollToItem(currentChannelIndex)
+            } catch (_: Exception) {}
+        }
+    }
 
     // Toca o canal selecionado
     LaunchedEffect(currentChannelIndex, serverDns) {
@@ -107,48 +128,72 @@ fun LivePlayerScreen(
             .fillMaxSize()
             .background(Color.Black)
             .focusable()
-            .onKeyEvent { keyEvent ->
+            // Captura eventos de controle remoto prioritários (BACK, Zapping)
+            .onPreviewKeyEvent { keyEvent ->
                 if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                     when (keyEvent.nativeKeyEvent.keyCode) {
-                        KeyEvent.KEYCODE_DPAD_UP -> {
-                            // Zapping Rápido: Canal Anterior
-                            if (channels.isNotEmpty()) {
-                                currentChannelIndex = if (currentChannelIndex > 0) currentChannelIndex - 1 else channels.size - 1
-                            }
-                            true
-                        }
-                        KeyEvent.KEYCODE_DPAD_DOWN -> {
-                            // Zapping Rápido: Próximo Canal
-                            if (channels.isNotEmpty()) {
-                                currentChannelIndex = (currentChannelIndex + 1) % channels.size
-                            }
-                            true
-                        }
-                        KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                            // Abre a grade de canais
-                            showChannelList = !showChannelList
-                            true
-                        }
                         KeyEvent.KEYCODE_BACK -> {
                             if (showChannelList) {
                                 showChannelList = false
                                 true
                             } else {
+                                playerManager.stop()
                                 onBack()
                                 true
                             }
+                        }
+                        KeyEvent.KEYCODE_DPAD_UP -> {
+                            if (!showChannelList && playbackState !is PlaybackState.Error) {
+                                if (channels.isNotEmpty()) {
+                                    currentChannelIndex = if (currentChannelIndex > 0) currentChannelIndex - 1 else channels.size - 1
+                                    showOsd = true
+                                }
+                                true
+                            } else false
+                        }
+                        KeyEvent.KEYCODE_DPAD_DOWN -> {
+                            if (!showChannelList && playbackState !is PlaybackState.Error) {
+                                if (channels.isNotEmpty()) {
+                                    currentChannelIndex = (currentChannelIndex + 1) % channels.size
+                                    showOsd = true
+                                }
+                                true
+                            } else false
+                        }
+                        KeyEvent.KEYCODE_DPAD_LEFT -> {
+                            if (!showChannelList && playbackState !is PlaybackState.Error) {
+                                showChannelList = true
+                                true
+                            } else false
+                        }
+                        KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                            if (showChannelList) {
+                                showChannelList = false
+                                true
+                            } else false
+                        }
+                        else -> false
+                    }
+                } else false
+            }
+            .onKeyEvent { keyEvent ->
+                if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                    when (keyEvent.nativeKeyEvent.keyCode) {
+                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                            if (!showChannelList && playbackState !is PlaybackState.Error) {
+                                showChannelList = true
+                                true
+                            } else false
                         }
                         else -> {
                             showOsd = true
                             false
                         }
                     }
-                } else {
-                    false
-                }
+                } else false
             }
     ) {
-        // 1. Superfície do Player (Media3 / ExoPlayer) com proteção contra falhas de layout
+        // 1. Superfície do Player (Media3 / ExoPlayer)
         AndroidView(
             factory = { ctx ->
                 try {
@@ -165,7 +210,7 @@ fun LivePlayerScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // 2. Indicador discreto de Reconexão / Buffer no topo direito (Decisão 1.A)
+        // 2. Indicadores de Status (Buffering, Reconexão e Erro)
         when (val state = playbackState) {
             is PlaybackState.Buffering -> {
                 Box(
@@ -189,6 +234,7 @@ fun LivePlayerScreen(
                     }
                 }
             }
+
             is PlaybackState.Reconnecting -> {
                 Box(
                     modifier = Modifier
@@ -216,33 +262,131 @@ fun LivePlayerScreen(
                     }
                 }
             }
+
             is PlaybackState.Error -> {
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
+                        .width(520.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color.Black.copy(alpha = 0.9f))
+                        .background(BgCardDark.copy(alpha = 0.96f))
                         .border(1.dp, AccentRose.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                        .padding(24.dp)
+                        .padding(28.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = "⚠ Falha na Reprodução", color = AccentRose, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = state.message, color = TextSecondary, fontSize = 13.sp)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = { playerManager.retryCurrentStream() },
-                            colors = ButtonDefaults.colors(containerColor = AccentEmerald, contentColor = Color.Black)
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(AccentRose.copy(alpha = 0.15f))
+                                .border(1.dp, AccentRose.copy(alpha = 0.4f), CircleShape),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(text = "Tentar Novamente", fontWeight = FontWeight.Bold)
+                            Text(text = "⚠", color = AccentRose, fontSize = 20.sp)
                         }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = "Falha na Reprodução",
+                            color = AccentRose,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = state.message,
+                            color = TextSecondary,
+                            fontSize = 13.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        // Ações D-Pad no Erro: Tentar Novamente, Trocar Canal, Sair
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = { playerManager.retryCurrentStream() },
+                                colors = ButtonDefaults.colors(
+                                    containerColor = AccentEmerald,
+                                    focusedContainerColor = Color.White,
+                                    contentColor = Color.Black,
+                                    focusedContentColor = Color.Black
+                                ),
+                                shape = ButtonDefaults.shape(shape = RoundedCornerShape(10.dp))
+                            ) {
+                                Text(
+                                    text = "🔄 Tentar Novamente",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+
+                            Button(
+                                onClick = { showChannelList = true },
+                                colors = ButtonDefaults.colors(
+                                    containerColor = BgSurfaceDark,
+                                    focusedContainerColor = AccentSky,
+                                    contentColor = TextPrimary,
+                                    focusedContentColor = Color.Black
+                                ),
+                                border = ButtonDefaults.border(
+                                    border = Border(border = BorderStroke(1.dp, BorderDark)),
+                                    focusedBorder = Border(border = BorderStroke(2.dp, Color.White))
+                                ),
+                                shape = ButtonDefaults.shape(shape = RoundedCornerShape(10.dp))
+                            ) {
+                                Text(
+                                    text = "📺 Trocar Canal",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    playerManager.stop()
+                                    onBack()
+                                },
+                                colors = ButtonDefaults.colors(
+                                    containerColor = BgSurfaceDark,
+                                    focusedContainerColor = AccentRose,
+                                    contentColor = TextSecondary,
+                                    focusedContentColor = Color.White
+                                ),
+                                border = ButtonDefaults.border(
+                                    border = Border(border = BorderStroke(1.dp, BorderDark)),
+                                    focusedBorder = Border(border = BorderStroke(2.dp, Color.White))
+                                ),
+                                shape = ButtonDefaults.shape(shape = RoundedCornerShape(10.dp))
+                            ) {
+                                Text(
+                                    text = "✕ Sair",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Dica: Pressione BACK no controle para sair • ◄ Lista de Canais",
+                            color = TextSecondary.copy(alpha = 0.7f),
+                            fontSize = 11.sp
+                        )
                     }
                 }
             }
             else -> {}
         }
 
-        // 3. OSD Overlay Inferior de Zapping Rápido
+        // 3. OSD Inferior de Zapping Rápido
         AnimatedVisibility(
             visible = showOsd && !showChannelList,
             enter = fadeIn(),
@@ -296,7 +440,7 @@ fun LivePlayerScreen(
                                 )
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text(
-                                    text = "▲ ▼ Trocar de Canal  •  ◄ Abrir Lista de Canais",
+                                    text = "▲ ▼ Trocar de Canal  •  ◄ Grade de Canais  •  BACK Sair",
                                     color = TextSecondary,
                                     fontSize = 12.sp
                                 )
@@ -304,7 +448,7 @@ fun LivePlayerScreen(
                         }
 
                         Text(
-                            text = "FHD 1080p",
+                            text = "LIVE",
                             color = AccentSky,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
@@ -328,26 +472,40 @@ fun LivePlayerScreen(
                 modifier = Modifier
                     .fillMaxHeight()
                     .width(360.dp)
-                    .background(BgCardDark.copy(alpha = 0.96f))
+                    .background(BgCardDark.copy(alpha = 0.98f))
                     .border(1.dp, BorderDark)
                     .padding(20.dp)
             ) {
                 Column {
-                    Text(
-                        text = "Grade de Canais",
-                        color = TextPrimary,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "${channels.size} canais disponíveis",
-                        color = TextSecondary,
-                        fontSize = 11.sp
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Grade de Canais",
+                                color = TextPrimary,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "${channels.size} canais disponíveis",
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                        Text(
+                            text = "BACK Fechar",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
                     LazyColumn(
+                        state = channelListState,
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         itemsIndexed(channels) { index, ch ->
@@ -365,8 +523,8 @@ fun LivePlayerScreen(
                                     focusedContentColor = Color.Black
                                 ),
                                 border = ButtonDefaults.border(
-                                    border = Border(border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) AccentEmerald.copy(alpha = 0.4f) else Color.Transparent)),
-                                    focusedBorder = Border(border = androidx.compose.foundation.BorderStroke(2.dp, Color.White))
+                                    border = Border(border = BorderStroke(1.dp, if (isSelected) AccentEmerald.copy(alpha = 0.4f) else Color.Transparent)),
+                                    focusedBorder = Border(border = BorderStroke(2.dp, Color.White))
                                 ),
                                 shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp))
                             ) {
@@ -398,4 +556,3 @@ fun LivePlayerScreen(
         }
     }
 }
-

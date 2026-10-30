@@ -31,6 +31,12 @@ interface ChannelDao {
     @Query("SELECT COUNT(*) FROM channels")
     suspend fun getChannelCount(): Int
 
+    @Query("SELECT streamId FROM channels WHERE isFavorite = 1")
+    suspend fun getFavoriteStreamIds(): List<Int>
+
+    @Query("UPDATE channels SET isFavorite = 1 WHERE streamId IN (:ids)")
+    suspend fun markFavorites(ids: List<Int>)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChannelsBatch(channels: List<ChannelEntity>)
 

@@ -40,6 +40,7 @@ sealed class PlaybackState {
 @OptIn(UnstableApi::class)
 class ZyveronPlayerManager(private val context: Context) {
 
+    @Volatile
     private var exoPlayer: ExoPlayer? = null
     private val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
         Log.e("ZyveronPlayer", "Erro não tratado no CoroutineScope do player", throwable)
@@ -209,13 +210,19 @@ class ZyveronPlayerManager(private val context: Context) {
             val rawUrl = currentStreamUrl ?: return
             val url = UrlHelper.normalizeUrl(rawUrl)
             if (url.isBlank()) return
+            _playbackState.value = PlaybackState.Buffering
             val player = getPlayer()
+            player.stop()
             val mediaItem = MediaItem.fromUri(Uri.parse(url))
             player.setMediaItem(mediaItem)
             player.prepare()
             player.playWhenReady = true
         } catch (e: Exception) {
             Log.e("ZyveronPlayer", "Erro no retryCurrentStream", e)
+            _playbackState.value = PlaybackState.Error(
+                message = "Falha ao reiniciar stream: ${e.localizedMessage ?: e.javaClass.simpleName}",
+                canRetry = true
+            )
         }
     }
 
