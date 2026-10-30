@@ -13,13 +13,11 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.exoplayer.source.MediaSource
-import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
-import androidx.media3.extractor.ts.TsExtractor
+import com.zyveron.play.util.UrlHelper
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -43,7 +41,10 @@ sealed class PlaybackState {
 class ZyveronPlayerManager(private val context: Context) {
 
     private var exoPlayer: ExoPlayer? = null
-    private val scope = CoroutineScope(Dispatchers.Main)
+    private val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        Log.e("ZyveronPlayer", "Erro não tratado no CoroutineScope do player", throwable)
+    }
+    private val scope = CoroutineScope(Dispatchers.Main + coroutineExceptionHandler)
     private var reconnectJob: Job? = null
 
     private val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
@@ -66,41 +67,47 @@ class ZyveronPlayerManager(private val context: Context) {
     }
 
     private fun createPlayer(): ExoPlayer {
-        // 1. Buffer Inteligente para TV: Início ultra-rápido (~1.5s) e absorção de oscilações
-        val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                2500,  // Mínimo de buffer (ms)
-                15000, // Máximo de buffer (ms)
-                1500,  // Buffer para iniciar reprodução imediatamente no Zapping
-                3000   // Buffer após re-buffer
-            )
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .build()
+        try {
+            // 1. Buffer Inteligente para TV: Início ultra-rápido (~1.5s) e absorção de oscilações
+            val loadControl = DefaultLoadControl.Builder()
+                .setBufferDurationsMs(
+                    2500,  // Mínimo de buffer (ms)
+                    15000, // Máximo de buffer (ms)
+                    1500,  // Buffer para iniciar reprodução imediatamente no Zapping
+                    3000   // Buffer após re-buffer
+                )
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
 
-        // 2. Tolerância a falhas MPEG-TS e resets de PCR/PTS em IPTV ao vivo
-        val extractorsFactory = DefaultExtractorsFactory().apply {
-            setTsExtractorFlags(
-                DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
-                DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS
-            )
-            setTsExtractorMode(TsExtractor.MODE_SINGLE_PMT)
-        }
+            // 2. Tolerância a falhas MPEG-TS e resets de PCR/PTS em IPTV ao vivo (Multi-PMT padrão)
+            val extractorsFactory = DefaultExtractorsFactory().apply {
+                setTsExtractorFlags(
+                    DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
+                    DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS
+                )
+            }
 
-        // 3. User-Agent e Headers customizados para contornar bloqueios HTTP 403
-        val httpDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
-            .setUserAgent("ZyveronPlayTV/1.0 (Linux; Android TV; Media3 ExoPlayer)")
+            // 3. User-Agent e Headers customizados para contornar bloqueios HTTP 403
+            val httpDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
+                .setUserAgent("ZyveronPlayTV/1.0 (Linux; Android TV; Media3 ExoPlayer)")
 
-        val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory, extractorsFactory)
+            val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory, extractorsFactory)
 
-        return ExoPlayer.Builder(context)
-            .setLoadControl(loadControl)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .setHandleAudioBecomingNoisy(true)
-            .setWakeMode(C.WAKE_MODE_NETWORK)
-            .build()
-            .apply {
+            val builder = ExoPlayer.Builder(context.applicationContext)
+                .setLoadControl(loadControl)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .setHandleAudioBecomingNoisy(true)
+
+            return builder.build().apply {
                 addListener(createPlayerListener())
             }
+        } catch (e: Exception) {
+            Log.e("ZyveronPlayer", "Falha na criação do ExoPlayer customizado, usando fallback padrão", e)
+            // Fallback seguro caso o dispositivo TV Box tenha alguma limitação
+            return ExoPlayer.Builder(context.applicationContext).build().apply {
+                addListener(createPlayerListener())
+            }
+        }
     }
 
     private fun createPlayerListener() = object : Player.Listener {
@@ -137,11 +144,11 @@ class ZyveronPlayerManager(private val context: Context) {
      * Executa a decisão 1.A: Reconexão gradual silenciosa com Exponential Backoff
      */
     private fun handlePlaybackError(errorMsg: String) {
-        if (reconnectAttempts < maxReconnectAttempts && currentStreamUrl != null) {
+        if (reconnectAttempts < maxReconnectAttempts && !currentStreamUrl.isNullOrBlank()) {
             reconnectAttempts++
             val delayMs = backoffIntervals.getOrElse(reconnectAttempts - 1) { 5000L }
             _playbackState.value = PlaybackState.Reconnecting(reconnectAttempts, maxReconnectAttempts)
-            
+
             Log.d("ZyveronPlayer", "Tentativa silenciosa $reconnectAttempts/$maxReconnectAttempts em ${delayMs}ms...")
 
             reconnectJob?.cancel()
@@ -158,46 +165,78 @@ class ZyveronPlayerManager(private val context: Context) {
     }
 
     fun playStream(url: String, title: String) {
-        reconnectJob?.cancel()
-        reconnectAttempts = 0
-        currentStreamUrl = url
-        currentStreamTitle = title
-        _playbackState.value = PlaybackState.Buffering
+        try {
+            reconnectJob?.cancel()
+            reconnectAttempts = 0
+            currentStreamUrl = url
+            currentStreamTitle = title
 
-        val player = getPlayer()
-        player.stop()
+            val normalizedUrl = UrlHelper.normalizeUrl(url)
+            if (normalizedUrl.isBlank()) {
+                Log.w("ZyveronPlayer", "URL vazia ou não configurada para stream.")
+                _playbackState.value = PlaybackState.Error(
+                    message = "Servidor ou canal não configurado no painel web.",
+                    canRetry = false
+                )
+                return
+            }
 
-        val mediaItem = MediaItem.Builder()
-            .setUri(Uri.parse(url))
-            .setMediaId(url)
-            .build()
+            _playbackState.value = PlaybackState.Buffering
 
-        player.setMediaItem(mediaItem)
-        player.prepare()
-        player.playWhenReady = true
-        Log.d("ZyveronPlayer", "Iniciando canal: $title [$url]")
+            val player = getPlayer()
+            player.stop()
+
+            val mediaItem = MediaItem.Builder()
+                .setUri(Uri.parse(normalizedUrl))
+                .setMediaId(normalizedUrl)
+                .build()
+
+            player.setMediaItem(mediaItem)
+            player.prepare()
+            player.playWhenReady = true
+            Log.d("ZyveronPlayer", "Iniciando canal: $title [$normalizedUrl]")
+        } catch (e: Exception) {
+            Log.e("ZyveronPlayer", "Erro ao executar playStream", e)
+            _playbackState.value = PlaybackState.Error(
+                message = "Falha ao inicializar stream: ${e.localizedMessage ?: e.javaClass.simpleName}",
+                canRetry = true
+            )
+        }
     }
 
     fun retryCurrentStream() {
-        val url = currentStreamUrl ?: return
-        val player = getPlayer()
-        val mediaItem = MediaItem.fromUri(Uri.parse(url))
-        player.setMediaItem(mediaItem)
-        player.prepare()
-        player.playWhenReady = true
+        try {
+            val rawUrl = currentStreamUrl ?: return
+            val url = UrlHelper.normalizeUrl(rawUrl)
+            if (url.isBlank()) return
+            val player = getPlayer()
+            val mediaItem = MediaItem.fromUri(Uri.parse(url))
+            player.setMediaItem(mediaItem)
+            player.prepare()
+            player.playWhenReady = true
+        } catch (e: Exception) {
+            Log.e("ZyveronPlayer", "Erro no retryCurrentStream", e)
+        }
     }
 
     fun stop() {
-        reconnectJob?.cancel()
-        exoPlayer?.stop()
-        _playbackState.value = PlaybackState.Idle
+        try {
+            reconnectJob?.cancel()
+            exoPlayer?.stop()
+            _playbackState.value = PlaybackState.Idle
+        } catch (e: Exception) {
+            Log.e("ZyveronPlayer", "Erro ao parar player", e)
+        }
     }
 
     fun release() {
-        reconnectJob?.cancel()
-        exoPlayer?.release()
-        exoPlayer = null
-        _playbackState.value = PlaybackState.Idle
+        try {
+            reconnectJob?.cancel()
+            exoPlayer?.release()
+            exoPlayer = null
+            _playbackState.value = PlaybackState.Idle
+        } catch (e: Exception) {
+            Log.e("ZyveronPlayer", "Erro ao liberar player", e)
+        }
     }
 }
-

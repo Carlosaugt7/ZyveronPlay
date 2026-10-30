@@ -13,6 +13,9 @@ interface ChannelDao {
     @Query("SELECT * FROM categories ORDER BY categoryName ASC")
     fun getAllCategories(): Flow<List<CategoryEntity>>
 
+    @Query("SELECT * FROM channels ORDER BY num ASC")
+    fun getAllChannels(): Flow<List<ChannelEntity>>
+
     @Query("SELECT * FROM channels WHERE categoryId = :catId ORDER BY num ASC")
     fun getChannelsByCategory(catId: String): Flow<List<ChannelEntity>>
 

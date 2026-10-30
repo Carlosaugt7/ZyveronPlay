@@ -5,6 +5,8 @@ import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.zyveron.play.util.DeviceIdentityHelper
+import com.zyveron.play.util.UrlHelper
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,7 +42,9 @@ data class TvBroadcastMessage(
 class FirestoreDeviceManager(private val context: Context) {
 
     private val firestore = FirebaseFirestore.getInstance()
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val scope = CoroutineScope(Dispatchers.IO + CoroutineExceptionHandler { _, err ->
+        Log.e("FirestoreDeviceManager", "Erro no escopo coroutines", err)
+    })
 
     private val _authState = MutableStateFlow<DeviceAuthState>(DeviceAuthState.Loading)
     val authState: StateFlow<DeviceAuthState> = _authState.asStateFlow()
@@ -75,7 +79,8 @@ class FirestoreDeviceManager(private val context: Context) {
                 val status = snapshot.getString("status") ?: "active"
                 val expDateStr = snapshot.getString("expirationDate") ?: ""
                 val serverId = snapshot.getString("serverId") ?: ""
-                val serverDns = snapshot.getString("serverDns") ?: "http://localhost:8080"
+                val rawServerDns = snapshot.getString("serverDns") ?: ""
+                val serverDns = UrlHelper.normalizeUrl(rawServerDns)
                 val username = snapshot.getString("username") ?: ""
                 val password = snapshot.getString("password") ?: ""
 
@@ -126,7 +131,7 @@ class FirestoreDeviceManager(private val context: Context) {
                     return@addSnapshotListener
                 }
 
-                val activeDns = snapshot?.getString("activeDns") ?: fallbackDnsUrl
+                val activeDns = UrlHelper.normalizeUrl(snapshot?.getString("activeDns") ?: fallbackDnsUrl)
                 @Suppress("UNCHECKED_CAST")
                 val fallbackDns = (snapshot?.get("fallbackDns") as? List<String>) ?: emptyList()
 
@@ -221,15 +226,26 @@ class FirestoreDeviceManager(private val context: Context) {
     }
 
     private fun isExpired(dateStr: String): Boolean {
-        if (dateStr.isEmpty()) return false
-        return try {
-            val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
-            format.timeZone = TimeZone.getTimeZone("UTC")
-            val date = format.parse(dateStr)
-            date != null && date.before(Date())
-        } catch (e: Exception) {
-            false
+        if (dateStr.isBlank()) return false
+        val patterns = listOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd"
+        )
+        for (pattern in patterns) {
+            try {
+                val format = SimpleDateFormat(pattern, Locale.US)
+                format.timeZone = TimeZone.getTimeZone("UTC")
+                val date = format.parse(dateStr)
+                if (date != null) {
+                    return date.before(Date())
+                }
+            } catch (_: Exception) {
+                // Tenta próximo padrão
+            }
         }
+        return false
     }
 }
 

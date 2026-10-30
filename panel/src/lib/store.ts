@@ -29,6 +29,15 @@ const INITIAL_DEVICES: DeviceDocument[] = [];
 const INITIAL_LOGS: CreditLogDocument[] = [];
 const INITIAL_NOTIFICATIONS: NotificationDocument[] = [];
 
+function normalizeDnsUrl(url: string): string {
+  let clean = (url || "").trim().replace(/\/+$/, "");
+  if (!clean) return "";
+  if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
+    clean = "http://" + clean;
+  }
+  return clean;
+}
+
 // Gerenciador em memória persistido no localStorage (Client-Side)
 class LocalStore {
   private servers: ServerDocument[] = INITIAL_SERVERS;
@@ -91,8 +100,8 @@ class LocalStore {
     this.init();
     const srv = this.servers.find(s => s.id === serverId);
     if (!srv) throw new Error("Servidor não encontrado.");
-    srv.activeDns = newDns;
-    if (fallbacks) srv.fallbackDns = fallbacks;
+    srv.activeDns = normalizeDnsUrl(newDns);
+    if (fallbacks) srv.fallbackDns = fallbacks.map(normalizeDnsUrl);
     srv.updatedAt = new Date().toISOString();
     this.save();
     FirestoreSync.syncServerToFirestore(srv);
@@ -101,11 +110,12 @@ class LocalStore {
 
   addServer(name: string, activeDns: string, fallbackDns: string[], notes: string = ""): ServerDocument {
     this.init();
+    const cleanDns = normalizeDnsUrl(activeDns);
     const newServer: ServerDocument = {
       id: "srv-" + Math.random().toString(36).substring(2, 9),
       name,
-      activeDns,
-      fallbackDns,
+      activeDns: cleanDns,
+      fallbackDns: fallbackDns.map(normalizeDnsUrl),
       status: "active",
       notes,
       deviceCount: 0,
@@ -169,7 +179,7 @@ class LocalStore {
 
     const server = this.servers.find(s => s.id === serverId);
     const serverName = server ? server.name : "Servidor Padrão";
-    const serverDns = server ? server.activeDns : "http://localhost:8080";
+    const serverDns = server ? normalizeDnsUrl(server.activeDns) : "http://localhost:8080";
 
     // Calcula data de expiração (hoje + 30 dias * meses)
     const exp = new Date();

@@ -83,8 +83,13 @@ fun LivePlayerScreen(
     LaunchedEffect(currentChannelIndex, serverDns) {
         val ch = channels.getOrNull(currentChannelIndex)
         if (ch != null) {
-            val streamUrl = ch.directSourceUrl ?: "$serverDns/live/$username/$password/${ch.streamId}.ts"
-            playerManager.playStream(streamUrl, ch.name)
+            val streamUrl = ch.directSourceUrl ?: if (serverDns.isNotBlank()) {
+                "$serverDns/live/$username/$password/${ch.streamId}.ts"
+            } else ""
+
+            if (streamUrl.isNotBlank()) {
+                playerManager.playStream(streamUrl, ch.name)
+            }
             showOsd = true
         }
     }
@@ -143,13 +148,18 @@ fun LivePlayerScreen(
                 }
             }
     ) {
-        // 1. Superfície do Player (Media3 / ExoPlayer)
+        // 1. Superfície do Player (Media3 / ExoPlayer) com proteção contra falhas de layout
         AndroidView(
             factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = playerManager.getPlayer()
-                    useController = false
-                    keepScreenOn = true
+                try {
+                    PlayerView(ctx).apply {
+                        player = playerManager.getPlayer()
+                        useController = false
+                        keepScreenOn = true
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("LivePlayerScreen", "Erro ao inicializar PlayerView", e)
+                    android.view.View(ctx)
                 }
             },
             modifier = Modifier.fillMaxSize()
@@ -258,7 +268,7 @@ fun LivePlayerScreen(
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = String.format("%03d", currentChannel.num),
+                                    text = currentChannel.num.toString().padStart(3, '0'),
                                     color = AccentEmerald,
                                     fontSize = 28.sp,
                                     fontFamily = FontFamily.Monospace,
@@ -367,7 +377,7 @@ fun LivePlayerScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = String.format("%03d", ch.num),
+                                        text = ch.num.toString().padStart(3, '0'),
                                         fontFamily = FontFamily.Monospace,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold

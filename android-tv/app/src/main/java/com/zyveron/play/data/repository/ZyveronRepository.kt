@@ -6,6 +6,7 @@ import com.zyveron.play.data.local.CategoryEntity
 import com.zyveron.play.data.local.ChannelDao
 import com.zyveron.play.data.local.ChannelEntity
 import com.zyveron.play.data.local.ZyveronDatabase
+import com.zyveron.play.util.UrlHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -24,6 +25,8 @@ class ZyveronRepository(context: Context) {
 
     // 1. Decisão 2.A: Exposição Cache-First imediata
     fun getCategories(): Flow<List<CategoryEntity>> = channelDao.getAllCategories()
+
+    fun getAllChannels(): Flow<List<ChannelEntity>> = channelDao.getAllChannels()
 
     fun getChannelsByCategory(categoryId: String): Flow<List<ChannelEntity>> =
         channelDao.getChannelsByCategory(categoryId)
@@ -48,8 +51,8 @@ class ZyveronRepository(context: Context) {
         password: String,
         streamId: Int
     ): String {
-        val cleanDns = serverDns.trimEnd('/')
-        return "$cleanDns/live/$username/$password/$streamId.ts"
+        val cleanDns = UrlHelper.normalizeUrl(serverDns)
+        return if (cleanDns.isNotBlank()) "$cleanDns/live/$username/$password/$streamId.ts" else ""
     }
 
     /**
@@ -61,7 +64,12 @@ class ZyveronRepository(context: Context) {
         password: String
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
-            val cleanDns = serverDns.trimEnd('/')
+            val cleanDns = UrlHelper.normalizeUrl(serverDns)
+            if (cleanDns.isBlank() || username.isBlank()) {
+                Log.w("ZyveronRepo", "DNS ou usuário ausente para sincronização.")
+                return@withContext Result.failure(IllegalArgumentException("DNS ou usuário não configurado"))
+            }
+
             Log.d("ZyveronRepo", "Iniciando sincronização diferencial do catálogo em $cleanDns...")
 
             // 1. Busca Categorias

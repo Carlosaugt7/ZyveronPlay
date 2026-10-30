@@ -26,6 +26,7 @@ import com.zyveron.play.ui.components.TvNotificationOverlay
 import com.zyveron.play.ui.live.LivePlayerScreen
 import com.zyveron.play.ui.theme.BgDeepDark
 import com.zyveron.play.ui.theme.ZyveronTvTheme
+import com.zyveron.play.util.UrlHelper
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -72,8 +73,8 @@ fun MainContent(
     val authState by deviceManager.authState.collectAsState()
     val activeBroadcast by deviceManager.activeBroadcast.collectAsState()
 
-    // 1. Decisão 2.A: Cache-First local com canais observados do SQLite
-    val localChannels by repository.getChannelsByCategory("0").collectAsState(initial = emptyList())
+    // 1. Decisão 2.A: Cache-First local com todos os canais observados do SQLite
+    val localChannels by repository.getAllChannels().collectAsState(initial = emptyList())
 
     // Mock inicial caso o banco ainda esteja sendo populado
     val displayChannels = if (localChannels.isNotEmpty()) {
@@ -129,19 +130,29 @@ fun MainContent(
             }
 
             is DeviceAuthState.Active -> {
-                // Inicia sincronização do catálogo em segundo plano sem travar a TV
-                LaunchedEffect(state.serverDns, state.username) {
-                    repository.syncXtreamCatalog(
-                        serverDns = state.serverDns,
-                        username = state.username,
-                        password = state.password
-                    )
+                val cleanDns = remember(state.serverDns) {
+                    UrlHelper.normalizeUrl(state.serverDns)
+                }
+
+                // Inicia sincronização do catálogo em segundo plano se o DNS for válido
+                LaunchedEffect(cleanDns, state.username) {
+                    if (cleanDns.isNotBlank() && state.username.isNotBlank()) {
+                        try {
+                            repository.syncXtreamCatalog(
+                                serverDns = cleanDns,
+                                username = state.username,
+                                password = state.password
+                            )
+                        } catch (e: Exception) {
+                            android.util.Log.e("MainActivity", "Erro silencioso na sincronização: ${e.message}")
+                        }
+                    }
                 }
 
                 LivePlayerScreen(
                     playerManager = playerManager,
                     channels = displayChannels,
-                    serverDns = state.serverDns,
+                    serverDns = cleanDns,
                     username = state.username,
                     password = state.password,
                     onBack = onFinish
