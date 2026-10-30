@@ -6,8 +6,13 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [ChannelEntity::class, CategoryEntity::class],
-    version = 1,
+    entities = [
+        ChannelEntity::class,
+        CategoryEntity::class,
+        VodEntity::class,
+        SeriesEntity::class
+    ],
+    version = 2,
     exportSchema = false
 )
 abstract class ZyveronDatabase : RoomDatabase() {
@@ -33,4 +38,3 @@ abstract class ZyveronDatabase : RoomDatabase() {
         }
     }
 }
-

@@ -1,14 +1,8 @@
 package com.zyveron.play.ui.home
 
-import android.view.KeyEvent
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,12 +17,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,13 +29,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,8 +41,14 @@ import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
-import com.zyveron.play.data.local.ChannelEntity
+import coil.compose.AsyncImage
+import com.zyveron.play.data.local.SeriesEntity
+import com.zyveron.play.data.local.VodEntity
+import com.zyveron.play.data.model.SportsMatch
+import com.zyveron.play.data.model.SportsMatchProvider
+import com.zyveron.play.data.repository.ZyveronRepository
 import com.zyveron.play.ui.theme.AccentEmerald
+import com.zyveron.play.ui.theme.AccentRose
 import com.zyveron.play.ui.theme.AccentSky
 import com.zyveron.play.ui.theme.BgCardDark
 import com.zyveron.play.ui.theme.BgDeepDark
@@ -59,179 +56,110 @@ import com.zyveron.play.ui.theme.BgSurfaceDark
 import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
-import com.zyveron.play.util.ContentSafetyFilter
 import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
-
-data class MatchItem(
-    val teamA: String,
-    val teamB: String,
-    val time: String,
-    val league: String
-)
-
-data class FeaturedItem(
-    val title: String,
-    val type: String, // "Filme" ou "Série"
-    val category: String
-)
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun HomeScreen(
-    serverName: String,
-    channels: List<ChannelEntity>,
-    onOpenLiveTv: () -> Unit,
-    onOpenMovies: () -> Unit,
-    onOpenSeries: () -> Unit,
-    onOpenSports: () -> Unit,
-    onOpenAccounts: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onReloadCatalog: () -> Unit,
-    onExit: () -> Unit = {}
+    repository: ZyveronRepository,
+    onNavigateLiveTv: () -> Unit,
+    onNavigateMovies: () -> Unit,
+    onNavigateSeries: () -> Unit,
+    onNavigateSports: () -> Unit,
+    onNavigateAccounts: () -> Unit,
+    onNavigateSettings: () -> Unit,
+    onRefreshCatalog: () -> Unit,
+    onPlayVod: (VodEntity) -> Unit
 ) {
-    // Relógio em tempo real
-    var currentTime by remember { mutableStateOf("") }
-    var greeting by remember { mutableStateOf("Boa tarde") }
+    val liveCount by repository.liveCount.collectAsState()
+    val vodCount by repository.vodCount.collectAsState()
+    val seriesCount by repository.seriesCount.collectAsState()
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            val now = Calendar.getInstance()
-            currentTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-            val hour = now.get(Calendar.HOUR_OF_DAY)
-            greeting = when (hour) {
-                in 5..11 -> "Bom dia"
-                in 12..17 -> "Boa tarde"
-                else -> "Boa noite"
-            }
-            delay(15000)
+    val featuredVods by repository.getFeaturedVods().collectAsState(initial = emptyList())
+    val featuredSeries by repository.getFeaturedSeries().collectAsState(initial = emptyList())
+    val matches = remember { SportsMatchProvider.getTodayMatches() }
+
+    // Relógio e Saudação Dinâmica
+    var currentTime by remember { mutableStateOf(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))) }
+    val greeting = remember(currentTime) {
+        val hour = LocalTime.now().hour
+        when {
+            hour in 5..11 -> "Bom dia"
+            hour in 12..17 -> "Boa tarde"
+            else -> "Boa noite"
         }
     }
 
-    // Filtra canais seguros para métricas e exibições
-    val safeChannels = remember(channels) {
-        channels.filter { ContentSafetyFilter.isSafe(it.name, it.categoryId) }
-    }
-
-    val sportsChannels = remember(safeChannels) {
-        safeChannels.filter { ContentSafetyFilter.isSportsChannel(it.name, it.categoryId) }
-    }
-
-    // Lista de Jogos do Dia
-    val matches = remember {
-        listOf(
-            MatchItem("Flamengo", "Palmeiras", "16:00", "Brasileirão Série A"),
-            MatchItem("Real Madrid", "Barcelona", "17:00", "LaLiga Santander"),
-            MatchItem("Liverpool", "Man. City", "17:30", "Premier League"),
-            MatchItem("São Paulo", "Corinthians", "18:30", "Brasileirão Série A"),
-            MatchItem("UFC Fight Night", "Ao Vivo", "20:00", "Combate Oficial")
-        )
-    }
-
-    // Lista de Destaques Família (Seguros - Zero Conteúdo Adulto)
-    val featuredList = remember {
-        listOf(
-            FeaturedItem("Velozes & Furiosos 10", "Filme", "Ação / Aventura"),
-            FeaturedItem("Duna: Parte 2", "Filme", "Ficção Científica"),
-            FeaturedItem("House of the Dragon", "Série", "Fantasia / Drama"),
-            FeaturedItem("Oppenheimer", "Filme", "Histórico / Drama"),
-            FeaturedItem("The Last of Us", "Série", "Ação / Suspense"),
-            FeaturedItem("Planeta Terra III", "Série", "Documentário 4K")
-        )
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(10000)
+            currentTime = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+        }
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(BgDeepDark)
-            .onPreviewKeyEvent {
-                if (it.nativeKeyEvent.action == KeyEvent.ACTION_DOWN &&
-                    it.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_BACK
-                ) {
-                    onExit()
-                    true
-                } else false
-            }
+            .padding(horizontal = 36.dp, vertical = 20.dp)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 36.dp, vertical = 24.dp)
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // 1. BARRA SUPERIOR (HEADER)
+            // 1. TOP HEADER (Sem DNS nem Nome de Servidor, Limpo com Relógio)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Esquerda: Nome do Servidor
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(AccentEmerald)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (serverName.isNotBlank()) serverName else "Zyveron Play",
-                        color = TextPrimary,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                // Espaçador esquerdo invisível para manter equilíbrio
+                Spacer(modifier = Modifier.width(80.dp))
 
-                // Centro: Nome e Logo do Aplicativo
+                // Logo Central Zyveron Play
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
-                            .clip(RoundedCornerShape(6.dp))
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
                             .background(AccentEmerald.copy(alpha = 0.2f))
-                            .border(1.dp, AccentEmerald.copy(alpha = 0.5f), RoundedCornerShape(6.dp)),
+                            .border(1.dp, AccentEmerald.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "▶", color = AccentEmerald, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "▶", color = AccentEmerald, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Zyveron ", color = TextPrimary, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                    Text(text = "Play", color = AccentEmerald, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(text = "Zyveron ", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "Play", color = AccentEmerald, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 }
 
-                // Direita: Horário e Clima
+                // Relógio e Ícone Clima à Direita
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = if (currentTime.isNotBlank()) currentTime else "15:00",
+                        text = currentTime,
                         color = TextPrimary,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                        fontSize = 18.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "⛅ 24°C", color = AccentSky, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(text = "⛅ 26°C", color = TextSecondary, fontSize = 13.sp)
                 }
             }
-
-            Spacer(modifier = Modifier.height(20.dp))
 
             // 2. BANNER DE BOAS-VINDAS
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(
                         Brush.horizontalGradient(
-                            listOf(
-                                BgCardDark,
-                                Color(0xFF0F1A28)
-                            )
+                            listOf(BgCardDark, BgSurfaceDark.copy(alpha = 0.7f))
                         )
                     )
-                    .border(1.dp, BorderDark, RoundedCornerShape(16.dp))
-                    .padding(horizontal = 24.dp, vertical = 18.dp)
+                    .border(1.dp, BorderDark, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 24.dp, vertical = 14.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -240,164 +168,325 @@ fun HomeScreen(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(text = "👋", fontSize = 28.sp)
-                        Spacer(modifier = Modifier.width(16.dp))
+                        Spacer(modifier = Modifier.width(14.dp))
                         Column {
                             Text(
                                 text = greeting,
                                 color = TextPrimary,
-                                fontSize = 19.sp,
+                                fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Escolha uma seção abaixo para começar a assistir no Zyveron Play.",
+                                text = "Escolha uma seção abaixo para começar a assistir Zyveron Play.",
                                 color = TextSecondary,
                                 fontSize = 12.sp
                             )
                         }
                     }
 
-                    // Indicadores discretos de carrossel
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(AccentSky))
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(BorderDark))
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(BorderDark))
+                    // Indicador de Status Conectado
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(AccentEmerald)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(text = "Sinal Estável", color = AccentEmerald, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(22.dp))
-
-            // 3. JOGOS DO DIA
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "⚽", fontSize = 14.sp)
-                Spacer(modifier = Modifier.width(8.dp))
+            // 3. JOGOS DO DIA (Com Horários Sincronizados com o Dia)
+            Column {
                 Text(
-                    text = "JOGOS DO DIA",
+                    text = "⚽ JOGOS DO DIA",
+                    color = AccentSky,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(end = 16.dp)
+                ) {
+                    items(matches) { match ->
+                        Button(
+                            onClick = onNavigateSports,
+                            colors = ButtonDefaults.colors(
+                                containerColor = BgCardDark,
+                                focusedContainerColor = AccentSky,
+                                contentColor = TextPrimary,
+                                focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(
+                                border = Border(BorderStroke(1.dp, BorderDark)),
+                                focusedBorder = Border(BorderStroke(2.dp, Color.White))
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(12.dp)),
+                            contentPadding = PaddingValues(10.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.width(170.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = match.league,
+                                        fontSize = 9.sp,
+                                        color = TextSecondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = match.time,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AccentEmerald
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = match.homeTeam,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(text = "x", fontSize = 11.sp, color = TextSecondary)
+                                    Text(
+                                        text = match.awayTeam,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. EM DESTAQUE (Filmes e Séries Seguros / Anti-Adultos)
+            Column {
+                Text(
+                    text = "⭐ EM DESTAQUE",
                     color = AccentEmerald,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                contentPadding = PaddingValues(end = 20.dp)
-            ) {
-                items(matches) { match ->
-                    MatchCard(match = match, onClick = onOpenSports)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(22.dp))
-
-            // 4. EM DESTAQUE (FILMES E SÉRIES FAMÍLIA)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "⭐", fontSize = 13.sp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "EM DESTAQUE",
-                    color = AccentSky,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                contentPadding = PaddingValues(end = 20.dp)
-            ) {
-                items(featuredList) { item ->
-                    FeaturedCard(
-                        item = item,
-                        onClick = {
-                            if (item.type == "Filme") onOpenMovies() else onOpenSeries()
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(end = 16.dp)
+                ) {
+                    items(featuredVods.take(8)) { vod ->
+                        Button(
+                            onClick = { onPlayVod(vod) },
+                            colors = ButtonDefaults.colors(
+                                containerColor = BgCardDark,
+                                focusedContainerColor = AccentEmerald,
+                                contentColor = TextPrimary,
+                                focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(
+                                border = Border(BorderStroke(1.dp, BorderDark)),
+                                focusedBorder = Border(BorderStroke(2.dp, Color.White))
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(12.dp)),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Box(modifier = Modifier.size(width = 135.dp, height = 75.dp)) {
+                                if (!vod.streamIcon.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = vod.streamIcon,
+                                        contentDescription = vod.name,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                                            )
+                                        )
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopStart)
+                                        .padding(6.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(AccentSky)
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text(text = "Filme", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text(
+                                    text = vod.name,
+                                    color = TextPrimary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(6.dp)
+                                )
+                            }
                         }
-                    )
+                    }
+
+                    items(featuredSeries.take(6)) { series ->
+                        Button(
+                            onClick = onNavigateSeries,
+                            colors = ButtonDefaults.colors(
+                                containerColor = BgCardDark,
+                                focusedContainerColor = AccentEmerald,
+                                contentColor = TextPrimary,
+                                focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(
+                                border = Border(BorderStroke(1.dp, BorderDark)),
+                                focusedBorder = Border(BorderStroke(2.dp, Color.White))
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(12.dp)),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Box(modifier = Modifier.size(width = 135.dp, height = 75.dp)) {
+                                if (!series.cover.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = series.cover,
+                                        contentDescription = series.name,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                                            )
+                                        )
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopStart)
+                                        .padding(6.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(AccentEmerald)
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text(text = "Série", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text(
+                                    text = series.name,
+                                    color = TextPrimary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(6.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(26.dp))
-
-            // 5. MENUS PRINCIPAIS (NAVEGAÇÃO INFERIOR D-PAD)
+            // 5. BARRA INFERIOR DE MENUS PRINCIPAIS COM CONTADORES
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // TV AO VIVO
-                NavMenuCard(
-                    icon = "📡",
+                // TV ao Vivo
+                MenuCardButton(
                     title = "TV ao Vivo",
-                    subtitle = "${safeChannels.size} canais",
-                    modifier = Modifier.weight(1.3f),
+                    subtitle = if (liveCount > 0) "$liveCount canais" else "Carregando...",
+                    icon = "📡",
                     accentColor = AccentEmerald,
-                    onClick = onOpenLiveTv
+                    modifier = Modifier.weight(1.2f),
+                    onClick = onNavigateLiveTv
                 )
 
-                // FILMES
-                NavMenuCard(
-                    icon = "🎬",
+                // Filmes
+                MenuCardButton(
                     title = "Filmes",
-                    subtitle = "On Demand",
-                    modifier = Modifier.weight(1f),
+                    subtitle = if (vodCount > 0) "$vodCount títulos" else "On Demand",
+                    icon = "🎬",
                     accentColor = AccentSky,
-                    onClick = onOpenMovies
-                )
-
-                // SÉRIES
-                NavMenuCard(
-                    icon = "📺",
-                    title = "Séries",
-                    subtitle = "Temporadas",
-                    modifier = Modifier.weight(1f),
-                    accentColor = AccentSky,
-                    onClick = onOpenSeries
-                )
-
-                // ESPORTES (Substituiu Cortex)
-                NavMenuCard(
-                    icon = "🏆",
-                    title = "Esportes",
-                    subtitle = "${sportsChannels.size} canais",
                     modifier = Modifier.weight(1.1f),
-                    accentColor = AccentEmerald,
-                    onClick = onOpenSports
+                    onClick = onNavigateMovies
                 )
 
-                // CONTAS
-                NavMenuCard(
-                    icon = "🔑",
+                // Séries
+                MenuCardButton(
+                    title = "Séries",
+                    subtitle = if (seriesCount > 0) "$seriesCount séries" else "Temporadas",
+                    icon = "📺",
+                    accentColor = AccentSky,
+                    modifier = Modifier.weight(1.1f),
+                    onClick = onNavigateSeries
+                )
+
+                // Esportes (Atalho rápido de canais esportivos e lutas)
+                MenuCardButton(
+                    title = "Esportes",
+                    subtitle = "Futebol • Lutas",
+                    icon = "⚽",
+                    accentColor = AccentEmerald,
+                    modifier = Modifier.weight(1.1f),
+                    onClick = onNavigateSports
+                )
+
+                // Contas
+                MenuCardButton(
                     title = "Contas",
                     subtitle = "Sua conta",
-                    modifier = Modifier.weight(0.9f),
+                    icon = "🔑",
                     accentColor = AccentSky,
-                    onClick = onOpenAccounts
+                    modifier = Modifier.weight(0.95f),
+                    onClick = onNavigateAccounts
                 )
 
-                // AJUSTES
-                NavMenuCard(
-                    icon = "⚙",
+                // Ajustes
+                MenuCardButton(
                     title = "Ajustes",
                     subtitle = "Preferências",
-                    modifier = Modifier.weight(0.9f),
+                    icon = "⚙️",
                     accentColor = TextSecondary,
-                    onClick = onOpenSettings
+                    modifier = Modifier.weight(0.95f),
+                    onClick = onNavigateSettings
                 )
 
-                // RECARREGAR
-                NavMenuCard(
-                    icon = "🔄",
+                // Recarregar
+                MenuCardButton(
                     title = "Recarregar",
-                    subtitle = "Atualizar",
-                    modifier = Modifier.weight(0.9f),
+                    subtitle = "Atualizar lista",
+                    icon = "🔄",
                     accentColor = AccentEmerald,
-                    onClick = onReloadCatalog
+                    modifier = Modifier.weight(0.95f),
+                    onClick = onRefreshCatalog
                 )
             }
         }
@@ -405,207 +494,51 @@ fun HomeScreen(
 }
 
 @Composable
-fun MatchCard(
-    match: MatchItem,
-    onClick: () -> Unit
-) {
-    Button(
-        onClick = onClick,
-        colors = ButtonDefaults.colors(
-            containerColor = BgCardDark,
-            focusedContainerColor = Color(0xFF132032),
-            contentColor = TextPrimary,
-            focusedContentColor = Color.White
-        ),
-        border = ButtonDefaults.border(
-            border = Border(border = BorderStroke(1.dp, BorderDark)),
-            focusedBorder = Border(border = BorderStroke(2.dp, AccentEmerald))
-        ),
-        shape = ButtonDefaults.shape(shape = RoundedCornerShape(12.dp))
-    ) {
-        Box(
-            modifier = Modifier
-                .width(200.dp)
-                .padding(vertical = 6.dp)
-        ) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = match.league,
-                        color = TextSecondary,
-                        fontSize = 10.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(AccentEmerald.copy(alpha = 0.2f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = match.time,
-                            color = AccentEmerald,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text(
-                    text = "${match.teamA} x ${match.teamB}",
-                    color = TextPrimary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "▶ Assistir ao vivo",
-                    color = AccentSky,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun FeaturedCard(
-    item: FeaturedItem,
-    onClick: () -> Unit
-) {
-    Button(
-        onClick = onClick,
-        colors = ButtonDefaults.colors(
-            containerColor = BgCardDark,
-            focusedContainerColor = Color(0xFF132032),
-            contentColor = TextPrimary,
-            focusedContentColor = Color.White
-        ),
-        border = ButtonDefaults.border(
-            border = Border(border = BorderStroke(1.dp, BorderDark)),
-            focusedBorder = Border(border = BorderStroke(2.dp, AccentSky))
-        ),
-        shape = ButtonDefaults.shape(shape = RoundedCornerShape(12.dp))
-    ) {
-        Box(
-            modifier = Modifier
-                .width(180.dp)
-                .padding(vertical = 6.dp)
-        ) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (item.type == "Filme") AccentSky.copy(alpha = 0.25f) else AccentEmerald.copy(alpha = 0.25f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = item.type,
-                            color = if (item.type == "Filme") AccentSky else AccentEmerald,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Text(
-                        text = "HD/FHD",
-                        color = TextSecondary.copy(alpha = 0.6f),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text(
-                    text = item.title,
-                    color = TextPrimary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = item.category,
-                    color = TextSecondary,
-                    fontSize = 10.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun NavMenuCard(
-    icon: String,
+fun MenuCardButton(
     title: String,
     subtitle: String,
+    icon: String,
     accentColor: Color,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     Button(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.height(64.dp),
         colors = ButtonDefaults.colors(
             containerColor = BgCardDark,
-            focusedContainerColor = Color(0xFF162234),
+            focusedContainerColor = accentColor,
             contentColor = TextPrimary,
-            focusedContentColor = Color.White
+            focusedContentColor = Color.Black
         ),
         border = ButtonDefaults.border(
-            border = Border(border = BorderStroke(1.dp, BorderDark)),
-            focusedBorder = Border(border = BorderStroke(2.dp, accentColor))
+            border = Border(BorderStroke(1.dp, BorderDark)),
+            focusedBorder = Border(BorderStroke(2.dp, Color.White))
         ),
-        shape = ButtonDefaults.shape(shape = RoundedCornerShape(12.dp))
+        shape = ButtonDefaults.shape(RoundedCornerShape(12.dp)),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = icon, fontSize = 22.sp)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = title,
-                color = TextPrimary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
+            Text(text = icon, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = subtitle,
-                color = TextSecondary,
-                fontSize = 10.sp,
-                textAlign = TextAlign.Center,
+                text = title,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
                 maxLines = 1
+            )
+            Text(
+                text = subtitle,
+                fontSize = 9.sp,
+                color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
 }
+

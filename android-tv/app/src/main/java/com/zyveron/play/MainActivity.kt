@@ -1,8 +1,8 @@
 package com.zyveron.play
 
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -31,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -41,6 +40,10 @@ import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
+import com.zyveron.play.data.local.ChannelEntity
+import com.zyveron.play.data.local.EpisodeItem
+import com.zyveron.play.data.local.SeriesEntity
+import com.zyveron.play.data.local.VodEntity
 import com.zyveron.play.data.remote.DeviceAuthState
 import com.zyveron.play.data.remote.FirestoreDeviceManager
 import com.zyveron.play.data.repository.ZyveronRepository
@@ -51,6 +54,11 @@ import com.zyveron.play.ui.activation.BlockedOrExpiredScreen
 import com.zyveron.play.ui.components.TvNotificationOverlay
 import com.zyveron.play.ui.home.HomeScreen
 import com.zyveron.play.ui.live.LivePlayerScreen
+import com.zyveron.play.ui.live.LiveTvGuideScreen
+import com.zyveron.play.ui.movies.MoviesScreen
+import com.zyveron.play.ui.player.VodPlayerScreen
+import com.zyveron.play.ui.series.SeriesDetailScreen
+import com.zyveron.play.ui.series.SeriesScreen
 import com.zyveron.play.ui.settings.SettingsScreen
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentRose
@@ -62,16 +70,19 @@ import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
 import com.zyveron.play.ui.theme.ZyveronTvTheme
-import com.zyveron.play.util.ContentSafetyFilter
 import com.zyveron.play.util.UrlHelper
-import java.net.URI
 
-enum class ActiveScreen {
-    HOME,
-    LIVE_PLAYER,
-    SPORTS_PLAYER,
-    ACCOUNTS,
-    SETTINGS
+sealed class AppScreen {
+    object Home : AppScreen()
+    data class LiveTvGuide(val initialSports: Boolean = false) : AppScreen()
+    data class FullScreenPlayer(val channel: ChannelEntity, val playlist: List<ChannelEntity>) : AppScreen()
+    object Movies : AppScreen()
+    data class MoviePlayer(val vod: VodEntity) : AppScreen()
+    object Series : AppScreen()
+    data class SeriesDetail(val series: SeriesEntity) : AppScreen()
+    data class SeriesEpisodePlayer(val episode: EpisodeItem, val series: SeriesEntity) : AppScreen()
+    object Accounts : AppScreen()
+    object Settings : AppScreen()
 }
 
 class MainActivity : ComponentActivity() {
@@ -115,15 +126,27 @@ fun MainContent(
     playerManager: ZyveronPlayerManager,
     onFinish: () -> Unit
 ) {
-    val context = LocalContext.current
     val authState by deviceManager.authState.collectAsState()
     val activeBroadcast by deviceManager.activeBroadcast.collectAsState()
 
-    // Cache-First local com canais observados do SQLite Room
-    val localChannels by repository.getAllChannels().collectAsState(initial = emptyList())
+    var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.Home) }
 
-    // Sub-navegação interna quando o dispositivo está ativo
-    var currentScreen by remember { mutableStateOf(ActiveScreen.HOME) }
+    // Interceptador Global do Botão BACK do Controle Remoto
+    BackHandler(enabled = true) {
+        when (currentScreen) {
+            is AppScreen.FullScreenPlayer -> currentScreen = AppScreen.LiveTvGuide()
+            is AppScreen.MoviePlayer -> currentScreen = AppScreen.Movies
+            is AppScreen.SeriesEpisodePlayer -> {
+                val epState = currentScreen as AppScreen.SeriesEpisodePlayer
+                currentScreen = AppScreen.SeriesDetail(epState.series)
+            }
+            is AppScreen.SeriesDetail -> currentScreen = AppScreen.Series
+            is AppScreen.LiveTvGuide, AppScreen.Movies, AppScreen.Series, AppScreen.Accounts, AppScreen.Settings -> {
+                currentScreen = AppScreen.Home
+            }
+            AppScreen.Home -> onFinish()
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -132,7 +155,6 @@ fun MainContent(
     ) {
         when (val state = authState) {
             is DeviceAuthState.Loading -> {
-                // Splash de transição ultra-rápida
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -182,287 +204,150 @@ fun MainContent(
                     UrlHelper.normalizeUrl(state.serverDns)
                 }
 
-                val serverDisplayName = remember(cleanDns) {
-                    try {
-                        val host = URI(cleanDns).host
-                        if (!host.isNullOrBlank()) host else "Zyveron Play"
-                    } catch (_: Exception) {
-                        "Zyveron Play"
-                    }
-                }
-
                 var syncRetryTrigger by remember { mutableIntStateOf(0) }
                 var isSyncing by remember { mutableStateOf(false) }
-                var syncError by remember { mutableStateOf<String?>(null) }
 
-                // Dispara sincronização do catálogo com o servidor Xtream
+                // Dispara sincronização completa em background
                 LaunchedEffect(cleanDns, state.username, syncRetryTrigger) {
                     if (cleanDns.isNotBlank() && state.username.isNotBlank()) {
                         isSyncing = true
-                        syncError = null
-                        val result = repository.syncXtreamCatalog(
+                        repository.syncXtreamCatalog(
                             serverDns = cleanDns,
                             username = state.username,
                             password = state.password
                         )
                         isSyncing = false
-                        if (result.isFailure) {
-                            val err = result.exceptionOrNull()
-                            syncError = err?.localizedMessage ?: "Falha ao conectar ao servidor IPTV."
-                        }
                     }
                 }
 
-                if (localChannels.isEmpty()) {
-                    // Tela de carregamento / sincronização inicial de canais
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(BgDeepDark),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .width(560.dp)
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(BgCardDark)
-                                .border(1.dp, BorderDark, RoundedCornerShape(20.dp))
-                                .padding(32.dp)
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(AccentEmerald.copy(alpha = 0.15f))
-                                            .border(1.dp, AccentEmerald.copy(alpha = 0.4f), RoundedCornerShape(8.dp)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(text = "▶", color = AccentEmerald, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(text = "Zyveron ", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                                    Text(text = "Play", color = AccentEmerald, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                when (val screen = currentScreen) {
+                    is AppScreen.Home -> {
+                        HomeScreen(
+                            repository = repository,
+                            onNavigateLiveTv = { currentScreen = AppScreen.LiveTvGuide(false) },
+                            onNavigateMovies = { currentScreen = AppScreen.Movies },
+                            onNavigateSeries = { currentScreen = AppScreen.Series },
+                            onNavigateSports = { currentScreen = AppScreen.LiveTvGuide(true) },
+                            onNavigateAccounts = { currentScreen = AppScreen.Accounts },
+                            onNavigateSettings = { currentScreen = AppScreen.Settings },
+                            onRefreshCatalog = { syncRetryTrigger++ },
+                            onPlayVod = { vod -> currentScreen = AppScreen.MoviePlayer(vod) }
+                        )
+                    }
+
+                    is AppScreen.LiveTvGuide -> {
+                        LiveTvGuideScreen(
+                            repository = repository,
+                            playerManager = playerManager,
+                            serverDns = cleanDns,
+                            username = state.username,
+                            password = state.password,
+                            initialFilterSports = screen.initialSports,
+                            onOpenFullScreenPlayer = { channel, playlist ->
+                                currentScreen = AppScreen.FullScreenPlayer(channel, playlist)
+                            },
+                            onBack = { currentScreen = AppScreen.Home }
+                        )
+                    }
+
+                    is AppScreen.FullScreenPlayer -> {
+                        val initialIndex = screen.playlist.indexOfFirst { it.streamId == screen.channel.streamId }
+                        LivePlayerScreen(
+                            playerManager = playerManager,
+                            channels = if (screen.playlist.isNotEmpty()) screen.playlist else listOf(screen.channel),
+                            serverDns = cleanDns,
+                            username = state.username,
+                            password = state.password,
+                            onBack = { currentScreen = AppScreen.LiveTvGuide() }
+                        )
+                    }
+
+                    is AppScreen.Movies -> {
+                        MoviesScreen(
+                            repository = repository,
+                            onPlayMovie = { vod -> currentScreen = AppScreen.MoviePlayer(vod) },
+                            onBack = { currentScreen = AppScreen.Home }
+                        )
+                    }
+
+                    is AppScreen.MoviePlayer -> {
+                        val streamUrl = repository.buildVodStreamUrl(
+                            serverDns = cleanDns,
+                            username = state.username,
+                            password = state.password,
+                            streamId = screen.vod.streamId,
+                            containerExt = screen.vod.containerExtension
+                        )
+                        VodPlayerScreen(
+                            title = screen.vod.name,
+                            streamUrl = streamUrl,
+                            playerManager = playerManager,
+                            onBack = { currentScreen = AppScreen.Movies }
+                        )
+                    }
+
+                    is AppScreen.Series -> {
+                        SeriesScreen(
+                            repository = repository,
+                            onSelectSeries = { series -> currentScreen = AppScreen.SeriesDetail(series) },
+                            onBack = { currentScreen = AppScreen.Home }
+                        )
+                    }
+
+                    is AppScreen.SeriesDetail -> {
+                        SeriesDetailScreen(
+                            series = screen.series,
+                            repository = repository,
+                            serverDns = cleanDns,
+                            username = state.username,
+                            password = state.password,
+                            onPlayEpisode = { ep ->
+                                currentScreen = AppScreen.SeriesEpisodePlayer(ep, screen.series)
+                            },
+                            onBackToSeries = { currentScreen = AppScreen.Series },
+                            onBackToHome = { currentScreen = AppScreen.Home }
+                        )
+                    }
+
+                    is AppScreen.SeriesEpisodePlayer -> {
+                        val streamUrl = repository.buildSeriesStreamUrl(
+                            serverDns = cleanDns,
+                            username = state.username,
+                            password = state.password,
+                            episodeId = screen.episode.id,
+                            containerExt = screen.episode.containerExtension
+                        )
+                        VodPlayerScreen(
+                            title = "${screen.series.name} • ${screen.episode.title}",
+                            streamUrl = streamUrl,
+                            playerManager = playerManager,
+                            onBack = { currentScreen = AppScreen.SeriesDetail(screen.series) }
+                        )
+                    }
+
+                    is AppScreen.Accounts -> {
+                        AccountsScreen(
+                            serverName = state.serverName,
+                            username = state.username,
+                            mac = state.mac,
+                            deviceKey = deviceManager.deviceKey,
+                            expirationDate = state.expirationDate,
+                            onDisconnect = {
+                                deviceManager.disconnectDevice {
+                                    currentScreen = AppScreen.Home
                                 }
-
-                                Spacer(modifier = Modifier.height(20.dp))
-
-                                if (syncError != null) {
-                                    Text(
-                                        text = "Falha ao Carregar Canais",
-                                        color = AccentRose,
-                                        fontSize = 17.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = syncError ?: "",
-                                        color = TextSecondary,
-                                        fontSize = 13.sp,
-                                        textAlign = TextAlign.Center
-                                    )
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = "Verifique o DNS e as credenciais no painel web.",
-                                        color = TextSecondary.copy(alpha = 0.7f),
-                                        fontSize = 11.sp,
-                                        textAlign = TextAlign.Center
-                                    )
-
-                                    Spacer(modifier = Modifier.height(24.dp))
-
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Button(
-                                            onClick = { syncRetryTrigger++ },
-                                            colors = ButtonDefaults.colors(
-                                                containerColor = AccentEmerald,
-                                                focusedContainerColor = Color.White,
-                                                contentColor = Color.Black,
-                                                focusedContentColor = Color.Black
-                                            ),
-                                            shape = ButtonDefaults.shape(shape = RoundedCornerShape(10.dp))
-                                        ) {
-                                            Text(
-                                                text = "🔄 Tentar Novamente",
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 12.sp,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                            )
-                                        }
-
-                                        Button(
-                                            onClick = onFinish,
-                                            colors = ButtonDefaults.colors(
-                                                containerColor = BgSurfaceDark,
-                                                focusedContainerColor = AccentRose,
-                                                contentColor = TextSecondary,
-                                                focusedContentColor = Color.White
-                                            ),
-                                            border = ButtonDefaults.border(
-                                                border = Border(border = BorderStroke(1.dp, BorderDark)),
-                                                focusedBorder = Border(border = BorderStroke(2.dp, Color.White))
-                                            ),
-                                            shape = ButtonDefaults.shape(shape = RoundedCornerShape(10.dp))
-                                        ) {
-                                            Text(
-                                                text = "✕ Sair",
-                                                fontWeight = FontWeight.SemiBold,
-                                                fontSize = 12.sp,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                            )
-                                        }
-                                    }
-                                } else {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(10.dp)
-                                                .clip(CircleShape)
-                                                .background(AccentEmerald)
-                                        )
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Text(
-                                            text = "Sincronizando grade de canais com o servidor...",
-                                            color = TextPrimary,
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = "Aguarde enquanto os canais são carregados na memória da TV...",
-                                        color = TextSecondary,
-                                        fontSize = 12.sp,
-                                        textAlign = TextAlign.Center
-                                    )
-
-                                    if (cleanDns.isNotBlank()) {
-                                        Spacer(modifier = Modifier.height(14.dp))
-                                        Text(
-                                            text = "Servidor: $cleanDns",
-                                            color = AccentSky,
-                                            fontSize = 11.sp,
-                                            fontFamily = FontFamily.Monospace
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(20.dp))
-                                    Button(
-                                        onClick = onFinish,
-                                        colors = ButtonDefaults.colors(
-                                            containerColor = BgSurfaceDark,
-                                            focusedContainerColor = AccentRose,
-                                            contentColor = TextSecondary,
-                                            focusedContentColor = Color.White
-                                        ),
-                                        shape = ButtonDefaults.shape(shape = RoundedCornerShape(10.dp))
-                                    ) {
-                                        Text(
-                                            text = "✕ Cancelar / Sair",
-                                            fontWeight = FontWeight.Normal,
-                                            fontSize = 12.sp,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // Canais com filtro anti-adulto obrigatório aplicado
-                    val safeChannels = remember(localChannels) {
-                        localChannels.filter { ContentSafetyFilter.isSafe(it.name, it.categoryId) }
-                    }
-                    val sportsChannels = remember(safeChannels) {
-                        safeChannels.filter { ContentSafetyFilter.isSportsChannel(it.name, it.categoryId) }
+                            },
+                            onBack = { currentScreen = AppScreen.Home }
+                        )
                     }
 
-                    // Navegação entre as telas do APK
-                    when (currentScreen) {
-                        ActiveScreen.HOME -> {
-                            HomeScreen(
-                                serverName = serverDisplayName,
-                                channels = safeChannels,
-                                onOpenLiveTv = {
-                                    currentScreen = ActiveScreen.LIVE_PLAYER
-                                },
-                                onOpenMovies = {
-                                    Toast.makeText(context, "Abrindo catálogo de TV ao Vivo", Toast.LENGTH_SHORT).show()
-                                    currentScreen = ActiveScreen.LIVE_PLAYER
-                                },
-                                onOpenSeries = {
-                                    Toast.makeText(context, "Abrindo catálogo de TV ao Vivo", Toast.LENGTH_SHORT).show()
-                                    currentScreen = ActiveScreen.LIVE_PLAYER
-                                },
-                                onOpenSports = {
-                                    currentScreen = ActiveScreen.SPORTS_PLAYER
-                                },
-                                onOpenAccounts = {
-                                    currentScreen = ActiveScreen.ACCOUNTS
-                                },
-                                onOpenSettings = {
-                                    currentScreen = ActiveScreen.SETTINGS
-                                },
-                                onReloadCatalog = {
-                                    Toast.makeText(context, "Sincronizando com o servidor...", Toast.LENGTH_SHORT).show()
-                                    syncRetryTrigger++
-                                },
-                                onExit = onFinish
-                            )
-                        }
-
-                        ActiveScreen.LIVE_PLAYER -> {
-                            LivePlayerScreen(
-                                playerManager = playerManager,
-                                channels = safeChannels,
-                                serverDns = cleanDns,
-                                username = state.username,
-                                password = state.password,
-                                onBack = { currentScreen = ActiveScreen.HOME }
-                            )
-                        }
-
-                        ActiveScreen.SPORTS_PLAYER -> {
-                            LivePlayerScreen(
-                                playerManager = playerManager,
-                                channels = if (sportsChannels.isNotEmpty()) sportsChannels else safeChannels,
-                                serverDns = cleanDns,
-                                username = state.username,
-                                password = state.password,
-                                onBack = { currentScreen = ActiveScreen.HOME }
-                            )
-                        }
-
-                        ActiveScreen.ACCOUNTS -> {
-                            AccountsScreen(
-                                mac = deviceManager.virtualMac,
-                                deviceKey = deviceManager.deviceKey,
-                                serverName = serverDisplayName,
-                                username = state.username,
-                                expirationDate = state.expirationDate.ifBlank { "Ativo" },
-                                onBack = { currentScreen = ActiveScreen.HOME }
-                            )
-                        }
-
-                        ActiveScreen.SETTINGS -> {
-                            SettingsScreen(
-                                mac = deviceManager.virtualMac,
-                                deviceKey = deviceManager.deviceKey,
-                                expirationDate = state.expirationDate.ifBlank { "Ativo" },
-                                onBack = { currentScreen = ActiveScreen.HOME }
-                            )
-                        }
+                    is AppScreen.Settings -> {
+                        SettingsScreen(
+                            mac = state.mac,
+                            deviceKey = deviceManager.deviceKey,
+                            expirationDate = state.expirationDate,
+                            onBack = { currentScreen = AppScreen.Home }
+                        )
                     }
                 }
             }

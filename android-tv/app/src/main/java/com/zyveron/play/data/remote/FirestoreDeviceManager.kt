@@ -25,6 +25,7 @@ sealed class DeviceAuthState {
     data class Expired(val expirationDate: String) : DeviceAuthState()
     data class Active(
         val mac: String,
+        val serverName: String = "Zyveron Server",
         val serverDns: String,
         val fallbackDns: List<String>,
         val username: String,
@@ -79,6 +80,7 @@ class FirestoreDeviceManager(private val context: Context) {
                 val status = snapshot.getString("status") ?: "active"
                 val expDateStr = snapshot.getString("expirationDate") ?: ""
                 val serverId = snapshot.getString("serverId") ?: ""
+                val serverName = snapshot.getString("serverName") ?: "Zyveron Server"
                 val rawServerDns = snapshot.getString("serverDns") ?: ""
                 val serverDns = UrlHelper.normalizeUrl(rawServerDns)
                 val username = snapshot.getString("username") ?: ""
@@ -99,6 +101,7 @@ class FirestoreDeviceManager(private val context: Context) {
                 // 2. Libera o acesso imediatamente e conecta ao Servidor para obter atualizações em tempo real
                 _authState.value = DeviceAuthState.Active(
                     mac = virtualMac,
+                    serverName = serverName,
                     serverDns = serverDns,
                     fallbackDns = emptyList(),
                     username = username,
@@ -107,7 +110,7 @@ class FirestoreDeviceManager(private val context: Context) {
                 )
 
                 if (serverId.isNotEmpty()) {
-                    listenToServer(serverId, username, password, expDateStr, serverDns)
+                    listenToServer(serverId, serverName, username, password, expDateStr, serverDns)
                 }
             }
 
@@ -117,6 +120,7 @@ class FirestoreDeviceManager(private val context: Context) {
 
     private fun listenToServer(
         serverId: String,
+        fallbackServerName: String,
         username: String,
         password: String,
         expDate: String,
@@ -131,13 +135,15 @@ class FirestoreDeviceManager(private val context: Context) {
                     return@addSnapshotListener
                 }
 
+                val activeServerName = snapshot?.getString("name") ?: fallbackServerName
                 val activeDns = UrlHelper.normalizeUrl(snapshot?.getString("activeDns") ?: fallbackDnsUrl)
                 @Suppress("UNCHECKED_CAST")
                 val fallbackDns = (snapshot?.get("fallbackDns") as? List<String>) ?: emptyList()
 
-                Log.d("FirestoreDeviceManager", "DNS Ativo atualizado: $activeDns")
+                Log.d("FirestoreDeviceManager", "Servidor atualizado: $activeServerName [$activeDns]")
                 _authState.value = DeviceAuthState.Active(
                     mac = virtualMac,
+                    serverName = activeServerName,
                     serverDns = activeDns,
                     fallbackDns = fallbackDns,
                     username = username,
@@ -183,6 +189,7 @@ class FirestoreDeviceManager(private val context: Context) {
                             val status = snapshot.getString("status") ?: "active"
                             val expDateStr = snapshot.getString("expirationDate") ?: ""
                             val serverId = snapshot.getString("serverId") ?: ""
+                            val serverName = snapshot.getString("serverName") ?: "Zyveron Server"
                             val rawServerDns = snapshot.getString("serverDns") ?: ""
                             val serverDns = UrlHelper.normalizeUrl(rawServerDns)
                             val username = snapshot.getString("username") ?: ""
@@ -196,6 +203,7 @@ class FirestoreDeviceManager(private val context: Context) {
                                 Log.d("FirestoreDeviceManager", "Aparelho liberado! Iniciando streaming...")
                                 _authState.value = DeviceAuthState.Active(
                                     mac = virtualMac,
+                                    serverName = serverName,
                                     serverDns = serverDns,
                                     fallbackDns = emptyList(),
                                     username = username,
@@ -203,7 +211,7 @@ class FirestoreDeviceManager(private val context: Context) {
                                     expirationDate = expDateStr
                                 )
                                 if (serverId.isNotEmpty()) {
-                                    listenToServer(serverId, username, password, expDateStr, serverDns)
+                                    listenToServer(serverId, serverName, username, password, expDateStr, serverDns)
                                 }
                             }
                         } else {
@@ -216,6 +224,16 @@ class FirestoreDeviceManager(private val context: Context) {
             } catch (e: Exception) {
                 Log.e("FirestoreDeviceManager", "Erro no checkStatusNow", e)
             }
+        }
+    }
+
+    fun disconnectDevice(onComplete: () -> Unit = {}) {
+        try {
+            stopListening()
+            _authState.value = DeviceAuthState.Unregistered(virtualMac, deviceKey)
+            onComplete()
+        } catch (e: Exception) {
+            Log.e("FirestoreDeviceManager", "Erro ao desconectar aparelho", e)
         }
     }
 
