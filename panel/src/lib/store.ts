@@ -296,6 +296,43 @@ class LocalStore {
     return dev;
   }
 
+  updateDevice(
+    oldMac: string,
+    newMac: string,
+    newDeviceKey: string,
+    newExpirationDate: string
+  ): DeviceDocument {
+    this.init();
+    const cleanOldMac = oldMac.trim().toUpperCase();
+    const cleanNewMac = newMac.trim().toUpperCase();
+    const devIndex = this.devices.findIndex(d => d.mac === cleanOldMac);
+    if (devIndex === -1) throw new Error("Aparelho não encontrado.");
+
+    const dev = { ...this.devices[devIndex] };
+
+    // Se o endereço MAC foi alterado, remove o documento antigo do Firestore
+    if (cleanNewMac !== cleanOldMac) {
+      const exists = this.devices.some(d => d.mac === cleanNewMac && d.mac !== cleanOldMac);
+      if (exists) throw new Error(`Já existe outro aparelho cadastrado com o MAC ${cleanNewMac}`);
+      FirestoreSync.removeDeviceFromFirestore(cleanOldMac);
+    }
+
+    const isExpired = new Date(newExpirationDate) < new Date();
+    const updatedStatus = dev.status === "blocked" ? "blocked" : (isExpired ? "expired" : "active");
+
+    dev.id = cleanNewMac;
+    dev.mac = cleanNewMac;
+    dev.deviceKey = newDeviceKey.trim();
+    dev.expirationDate = new Date(newExpirationDate).toISOString();
+    dev.status = updatedStatus;
+    dev.updatedAt = new Date().toISOString();
+
+    this.devices[devIndex] = dev;
+    this.save();
+    FirestoreSync.syncDeviceToFirestore(dev);
+    return dev;
+  }
+
   deleteDevice(mac: string) {
     this.init();
     this.devices = this.devices.filter(d => d.mac !== mac);

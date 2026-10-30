@@ -18,7 +18,8 @@ import {
   Trash2,
   Coins,
   Server,
-  Filter
+  Filter,
+  Pencil
 } from "lucide-react";
 
 export default function DevicesPage() {
@@ -38,6 +39,14 @@ export default function DevicesPage() {
   const [monthsInput, setMonthsInput] = useState(1);
   const [noteInput, setNoteInput] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Modal de Edição de Aparelho
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingDevice, setEditingDevice] = useState<DeviceDocument | null>(null);
+  const [editMacInput, setEditMacInput] = useState("");
+  const [editDeviceKeyInput, setEditDeviceKeyInput] = useState("");
+  const [editExpDateInput, setEditExpDateInput] = useState("");
+  const [editErrorMsg, setEditErrorMsg] = useState("");
 
   const loadData = () => {
     if (!user) return;
@@ -133,6 +142,62 @@ export default function DevicesPage() {
     if (!confirm) return;
     store.deleteDevice(mac);
     loadData();
+  };
+
+  // Edição de Aparelho
+  const handleOpenEditModal = (dev: DeviceDocument) => {
+    setEditingDevice(dev);
+    setEditMacInput(dev.mac);
+    setEditDeviceKeyInput(dev.deviceKey);
+    try {
+      const datePart = new Date(dev.expirationDate).toISOString().split("T")[0];
+      setEditExpDateInput(datePart);
+    } catch {
+      setEditExpDateInput("");
+    }
+    setEditErrorMsg("");
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditMacChange = (val: string) => {
+    let clean = val.replace(/[^a-fA-F0-9]/g, "").toUpperCase();
+    if (clean.length > 12) clean = clean.substring(0, 12);
+    const formatted = clean.match(/.{1,2}/g)?.join(":") || clean;
+    setEditMacInput(formatted);
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDevice) return;
+    setEditErrorMsg("");
+
+    if (editMacInput.length < 17) {
+      setEditErrorMsg("O MAC deve ter o formato completo (ex: 00:1A:79:A4:8B:20).");
+      return;
+    }
+    if (!editDeviceKeyInput.trim()) {
+      setEditErrorMsg("Informe a Device Key (PIN de 6 dígitos).");
+      return;
+    }
+    if (!editExpDateInput) {
+      setEditErrorMsg("Selecione uma data de vencimento válida.");
+      return;
+    }
+
+    try {
+      const targetDate = new Date(`${editExpDateInput}T23:59:59.000Z`).toISOString();
+      store.updateDevice(
+        editingDevice.mac,
+        editMacInput,
+        editDeviceKeyInput,
+        targetDate
+      );
+      setIsEditModalOpen(false);
+      setEditingDevice(null);
+      loadData();
+    } catch (err: any) {
+      setEditErrorMsg(err.message || "Erro ao salvar alterações.");
+    }
   };
 
   // Filtros
@@ -287,6 +352,15 @@ export default function DevicesPage() {
                               title="Renovar por +30 dias (-1 crédito)"
                             >
                               <RotateCw className="w-3 h-3" /> +30d
+                            </button>
+
+                            {/* Editar */}
+                            <button
+                              onClick={() => handleOpenEditModal(dev)}
+                              className="px-2 py-1 rounded-md bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/20 text-[11px] font-medium transition flex items-center gap-1"
+                              title="Editar aparelho (MAC, Chave, Vencimento)"
+                            >
+                              <Pencil className="w-3 h-3" /> Editar
                             </button>
 
                             {/* Bloquear / Desbloquear */}
@@ -477,6 +551,104 @@ export default function DevicesPage() {
                       Confirmar Ativação
                     </button>
                   </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Editar Aparelho */}
+        {isEditModalOpen && editingDevice && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-lg bg-[#0f1722] border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-5">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                    <Pencil className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Editar Dados do Aparelho</h3>
+                    <p className="text-[11px] text-zinc-400">Altere o MAC, a Chave PIN ou a Data de Vencimento</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="text-zinc-400 hover:text-white text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {editErrorMsg && (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-medium">
+                  {editErrorMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleSaveEdit} className="space-y-4 text-xs">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">
+                      Virtual MAC *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="00:1A:79:XX:XX:XX"
+                      value={editMacInput}
+                      onChange={(e) => handleEditMacChange(e.target.value)}
+                      maxLength={17}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono uppercase focus:outline-none focus:border-sky-500"
+                      required
+                    />
+                    <p className="text-[10px] text-zinc-400 mt-1">Formato: 00:XX:XX:XX:XX:XX</p>
+                  </div>
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">
+                      Device Key (PIN) *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: 601348"
+                      value={editDeviceKeyInput}
+                      onChange={(e) => setEditDeviceKeyInput(e.target.value)}
+                      maxLength={10}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-sky-500"
+                      required
+                    />
+                    <p className="text-[10px] text-zinc-400 mt-1">Código de 6 dígitos da TV</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-zinc-300 font-medium mb-1">
+                    Data de Vencimento *
+                  </label>
+                  <input
+                    type="date"
+                    value={editExpDateInput}
+                    onChange={(e) => setEditExpDateInput(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-sky-500"
+                    required
+                  />
+                  <p className="text-[10px] text-zinc-400 mt-1">
+                    O aparelho terá sinal ativo até as 23:59 desta data
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-zinc-950 font-bold tracking-tight transition shadow-lg shadow-sky-950"
+                  >
+                    Salvar Alterações
+                  </button>
                 </div>
               </form>
             </div>
