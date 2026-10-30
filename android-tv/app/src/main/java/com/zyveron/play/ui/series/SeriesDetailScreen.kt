@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +54,8 @@ import com.zyveron.play.ui.theme.BgSurfaceDark
 import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
+import com.zyveron.play.ui.theme.ZyveronTvBackground
+import kotlinx.coroutines.launch
 
 @Composable
 fun SeriesDetailScreen(
@@ -65,6 +68,8 @@ fun SeriesDetailScreen(
     onBackToSeries: () -> Unit,
     onBackToHome: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
+    var isFavoriteState by remember { mutableStateOf(series.isFavorite) }
     var seasonsData by remember { mutableStateOf<List<SeasonEpisodes>>(emptyList()) }
     var selectedSeasonIndex by remember { mutableIntStateOf(0) }
     var isLoadingEpisodes by remember { mutableStateOf(true) }
@@ -85,12 +90,12 @@ fun SeriesDetailScreen(
 
     val currentSeason = seasonsData.getOrNull(selectedSeasonIndex)
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BgDeepDark)
-            .padding(24.dp)
-    ) {
+    ZyveronTvBackground {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
+        ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.SpaceBetween
@@ -192,6 +197,29 @@ fun SeriesDetailScreen(
 
                     // Botões de Ação
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Button(
+                            onClick = {
+                                isFavoriteState = !isFavoriteState
+                                scope.launch {
+                                    repository.toggleSeriesFavorite(series.copy(isFavorite = !isFavoriteState))
+                                }
+                            },
+                            colors = ButtonDefaults.colors(
+                                containerColor = if (isFavoriteState) Color(0xFFF59E0B).copy(alpha = 0.85f) else BgSurfaceDark,
+                                focusedContainerColor = Color(0xFFF59E0B),
+                                contentColor = if (isFavoriteState) Color.Black else TextPrimary,
+                                focusedContentColor = Color.Black
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (isFavoriteState) "★ Favorita" else "☆ Adicionar aos Favoritos",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
                         Button(
                             onClick = onBackToSeries,
                             colors = ButtonDefaults.colors(
@@ -341,5 +369,6 @@ fun SeriesDetailScreen(
             }
         }
     }
+}
 }
 

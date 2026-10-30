@@ -77,8 +77,12 @@ class ZyveronRepository(context: Context) {
     suspend fun searchChannels(query: String): List<ChannelEntity> =
         channelDao.searchChannels(query)
 
-    suspend fun toggleFavorite(channel: ChannelEntity) {
-        channelDao.updateChannel(channel.copy(isFavorite = !channel.isFavorite))
+    suspend fun toggleFavorite(channel: ChannelEntity) = withContext(Dispatchers.IO) {
+        channelDao.setChannelFavorite(channel.streamId, !channel.isFavorite)
+    }
+
+    suspend fun toggleChannelFavorite(channel: ChannelEntity) = withContext(Dispatchers.IO) {
+        channelDao.setChannelFavorite(channel.streamId, !channel.isFavorite)
     }
 
     // --- FILMES (VOD) ---
@@ -86,10 +90,16 @@ class ZyveronRepository(context: Context) {
 
     fun getAllVods(): Flow<List<VodEntity>> = channelDao.getAllVods()
 
+    fun getFavoriteVods(): Flow<List<VodEntity>> = channelDao.getFavoriteVods()
+
     fun getVodsByCategory(categoryId: String): Flow<List<VodEntity>> =
         channelDao.getVodsByCategory(categoryId)
 
     fun getFeaturedVods(): Flow<List<VodEntity>> = channelDao.getFeaturedVods()
+
+    suspend fun toggleVodFavorite(vod: VodEntity) = withContext(Dispatchers.IO) {
+        channelDao.setVodFavorite(vod.streamId, !vod.isFavorite)
+    }
 
     suspend fun getVodCount(): Int {
         val count = channelDao.getVodCount()
@@ -102,10 +112,16 @@ class ZyveronRepository(context: Context) {
 
     fun getAllSeries(): Flow<List<SeriesEntity>> = channelDao.getAllSeries()
 
+    fun getFavoriteSeries(): Flow<List<SeriesEntity>> = channelDao.getFavoriteSeries()
+
     fun getSeriesByCategory(categoryId: String): Flow<List<SeriesEntity>> =
         channelDao.getSeriesByCategory(categoryId)
 
     fun getFeaturedSeries(): Flow<List<SeriesEntity>> = channelDao.getFeaturedSeries()
+
+    suspend fun toggleSeriesFavorite(series: SeriesEntity) = withContext(Dispatchers.IO) {
+        channelDao.setSeriesFavorite(series.seriesId, !series.isFavorite)
+    }
 
     suspend fun getSeriesCount(): Int {
         val count = channelDao.getSeriesCount()

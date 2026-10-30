@@ -231,7 +231,8 @@ fun MainContent(
                             onNavigateAccounts = { currentScreen = AppScreen.Accounts },
                             onNavigateSettings = { currentScreen = AppScreen.Settings },
                             onRefreshCatalog = { syncRetryTrigger++ },
-                            onPlayVod = { vod -> currentScreen = AppScreen.MoviePlayer(vod) }
+                            onPlayVod = { vod -> currentScreen = AppScreen.MoviePlayer(vod) },
+                            onSelectSeries = { series -> currentScreen = AppScreen.SeriesDetail(series) }
                         )
                     }
 

@@ -43,6 +43,7 @@ import com.zyveron.play.ui.theme.BgSurfaceDark
 import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
+import com.zyveron.play.ui.theme.ZyveronTvBackground
 
 @Composable
 fun AccountsScreen(
@@ -56,12 +57,12 @@ fun AccountsScreen(
 ) {
     var showConfirmDialog by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BgDeepDark)
-            .padding(32.dp)
-    ) {
+    ZyveronTvBackground {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp)
+        ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.SpaceBetween
@@ -281,5 +282,6 @@ fun AccountsScreen(
             }
         }
     }
+}
 }
 

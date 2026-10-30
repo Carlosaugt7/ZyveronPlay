@@ -60,6 +60,9 @@ interface ChannelDao {
     @Update
     suspend fun updateChannel(channel: ChannelEntity)
 
+    @Query("UPDATE channels SET isFavorite = :isFav WHERE streamId = :streamId")
+    suspend fun setChannelFavorite(streamId: Int, isFav: Boolean)
+
     @Query("DELETE FROM channels")
     suspend fun clearChannels()
 
@@ -72,6 +75,9 @@ interface ChannelDao {
 
     @Query("SELECT * FROM vod_movies WHERE isFavorite = 1 ORDER BY streamId DESC")
     fun getFavoriteVods(): Flow<List<VodEntity>>
+
+    @Query("UPDATE vod_movies SET isFavorite = :isFav WHERE streamId = :streamId")
+    suspend fun setVodFavorite(streamId: Int, isFav: Boolean)
 
     @Query("SELECT COUNT(*) FROM vod_movies")
     suspend fun getVodCount(): Int
@@ -97,6 +103,9 @@ interface ChannelDao {
 
     @Query("SELECT * FROM series WHERE isFavorite = 1 ORDER BY seriesId DESC")
     fun getFavoriteSeries(): Flow<List<SeriesEntity>>
+
+    @Query("UPDATE series SET isFavorite = :isFav WHERE seriesId = :seriesId")
+    suspend fun setSeriesFavorite(seriesId: Int, isFav: Boolean)
 
     @Query("SELECT COUNT(*) FROM series")
     suspend fun getSeriesCount(): Int

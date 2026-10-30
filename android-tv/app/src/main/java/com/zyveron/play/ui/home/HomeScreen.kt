@@ -44,8 +44,6 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.zyveron.play.data.local.SeriesEntity
 import com.zyveron.play.data.local.VodEntity
-import com.zyveron.play.data.model.SportsMatch
-import com.zyveron.play.data.model.SportsMatchProvider
 import com.zyveron.play.data.repository.ZyveronRepository
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentRose
@@ -56,6 +54,7 @@ import com.zyveron.play.ui.theme.BgSurfaceDark
 import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
+import com.zyveron.play.ui.theme.ZyveronTvBackground
 import kotlinx.coroutines.delay
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -70,7 +69,8 @@ fun HomeScreen(
     onNavigateAccounts: () -> Unit,
     onNavigateSettings: () -> Unit,
     onRefreshCatalog: () -> Unit,
-    onPlayVod: (VodEntity) -> Unit
+    onPlayVod: (VodEntity) -> Unit,
+    onSelectSeries: (SeriesEntity) -> Unit
 ) {
     val liveCount by repository.liveCount.collectAsState()
     val vodCount by repository.vodCount.collectAsState()
@@ -78,7 +78,6 @@ fun HomeScreen(
 
     val featuredVods by repository.getFeaturedVods().collectAsState(initial = emptyList())
     val featuredSeries by repository.getFeaturedSeries().collectAsState(initial = emptyList())
-    val matches = remember { SportsMatchProvider.getTodayMatches() }
 
     // Relógio e Saudação Dinâmica
     var currentTime by remember { mutableStateOf(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))) }
@@ -98,12 +97,12 @@ fun HomeScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BgDeepDark)
-            .padding(horizontal = 36.dp, vertical = 20.dp)
-    ) {
+    ZyveronTvBackground {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 36.dp, vertical = 20.dp)
+        ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.SpaceBetween
@@ -198,23 +197,42 @@ fun HomeScreen(
                 }
             }
 
-            // 3. JOGOS DO DIA (Com Horários Sincronizados com o Dia)
+            // 3. FILMES EM DESTAQUE (Superior)
             Column {
-                Text(
-                    text = "⚽ JOGOS DO DIA",
-                    color = AccentSky,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "🎬 FILMES EM DESTAQUE",
+                            color = AccentSky,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.8.sp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "• Lançamentos e Cinema",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Text(
+                        text = "Ver catálogo →",
+                        color = TextSecondary,
+                        fontSize = 10.sp
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     contentPadding = PaddingValues(end = 16.dp)
                 ) {
-                    items(matches) { match ->
+                    items(featuredVods.take(10)) { vod ->
                         Button(
-                            onClick = onNavigateSports,
+                            onClick = { onPlayVod(vod) },
                             colors = ButtonDefaults.colors(
                                 containerColor = BgCardDark,
                                 focusedContainerColor = AccentSky,
@@ -226,90 +244,9 @@ fun HomeScreen(
                                 focusedBorder = Border(BorderStroke(2.dp, Color.White))
                             ),
                             shape = ButtonDefaults.shape(RoundedCornerShape(12.dp)),
-                            contentPadding = PaddingValues(10.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.width(170.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = match.league,
-                                        fontSize = 9.sp,
-                                        color = TextSecondary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = match.time,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = AccentEmerald
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceEvenly,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = match.homeTeam,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Text(text = "x", fontSize = 11.sp, color = TextSecondary)
-                                    Text(
-                                        text = match.awayTeam,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 4. EM DESTAQUE (Filmes e Séries Seguros / Anti-Adultos)
-            Column {
-                Text(
-                    text = "⭐ EM DESTAQUE",
-                    color = AccentEmerald,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    contentPadding = PaddingValues(end = 16.dp)
-                ) {
-                    items(featuredVods.take(8)) { vod ->
-                        Button(
-                            onClick = { onPlayVod(vod) },
-                            colors = ButtonDefaults.colors(
-                                containerColor = BgCardDark,
-                                focusedContainerColor = AccentEmerald,
-                                contentColor = TextPrimary,
-                                focusedContentColor = Color.Black
-                            ),
-                            border = ButtonDefaults.border(
-                                border = Border(BorderStroke(1.dp, BorderDark)),
-                                focusedBorder = Border(BorderStroke(2.dp, Color.White))
-                            ),
-                            shape = ButtonDefaults.shape(RoundedCornerShape(12.dp)),
                             contentPadding = PaddingValues(0.dp)
                         ) {
-                            Box(modifier = Modifier.size(width = 135.dp, height = 75.dp)) {
+                            Box(modifier = Modifier.size(width = 145.dp, height = 78.dp)) {
                                 if (!vod.streamIcon.isNullOrBlank()) {
                                     AsyncImage(
                                         model = vod.streamIcon,
@@ -351,10 +288,45 @@ fun HomeScreen(
                             }
                         }
                     }
+                }
+            }
 
-                    items(featuredSeries.take(6)) { series ->
+            // 4. SÉRIES EM DESTAQUE (Inferior)
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "📺 SÉRIES EM DESTAQUE",
+                            color = AccentEmerald,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.8.sp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "• Temporadas e Novelas",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Text(
+                        text = "Ver catálogo →",
+                        color = TextSecondary,
+                        fontSize = 10.sp
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(end = 16.dp)
+                ) {
+                    items(featuredSeries.take(10)) { series ->
                         Button(
-                            onClick = onNavigateSeries,
+                            onClick = { onSelectSeries(series) },
                             colors = ButtonDefaults.colors(
                                 containerColor = BgCardDark,
                                 focusedContainerColor = AccentEmerald,
@@ -368,7 +340,7 @@ fun HomeScreen(
                             shape = ButtonDefaults.shape(RoundedCornerShape(12.dp)),
                             contentPadding = PaddingValues(0.dp)
                         ) {
-                            Box(modifier = Modifier.size(width = 135.dp, height = 75.dp)) {
+                            Box(modifier = Modifier.size(width = 145.dp, height = 78.dp)) {
                                 if (!series.cover.isNullOrBlank()) {
                                     AsyncImage(
                                         model = series.cover,
@@ -491,6 +463,7 @@ fun HomeScreen(
             }
         }
     }
+}
 }
 
 @Composable

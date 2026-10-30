@@ -41,6 +41,7 @@ import com.zyveron.play.ui.theme.BgSurfaceDark
 import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
+import com.zyveron.play.ui.theme.ZyveronTvBackground
 
 @Composable
 fun SettingsScreen(
@@ -57,12 +58,12 @@ fun SettingsScreen(
     var adaptiveQualityEnabled by remember { mutableStateOf(true) }
     var protocolIsHls by remember { mutableStateOf(false) } // Padrão TS nativo de TV
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BgDeepDark)
-            .padding(24.dp)
-    ) {
+    ZyveronTvBackground {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
+        ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Header
             Row(
@@ -339,6 +340,7 @@ fun SettingsScreen(
             }
         }
     }
+}
 }
 
 @Composable
