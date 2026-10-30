@@ -2,12 +2,12 @@
 FROM node:20-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 # 1. Dependências
 FROM base AS deps
 WORKDIR /app
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
 RUN pnpm install --frozen-lockfile
 
 # 2. Builder
@@ -16,7 +16,6 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Argumentos de Build para o Firebase (Next.js precisa durante o build estático)
 ARG NEXT_PUBLIC_FIREBASE_API_KEY="AIzaSyD_keI8HrRiu2zmXXi0JybhBFBu7xn8cbw"
 ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="zyveronplay.firebaseapp.com"
 ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID="zyveronplay"
@@ -46,7 +45,6 @@ ENV HOSTNAME="0.0.0.0"
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copia arquivos standalone compilados
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
@@ -56,4 +54,3 @@ USER nextjs
 EXPOSE 3000
 
 CMD ["node", "server.js"]
-

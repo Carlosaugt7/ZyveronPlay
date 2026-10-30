@@ -2,12 +2,12 @@
 FROM node:20-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 # 1. Dependencias
 FROM base AS deps
 WORKDIR /app
-COPY panel/package.json panel/pnpm-lock.yaml* ./
+COPY panel/package.json panel/pnpm-lock.yaml* panel/pnpm-workspace.yaml* ./
 RUN pnpm install --frozen-lockfile
 
 # 2. Builder
@@ -54,4 +54,3 @@ USER nextjs
 EXPOSE 3000
 
 CMD ["node", "server.js"]
-
