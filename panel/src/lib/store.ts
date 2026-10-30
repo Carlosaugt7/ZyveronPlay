@@ -300,7 +300,10 @@ class LocalStore {
     oldMac: string,
     newMac: string,
     newDeviceKey: string,
-    newExpirationDate: string
+    newExpirationDate: string,
+    newServerId?: string,
+    newServerName?: string,
+    newServerDns?: string
   ): DeviceDocument {
     this.init();
     const cleanOldMac = oldMac.trim().toUpperCase();
@@ -326,6 +329,16 @@ class LocalStore {
     dev.expirationDate = new Date(newExpirationDate).toISOString();
     dev.status = updatedStatus;
     dev.updatedAt = new Date().toISOString();
+
+    if (newServerId !== undefined && newServerId.trim() !== "") {
+      dev.serverId = newServerId;
+    }
+    if (newServerName !== undefined && newServerName.trim() !== "") {
+      dev.serverName = newServerName;
+    }
+    if (newServerDns !== undefined && newServerDns.trim() !== "") {
+      dev.serverDns = normalizeDnsUrl(newServerDns);
+    }
 
     this.devices[devIndex] = dev;
     this.save();

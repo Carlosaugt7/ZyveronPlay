@@ -46,6 +46,8 @@ export default function DevicesPage() {
   const [editMacInput, setEditMacInput] = useState("");
   const [editDeviceKeyInput, setEditDeviceKeyInput] = useState("");
   const [editExpDateInput, setEditExpDateInput] = useState("");
+  const [editServerIdInput, setEditServerIdInput] = useState("");
+  const [editServerDnsInput, setEditServerDnsInput] = useState("");
   const [editErrorMsg, setEditErrorMsg] = useState("");
 
   const loadData = () => {
@@ -155,8 +157,18 @@ export default function DevicesPage() {
     } catch {
       setEditExpDateInput("");
     }
+    setEditServerIdInput(dev.serverId || (servers[0]?.id || ""));
+    setEditServerDnsInput(dev.serverDns || "");
     setEditErrorMsg("");
     setIsEditModalOpen(true);
+  };
+
+  const handleEditServerChange = (newServerId: string) => {
+    setEditServerIdInput(newServerId);
+    const selected = servers.find((s) => s.id === newServerId);
+    if (selected && selected.activeDns) {
+      setEditServerDnsInput(selected.activeDns);
+    }
   };
 
   const handleEditMacChange = (val: string) => {
@@ -183,14 +195,24 @@ export default function DevicesPage() {
       setEditErrorMsg("Selecione uma data de vencimento válida.");
       return;
     }
+    if (!editServerDnsInput.trim()) {
+      setEditErrorMsg("O DNS do servidor é obrigatório.");
+      return;
+    }
 
     try {
       const targetDate = new Date(`${editExpDateInput}T23:59:59.000Z`).toISOString();
+      const selectedServer = servers.find((s) => s.id === editServerIdInput);
+      const serverName = selectedServer ? selectedServer.name : (editingDevice.serverName || "Servidor Padrão");
+
       store.updateDevice(
         editingDevice.mac,
         editMacInput,
         editDeviceKeyInput,
-        targetDate
+        targetDate,
+        editServerIdInput,
+        serverName,
+        editServerDnsInput.trim()
       );
       setIsEditModalOpen(false);
       setEditingDevice(null);
@@ -312,9 +334,14 @@ export default function DevicesPage() {
                         </td>
                         <td className="py-3.5 px-3 text-zinc-300">
                           <div className="flex items-center gap-1.5">
-                            <Server className="w-3 h-3 text-sky-400" />
-                            <span>{dev.serverName || "Padrão"}</span>
+                            <Server className="w-3 h-3 text-sky-400 shrink-0" />
+                            <span className="font-medium text-white">{dev.serverName || "Padrão"}</span>
                           </div>
+                          {dev.serverDns && (
+                            <p className="text-[10px] text-zinc-400 font-mono truncate max-w-[180px] mt-0.5" title={dev.serverDns}>
+                              {dev.serverDns}
+                            </p>
+                          )}
                         </td>
                         <td className="py-3.5 px-3 font-mono text-zinc-300">
                           {dev.username}
@@ -568,7 +595,7 @@ export default function DevicesPage() {
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white">Editar Dados do Aparelho</h3>
-                    <p className="text-[11px] text-zinc-400">Altere o MAC, a Chave PIN ou a Data de Vencimento</p>
+                    <p className="text-[11px] text-zinc-400">Altere o MAC, a Chave PIN, o Servidor, o DNS ou a Data de Vencimento</p>
                   </div>
                 </div>
                 <button
@@ -616,6 +643,40 @@ export default function DevicesPage() {
                       required
                     />
                     <p className="text-[10px] text-zinc-400 mt-1">Código de 6 dígitos da TV</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">
+                      Servidor Alvo
+                    </label>
+                    <select
+                      value={editServerIdInput}
+                      onChange={(e) => handleEditServerChange(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-sky-500"
+                    >
+                      {servers.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-zinc-400 mt-1">Troca a vinculação do servidor</p>
+                  </div>
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">
+                      DNS do Servidor *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="http://dns.exemplo.com:8080"
+                      value={editServerDnsInput}
+                      onChange={(e) => setEditServerDnsInput(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-sky-500"
+                      required
+                    />
+                    <p className="text-[10px] text-zinc-400 mt-1">DNS ativo entregue à TV</p>
                   </div>
                 </div>
 
