@@ -6,6 +6,12 @@ import { Sidebar } from "@/components/Sidebar";
 export const metadata: Metadata = {
   title: "Zyveron Play - Painel de Controle",
   description: "Gerenciamento de servidores, DNS em massa, ativação por MAC e revendas para Zyveron Play TV.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon.svg", type: "image/svg+xml" }
+    ],
+  },
 };
 
 export default function RootLayout({

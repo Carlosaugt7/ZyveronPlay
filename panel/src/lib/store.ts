@@ -8,223 +8,26 @@ import {
 } from "@/types";
 import { FirestoreSync } from "./firestoreSync";
 
-// Seed Inicial de Demonstração
-const INITIAL_SERVERS: ServerDocument[] = [
-  {
-    id: "srv-turbo-01",
-    name: "Servidor Turbo BR 01",
-    activeDns: "http://stream01.zyveronplay.com:8080",
-    fallbackDns: [
-      "http://backup01.zyveronplay.com:8080",
-      "http://backup02.zyveronplay.com:8080"
-    ],
-    status: "active",
-    notes: "Servidor principal para canais Full HD e 4K no Brasil",
-    deviceCount: 1420,
-    createdAt: "2026-01-10T12:00:00Z",
-    updatedAt: "2026-10-29T18:30:00Z",
-  },
-  {
-    id: "srv-fast-02",
-    name: "Servidor Fast Latino 02",
-    activeDns: "http://cdn-latam.zyveronplay.com:8080",
-    fallbackDns: ["http://cdn-latam2.zyveronplay.com:8080"],
-    status: "active",
-    notes: "Servidor dedicado para streaming América Latina",
-    deviceCount: 580,
-    createdAt: "2026-02-15T10:00:00Z",
-    updatedAt: "2026-10-28T14:15:00Z",
-  },
-  {
-    id: "srv-vod-03",
-    name: "Servidor Filmes & Séries VOD",
-    activeDns: "http://vod.zyveronplay.com:8080",
-    fallbackDns: [],
-    status: "active",
-    notes: "Cluster de armazenamento de filmes e séries",
-    deviceCount: 2000,
-    createdAt: "2026-03-01T08:00:00Z",
-    updatedAt: "2026-10-25T11:00:00Z",
-  }
-];
+// Dados Iniciais Limpos para Produção
+const INITIAL_SERVERS: ServerDocument[] = [];
 
 const INITIAL_USERS: UserDocument[] = [
   {
     uid: "usr-admin-master",
-    name: "Super Admin (Você)",
+    name: "Super Admin",
     email: "admin@zyveron.com",
     role: "superadmin",
     parentId: null,
     credits: 9999,
     status: "active",
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-10-29T20:00:00Z",
-  },
-  {
-    uid: "usr-revenda-sp",
-    name: "Carlos Revenda Master SP",
-    email: "carlos.sp@zyveron.com",
-    role: "reseller",
-    parentId: "usr-admin-master",
-    credits: 85,
-    status: "active",
-    createdAt: "2026-02-01T10:00:00Z",
-    updatedAt: "2026-10-29T18:00:00Z",
-  },
-  {
-    uid: "usr-sub-campinas",
-    name: "Marcos Sub-Revenda Campinas",
-    email: "marcos.cps@zyveron.com",
-    role: "sub_reseller",
-    parentId: "usr-revenda-sp",
-    credits: 22,
-    status: "active",
-    createdAt: "2026-03-10T14:00:00Z",
-    updatedAt: "2026-10-28T09:30:00Z",
-  },
-  {
-    uid: "usr-revenda-rj",
-    name: "Rodrigo Revenda RJ",
-    email: "rodrigo.rj@zyveron.com",
-    role: "reseller",
-    parentId: "usr-admin-master",
-    credits: 40,
-    status: "active",
-    createdAt: "2026-04-05T16:00:00Z",
-    updatedAt: "2026-10-27T17:45:00Z",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   }
 ];
 
-const INITIAL_DEVICES: DeviceDocument[] = [
-  {
-    id: "00:1A:79:A4:8B:20",
-    mac: "00:1A:79:A4:8B:20",
-    deviceKey: "482910",
-    serverId: "srv-turbo-01",
-    serverName: "Servidor Turbo BR 01",
-    username: "cliente_silva",
-    password: "••••••••",
-    resellerId: "usr-revenda-sp",
-    resellerName: "Carlos Revenda Master SP",
-    expirationDate: "2026-11-28T23:59:59Z",
-    status: "active",
-    customNote: "Smart TV Sala - Plano Mensal",
-    lastSeen: "2026-10-29T21:40:00Z",
-    createdAt: "2026-09-28T10:00:00Z",
-    updatedAt: "2026-10-29T21:40:00Z",
-  },
-  {
-    id: "A4:C2:59:E1:8B:20",
-    mac: "A4:C2:59:E1:8B:20",
-    deviceKey: "749210",
-    serverId: "srv-turbo-01",
-    serverName: "Servidor Turbo BR 01",
-    username: "cliente_roberto",
-    password: "••••••••",
-    resellerId: "usr-sub-campinas",
-    resellerName: "Marcos Sub-Revenda Campinas",
-    expirationDate: "2026-11-15T23:59:59Z",
-    status: "active",
-    customNote: "Fire Stick 4K - Quarto",
-    lastSeen: "2026-10-29T22:15:00Z",
-    createdAt: "2026-10-15T15:30:00Z",
-    updatedAt: "2026-10-29T22:15:00Z",
-  },
-  {
-    id: "D8:07:B6:33:41:9C",
-    mac: "D8:07:B6:33:41:9C",
-    deviceKey: "194820",
-    serverId: "srv-fast-02",
-    serverName: "Servidor Fast Latino 02",
-    username: "fernanda_tv",
-    password: "••••••••",
-    resellerId: "usr-revenda-sp",
-    resellerName: "Carlos Revenda Master SP",
-    expirationDate: "2026-10-25T23:59:59Z",
-    status: "expired",
-    customNote: "TV Box Xiaomi Mi Box - Vencido",
-    lastSeen: "2026-10-25T19:00:00Z",
-    createdAt: "2026-09-25T11:00:00Z",
-    updatedAt: "2026-10-26T00:00:00Z",
-  },
-  {
-    id: "2C:F4:32:89:E2:10",
-    mac: "2C:F4:32:89:E2:10",
-    deviceKey: "951347",
-    serverId: "srv-turbo-01",
-    serverName: "Servidor Turbo BR 01",
-    username: "lucas_gamer",
-    password: "••••••••",
-    resellerId: "usr-revenda-rj",
-    resellerName: "Rodrigo Revenda RJ",
-    expirationDate: "2026-12-30T23:59:59Z",
-    status: "blocked",
-    customNote: "Bloqueado por inadimplência prévia",
-    lastSeen: "2026-10-28T12:00:00Z",
-    createdAt: "2026-08-30T10:00:00Z",
-    updatedAt: "2026-10-29T10:00:00Z",
-  }
-];
-
-const INITIAL_LOGS: CreditLogDocument[] = [
-  {
-    id: "log-001",
-    fromUserId: "usr-admin-master",
-    fromUserName: "Super Admin",
-    toUserId: "usr-revenda-sp",
-    toUserName: "Carlos Revenda Master SP",
-    amount: 100,
-    action: "deposit",
-    note: "Recarga de pacote 100 créditos",
-    timestamp: "2026-10-20T10:00:00Z",
-  },
-  {
-    id: "log-002",
-    fromUserId: "usr-revenda-sp",
-    fromUserName: "Carlos Revenda Master SP",
-    toUserId: "usr-sub-campinas",
-    toUserName: "Marcos Sub-Revenda Campinas",
-    amount: 25,
-    action: "transfer",
-    note: "Repasse de créditos para sub-revenda",
-    timestamp: "2026-10-22T14:30:00Z",
-  },
-  {
-    id: "log-003",
-    fromUserId: "usr-revenda-sp",
-    fromUserName: "Carlos Revenda Master SP",
-    toUserId: "usr-revenda-sp",
-    toUserName: "Carlos Revenda Master SP",
-    amount: -1,
-    action: "activation",
-    targetDeviceMac: "00:1A:79:A4:8B:20",
-    note: "Ativação de 30 dias para MAC 00:1A:79:A4:8B:20",
-    timestamp: "2026-10-28T10:00:00Z",
-  }
-];
-
-const INITIAL_NOTIFICATIONS: NotificationDocument[] = [
-  {
-    id: "notif-001",
-    targetType: "all",
-    targetId: "all",
-    title: "Aviso de Manutenção",
-    message: "Manutenção programada no Servidor Turbo BR 01 hoje às 23:30 (duração prevista: 10 min).",
-    active: true,
-    createdAt: "2026-10-29T18:00:00Z",
-    expiresAt: "2026-10-30T04:00:00Z",
-  },
-  {
-    id: "notif-002",
-    targetType: "device",
-    targetId: "00:1A:79:A4:8B:20",
-    title: "Vencimento Próximo",
-    message: "Sua assinatura vence em 30 dias. Aproveite para renovar antecipadamente!",
-    active: true,
-    createdAt: "2026-10-29T19:00:00Z",
-    expiresAt: "2026-11-28T23:59:59Z",
-  }
-];
+const INITIAL_DEVICES: DeviceDocument[] = [];
+const INITIAL_LOGS: CreditLogDocument[] = [];
+const INITIAL_NOTIFICATIONS: NotificationDocument[] = [];
 
 // Gerenciador em memória persistido no localStorage (Client-Side)
 class LocalStore {
@@ -238,6 +41,17 @@ class LocalStore {
   private init() {
     if (typeof window === "undefined" || this.initialized) return;
     try {
+      // Purga dados mockados da versão anterior
+      const storeVersion = localStorage.getItem("zyveron_store_version");
+      if (storeVersion !== "prod_v2_clean") {
+        localStorage.removeItem("zyveron_servers");
+        localStorage.removeItem("zyveron_users");
+        localStorage.removeItem("zyveron_devices");
+        localStorage.removeItem("zyveron_logs");
+        localStorage.removeItem("zyveron_notifications");
+        localStorage.setItem("zyveron_store_version", "prod_v2_clean");
+      }
+
       const s = localStorage.getItem("zyveron_servers");
       if (s) this.servers = JSON.parse(s);
       const u = localStorage.getItem("zyveron_users");
