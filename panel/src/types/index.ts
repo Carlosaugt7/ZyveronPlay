@@ -34,6 +34,7 @@ export interface DeviceDocument {
   deviceKey: string;
   serverId: string;
   serverName?: string;
+  serverDns?: string;
   username: string;
   password: string; // Criptografado ou protegido
   resellerId: string;

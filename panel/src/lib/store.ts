@@ -6,6 +6,7 @@ import {
   NotificationDocument,
   UserRole
 } from "@/types";
+import { FirestoreSync } from "./firestoreSync";
 
 // Seed Inicial de Demonstração
 const INITIAL_SERVERS: ServerDocument[] = [
@@ -280,6 +281,7 @@ class LocalStore {
     if (fallbacks) srv.fallbackDns = fallbacks;
     srv.updatedAt = new Date().toISOString();
     this.save();
+    FirestoreSync.syncServerToFirestore(srv);
     return srv;
   }
 
@@ -298,6 +300,7 @@ class LocalStore {
     };
     this.servers.unshift(newServer);
     this.save();
+    FirestoreSync.syncServerToFirestore(newServer);
     return newServer;
   }
 
@@ -352,6 +355,7 @@ class LocalStore {
 
     const server = this.servers.find(s => s.id === serverId);
     const serverName = server ? server.name : "Servidor Padrão";
+    const serverDns = server ? server.activeDns : "http://localhost:8080";
 
     // Calcula data de expiração (hoje + 30 dias * meses)
     const exp = new Date();
@@ -385,6 +389,7 @@ class LocalStore {
       deviceKey: deviceKey.trim(),
       serverId,
       serverName,
+      serverDns,
       username,
       password,
       resellerId,
@@ -404,6 +409,7 @@ class LocalStore {
     }
 
     this.save();
+    FirestoreSync.syncDeviceToFirestore(deviceData);
     return deviceData;
   }
 
@@ -451,6 +457,7 @@ class LocalStore {
     });
 
     this.save();
+    FirestoreSync.syncDeviceToFirestore(dev);
     return dev;
   }
 
@@ -461,6 +468,7 @@ class LocalStore {
     dev.status = dev.status === "active" ? "blocked" : "active";
     dev.updatedAt = new Date().toISOString();
     this.save();
+    FirestoreSync.updateDeviceStatus(dev.mac, dev.status);
     return dev;
   }
 
@@ -468,6 +476,7 @@ class LocalStore {
     this.init();
     this.devices = this.devices.filter(d => d.mac !== mac);
     this.save();
+    FirestoreSync.removeDeviceFromFirestore(mac);
   }
 
   // --- REVENDAS & CRÉDITOS ---
@@ -599,6 +608,7 @@ class LocalStore {
 
     this.notifications.unshift(newNotif);
     this.save();
+    FirestoreSync.syncNotificationToFirestore(newNotif);
     return newNotif;
   }
 
@@ -606,6 +616,7 @@ class LocalStore {
     this.init();
     this.notifications = this.notifications.filter(n => n.id !== id);
     this.save();
+    FirestoreSync.deleteNotificationFromFirestore(id);
   }
 }
 

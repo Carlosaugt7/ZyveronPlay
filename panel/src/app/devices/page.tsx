@@ -5,6 +5,7 @@ import { Navbar } from "@/components/Navbar";
 import { useAuth } from "@/context/AuthContext";
 import { store } from "@/lib/store";
 import { DeviceDocument, ServerDocument, DeviceStatus } from "@/types";
+import { FirestoreSync } from "@/lib/firestoreSync";
 import {
   Tv,
   Plus,
@@ -44,6 +45,12 @@ export default function DevicesPage() {
     const s = store.getServers();
     setDevices(d);
     setServers(s);
+
+    // Sincroniza automaticamente todos os aparelhos ativos para o Cloud Firestore
+    d.forEach((device) => {
+      FirestoreSync.syncDeviceToFirestore(device);
+    });
+
     if (s.length > 0 && !serverIdInput) {
       setServerIdInput(s[0].id);
     }

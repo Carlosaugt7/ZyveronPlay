@@ -103,7 +103,8 @@ fun MainContent(
                 ActivationScreen(
                     mac = state.mac,
                     deviceKey = state.deviceKey,
-                    onRetry = { /* O Realtime Listener do Firestore já escuta automaticamente */ }
+                    onRetry = { deviceManager.checkStatusNow() },
+                    onExit = onFinish
                 )
             }
 

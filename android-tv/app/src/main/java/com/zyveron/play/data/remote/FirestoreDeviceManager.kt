@@ -75,6 +75,7 @@ class FirestoreDeviceManager(private val context: Context) {
                 val status = snapshot.getString("status") ?: "active"
                 val expDateStr = snapshot.getString("expirationDate") ?: ""
                 val serverId = snapshot.getString("serverId") ?: ""
+                val serverDns = snapshot.getString("serverDns") ?: "http://localhost:8080"
                 val username = snapshot.getString("username") ?: ""
                 val password = snapshot.getString("password") ?: ""
 
@@ -90,8 +91,19 @@ class FirestoreDeviceManager(private val context: Context) {
                     return@addSnapshotListener
                 }
 
-                // 2. Conecta ao documento do Servidor para obter o DNS ativo e atualizações em massa
-                listenToServer(serverId, username, password, expDateStr)
+                // 2. Libera o acesso imediatamente e conecta ao Servidor para obter atualizações em tempo real
+                _authState.value = DeviceAuthState.Active(
+                    mac = virtualMac,
+                    serverDns = serverDns,
+                    fallbackDns = emptyList(),
+                    username = username,
+                    password = password,
+                    expirationDate = expDateStr
+                )
+
+                if (serverId.isNotEmpty()) {
+                    listenToServer(serverId, username, password, expDateStr, serverDns)
+                }
             }
 
         // 3. Escuta notificações e avisos em tempo real para exibir na TV
@@ -102,21 +114,10 @@ class FirestoreDeviceManager(private val context: Context) {
         serverId: String,
         username: String,
         password: String,
-        expDate: String
+        expDate: String,
+        fallbackDnsUrl: String
     ) {
         serverListener?.remove()
-
-        if (serverId.isEmpty()) {
-            _authState.value = DeviceAuthState.Active(
-                mac = virtualMac,
-                serverDns = "http://localhost:8080",
-                fallbackDns = emptyList(),
-                username = username,
-                password = password,
-                expirationDate = expDate
-            )
-            return
-        }
 
         serverListener = firestore.collection("servers").document(serverId)
             .addSnapshotListener { snapshot, error ->
@@ -125,7 +126,7 @@ class FirestoreDeviceManager(private val context: Context) {
                     return@addSnapshotListener
                 }
 
-                val activeDns = snapshot?.getString("activeDns") ?: "http://localhost:8080"
+                val activeDns = snapshot?.getString("activeDns") ?: fallbackDnsUrl
                 @Suppress("UNCHECKED_CAST")
                 val fallbackDns = (snapshot?.get("fallbackDns") as? List<String>) ?: emptyList()
 
@@ -164,6 +165,49 @@ class FirestoreDeviceManager(private val context: Context) {
                     }
                 }
             }
+    }
+
+    fun checkStatusNow() {
+        scope.launch {
+            try {
+                Log.d("FirestoreDeviceManager", "Verificação manual solicitada para MAC: $virtualMac")
+                firestore.collection("devices").document(virtualMac)
+                    .get()
+                    .addOnSuccessListener { snapshot ->
+                        if (snapshot != null && snapshot.exists()) {
+                            val status = snapshot.getString("status") ?: "active"
+                            val expDateStr = snapshot.getString("expirationDate") ?: ""
+                            val serverId = snapshot.getString("serverId") ?: ""
+                            val serverDns = snapshot.getString("serverDns") ?: "http://localhost:8080"
+                            val username = snapshot.getString("username") ?: ""
+                            val password = snapshot.getString("password") ?: ""
+
+                            if (status == "blocked") {
+                                _authState.value = DeviceAuthState.Blocked("Acesso bloqueado pela administração.")
+                            } else if (isExpired(expDateStr)) {
+                                _authState.value = DeviceAuthState.Expired(expDateStr)
+                            } else {
+                                Log.d("FirestoreDeviceManager", "Aparelho liberado! Iniciando streaming...")
+                                _authState.value = DeviceAuthState.Active(
+                                    mac = virtualMac,
+                                    serverDns = serverDns,
+                                    fallbackDns = emptyList(),
+                                    username = username,
+                                    password = password,
+                                    expirationDate = expDateStr
+                                )
+                            }
+                        } else {
+                            Log.d("FirestoreDeviceManager", "Documento $virtualMac ainda não encontrado.")
+                        }
+                    }
+                    .addOnFailureListener { err ->
+                        Log.e("FirestoreDeviceManager", "Falha ao consultar dispositivo", err)
+                    }
+            } catch (e: Exception) {
+                Log.e("FirestoreDeviceManager", "Erro no checkStatusNow", e)
+            }
+        }
     }
 
     fun dismissBroadcast() {

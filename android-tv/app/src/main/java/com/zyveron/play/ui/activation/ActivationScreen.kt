@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -15,6 +16,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,8 +46,11 @@ import com.zyveron.play.ui.theme.TextSecondary
 fun ActivationScreen(
     mac: String,
     deviceKey: String,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onExit: () -> Unit
 ) {
+    var isChecking by remember { mutableStateOf(false) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -52,51 +60,51 @@ fun ActivationScreen(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(32.dp)
+            modifier = Modifier.padding(24.dp)
         ) {
-            // Logo / Header
+            // Logo / Cabeçalho
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
                         .background(AccentEmerald.copy(alpha = 0.15f))
-                        .border(1.dp, AccentEmerald.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
+                        .border(1.dp, AccentEmerald.copy(alpha = 0.4f), RoundedCornerShape(10.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "▶",
                         color = AccentEmerald,
-                        fontSize = 20.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "Zyveron ",
                     color = TextPrimary,
-                    fontSize = 32.sp,
+                    fontSize = 28.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "Play",
                     color = AccentEmerald,
-                    fontSize = 32.sp,
+                    fontSize = 28.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Player de Alta Performance para Smart TVs",
                 color = TextSecondary,
-                fontSize = 14.sp
+                fontSize = 13.sp
             )
 
-            Spacer(modifier = Modifier.height(36.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Card Principal de Ativação
             Box(
@@ -105,7 +113,7 @@ fun ActivationScreen(
                     .clip(RoundedCornerShape(20.dp))
                     .background(BgCardDark)
                     .border(1.dp, BorderDark, RoundedCornerShape(20.dp))
-                    .padding(32.dp)
+                    .padding(28.dp)
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
@@ -113,27 +121,27 @@ fun ActivationScreen(
                         color = AccentEmerald,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp
+                        letterSpacing = 1.2.sp
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = "Informe os dados abaixo no painel web ou para seu revendedor autorizado:",
                         color = TextSecondary,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         textAlign = TextAlign.Center
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
-                    // Linha com MAC e Device Key em destaque legível à distância
+                    // Linha com MAC e Device Key (CORRIGIDO: fillMaxWidth em vez de fillMaxSize)
                     Row(
                         modifier = Modifier
-                            .fillMaxSize()
+                            .fillMaxWidth()
                             .clip(RoundedCornerShape(14.dp))
                             .background(BgSurfaceDark)
                             .border(1.dp, BorderDark, RoundedCornerShape(14.dp))
-                            .padding(20.dp),
+                            .padding(vertical = 16.dp, horizontal = 20.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -144,7 +152,7 @@ fun ActivationScreen(
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = mac,
                                 color = TextPrimary,
@@ -156,7 +164,7 @@ fun ActivationScreen(
 
                         Box(
                             modifier = Modifier
-                                .height(40.dp)
+                                .height(36.dp)
                                 .width(1.dp)
                                 .background(BorderDark)
                         )
@@ -168,7 +176,7 @@ fun ActivationScreen(
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = deviceKey,
                                 color = AccentSky,
@@ -179,7 +187,7 @@ fun ActivationScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(28.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     // Indicador de escuta em tempo real
                     Row(
@@ -190,43 +198,77 @@ fun ActivationScreen(
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(AccentEmerald)
+                                .background(if (isChecking) AccentSky else AccentEmerald)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Aguardando liberação no painel web (Sincronização em tempo real)...",
+                            text = if (isChecking) "Verificando liberação no Firebase..." else "Aguardando ativação no painel web (Sincronização em tempo real)...",
                             color = TextSecondary,
-                            fontSize = 12.sp
+                            fontSize = 11.sp
                         )
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Botão D-Pad Focusable
-                    Button(
-                        onClick = onRetry,
-                        colors = ButtonDefaults.colors(
-                            containerColor = BgSurfaceDark,
-                            focusedContainerColor = AccentEmerald,
-                            contentColor = TextPrimary,
-                            focusedContentColor = Color.Black
-                        ),
-                        border = ButtonDefaults.border(
-                            border = Border(border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark)),
-                            focusedBorder = Border(border = androidx.compose.foundation.BorderStroke(2.dp, Color.White))
-                        ),
-                        shape = ButtonDefaults.shape(shape = RoundedCornerShape(12.dp))
+                    // Botões de Ação para o Controle Remoto (D-Pad Focusable)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Verificar Conexão",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                        )
+                        // Botão Recarregar / Verificar Ativação
+                        Button(
+                            onClick = {
+                                isChecking = true
+                                onRetry()
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.colors(
+                                containerColor = AccentEmerald,
+                                focusedContainerColor = Color.White,
+                                contentColor = Color.Black,
+                                focusedContentColor = Color.Black
+                            ),
+                            border = ButtonDefaults.border(
+                                border = Border(border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark)),
+                                focusedBorder = Border(border = androidx.compose.foundation.BorderStroke(2.dp, AccentEmerald))
+                            ),
+                            shape = ButtonDefaults.shape(shape = RoundedCornerShape(10.dp))
+                        ) {
+                            Text(
+                                text = "🔄 Recarregar / Entrar",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        }
+
+                        // Botão Sair do Aplicativo
+                        Button(
+                            onClick = onExit,
+                            modifier = Modifier.weight(0.7f),
+                            colors = ButtonDefaults.colors(
+                                containerColor = BgSurfaceDark,
+                                focusedContainerColor = Color(0xFFEF4444),
+                                contentColor = TextPrimary,
+                                focusedContentColor = Color.White
+                            ),
+                            border = ButtonDefaults.border(
+                                border = Border(border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark)),
+                                focusedBorder = Border(border = androidx.compose.foundation.BorderStroke(2.dp, Color.White))
+                            ),
+                            shape = ButtonDefaults.shape(shape = RoundedCornerShape(10.dp))
+                        ) {
+                            Text(
+                                text = "✕ Sair",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        }
                     }
                 }
             }
         }
     }
 }
-
