@@ -275,6 +275,7 @@ fun MainContent(
                             serverDns = cleanDns,
                             username = state.username,
                             password = state.password,
+                            initialChannelIndex = if (initialIndex >= 0) initialIndex else 0,
                             onBack = { currentScreen = AppScreen.LiveTvGuide() }
                         )
                     }

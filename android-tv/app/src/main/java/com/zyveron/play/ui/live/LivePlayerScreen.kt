@@ -41,6 +41,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onKeyEvent
@@ -76,12 +79,18 @@ fun LivePlayerScreen(
     serverDns: String,
     username: String,
     password: String,
+    initialChannelIndex: Int = 0,
     onBack: () -> Unit
 ) {
-    var currentChannelIndex by remember { mutableIntStateOf(0) }
+    var currentChannelIndex by remember { mutableIntStateOf(if (initialChannelIndex in channels.indices) initialChannelIndex else 0) }
     var showOsd by remember { mutableStateOf(true) }
     var showChannelList by remember { mutableStateOf(false) }
+    var isOsdFocused by remember { mutableStateOf(false) }
     val channelListState = rememberLazyListState()
+
+    val playerSurfaceFocusRequester = remember { FocusRequester() }
+    val osdButtonsFocusRequester = remember { FocusRequester() }
+    val selectedChannelFocusRequester = remember { FocusRequester() }
 
     val playbackState by playerManager.playbackState.collectAsState()
     val currentChannel = channels.getOrNull(currentChannelIndex)
@@ -93,18 +102,37 @@ fun LivePlayerScreen(
         }
     }
 
-    // Auto-scroll da lista de canais para o canal ativo
+    // Auto-scroll e foco automático do canal ativo na gaveta lateral
     LaunchedEffect(showChannelList) {
-        if (showChannelList && currentChannelIndex in channels.indices) {
+        if (showChannelList) {
+            if (currentChannelIndex in channels.indices) {
+                try {
+                    channelListState.scrollToItem(currentChannelIndex)
+                } catch (_: Exception) {}
+            }
+            delay(120)
             try {
-                channelListState.scrollToItem(currentChannelIndex)
+                selectedChannelFocusRequester.requestFocus()
+            } catch (e: Exception) {
+                android.util.Log.e("LivePlayerScreen", "Erro ao focar canal ativo", e)
+            }
+        } else {
+            delay(60)
+            try {
+                if (showOsd) {
+                    osdButtonsFocusRequester.requestFocus()
+                } else {
+                    playerSurfaceFocusRequester.requestFocus()
+                }
             } catch (_: Exception) {}
         }
     }
 
-    // Reprodução ao mudar canal
+    // Reprodução ao mudar canal com debounce de 350ms para zapping suave
     LaunchedEffect(currentChannelIndex) {
         if (channels.isNotEmpty() && currentChannelIndex in channels.indices) {
+            showOsd = true
+            delay(350)
             val ch = channels[currentChannelIndex]
             val streamUrl = UrlHelper.buildLiveStreamUrl(
                 serverDns = serverDns,
@@ -113,15 +141,27 @@ fun LivePlayerScreen(
                 streamId = ch.streamId
             )
             playerManager.playStream(streamUrl, ch.name)
-            showOsd = true
         }
     }
 
-    // Auto-ocultar OSD após 5 segundos
-    LaunchedEffect(showOsd) {
-        if (showOsd) {
+    // Foco inicial nos botões do OSD ao entrar na tela cheia
+    LaunchedEffect(Unit) {
+        delay(250)
+        try {
+            osdButtonsFocusRequester.requestFocus()
+        } catch (_: Exception) {
+            try { playerSurfaceFocusRequester.requestFocus() } catch (_: Exception) {}
+        }
+    }
+
+    // Auto-ocultar OSD após 5 segundos (apenas se o usuário não estiver com foco nos botões)
+    LaunchedEffect(showOsd, isOsdFocused) {
+        if (showOsd && !isOsdFocused) {
             delay(5000)
             showOsd = false
+            try {
+                playerSurfaceFocusRequester.requestFocus()
+            } catch (_: Exception) {}
         }
     }
 
@@ -129,20 +169,26 @@ fun LivePlayerScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .focusRequester(playerSurfaceFocusRequester)
             .focusable()
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
                 showOsd = !showOsd
+                if (showOsd) {
+                    try { osdButtonsFocusRequester.requestFocus() } catch (_: Exception) {}
+                }
             }
-            // Captura eventos de controle remoto prioritários (BACK, Zapping)
-            .onPreviewKeyEvent { keyEvent ->
+            .onKeyEvent { keyEvent ->
                 if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                     when (keyEvent.nativeKeyEvent.keyCode) {
                         KeyEvent.KEYCODE_BACK -> {
                             if (showChannelList) {
                                 showChannelList = false
+                                true
+                            } else if (showOsd) {
+                                showOsd = false
                                 true
                             } else {
                                 playerManager.stop()
@@ -174,29 +220,16 @@ fun LivePlayerScreen(
                                 true
                             } else false
                         }
-                        KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                            if (showChannelList) {
-                                showChannelList = false
+                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                            if (!showChannelList && playbackState !is PlaybackState.Error) {
+                                showOsd = true
+                                try {
+                                    osdButtonsFocusRequester.requestFocus()
+                                } catch (_: Exception) {}
                                 true
                             } else false
                         }
                         else -> false
-                    }
-                } else false
-            }
-            .onKeyEvent { keyEvent ->
-                if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
-                    when (keyEvent.nativeKeyEvent.keyCode) {
-                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                            if (!showChannelList && playbackState !is PlaybackState.Error) {
-                                showChannelList = true
-                                true
-                            } else false
-                        }
-                        else -> {
-                            showOsd = true
-                            false
-                        }
                     }
                 } else false
             }
@@ -438,7 +471,24 @@ fun LivePlayerScreen(
                             }
 
                             // Botões Touch de Atalho Rápido para Celular e TV
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier
+                                    .onFocusChanged { isOsdFocused = it.hasFocus }
+                                    .onPreviewKeyEvent { keyEvent ->
+                                        if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                                            when (keyEvent.nativeKeyEvent.keyCode) {
+                                                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_DPAD_UP -> {
+                                                    showOsd = false
+                                                    try { playerSurfaceFocusRequester.requestFocus() } catch (_: Exception) {}
+                                                    true
+                                                }
+                                                else -> false
+                                            }
+                                        } else false
+                                    },
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 TvTouchCard(
                                     onClick = {
                                         if (channels.isNotEmpty()) {
@@ -446,12 +496,28 @@ fun LivePlayerScreen(
                                             showOsd = true
                                         }
                                     },
+                                    modifier = Modifier
+                                        .focusRequester(osdButtonsFocusRequester)
+                                        .onKeyEvent { keyEvent ->
+                                            if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN &&
+                                                keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                                                if (channels.isNotEmpty()) {
+                                                    currentChannelIndex = if (currentChannelIndex > 0) currentChannelIndex - 1 else channels.size - 1
+                                                }
+                                                true
+                                            } else false
+                                        },
                                     containerColor = BgSurfaceDark,
                                     focusedContainerColor = AccentEmerald,
                                     shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                                 ) { isFocused ->
-                                    Text(text = "▲ Anterior", fontSize = 11.sp, color = if (isFocused) Color.Black else TextPrimary)
+                                    Text(
+                                        text = "▲ Anterior",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isFocused) Color.Black else TextPrimary
+                                    )
                                 }
 
                                 TvTouchCard(
@@ -461,12 +527,27 @@ fun LivePlayerScreen(
                                             showOsd = true
                                         }
                                     },
+                                    modifier = Modifier
+                                        .onKeyEvent { keyEvent ->
+                                            if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN &&
+                                                keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                                                if (channels.isNotEmpty()) {
+                                                    currentChannelIndex = (currentChannelIndex + 1) % channels.size
+                                                }
+                                                true
+                                            } else false
+                                        },
                                     containerColor = BgSurfaceDark,
                                     focusedContainerColor = AccentEmerald,
                                     shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                                 ) { isFocused ->
-                                    Text(text = "▼ Próximo", fontSize = 11.sp, color = if (isFocused) Color.Black else TextPrimary)
+                                    Text(
+                                        text = "▼ Próximo",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isFocused) Color.Black else TextPrimary
+                                    )
                                 }
 
                                 TvTouchCard(
@@ -474,9 +555,14 @@ fun LivePlayerScreen(
                                     containerColor = BgSurfaceDark,
                                     focusedContainerColor = AccentSky,
                                     shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                                 ) { isFocused ->
-                                    Text(text = "📋 Lista", fontSize = 11.sp, color = if (isFocused) Color.Black else AccentSky, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = "📋 Lista",
+                                        fontSize = 12.sp,
+                                        color = if (isFocused) Color.Black else AccentSky,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
 
                                 TvTouchCard(
@@ -487,9 +573,14 @@ fun LivePlayerScreen(
                                     containerColor = BgSurfaceDark,
                                     focusedContainerColor = AccentRose,
                                     shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                                 ) { isFocused ->
-                                    Text(text = "✕ Voltar", fontSize = 11.sp, color = if (isFocused) Color.White else TextSecondary, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = "✕ Voltar",
+                                        fontSize = 12.sp,
+                                        color = if (isFocused) Color.White else TextSecondary,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
@@ -508,10 +599,22 @@ fun LivePlayerScreen(
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(360.dp)
+                    .width(380.dp)
                     .background(BgCardDark.copy(alpha = 0.98f))
                     .border(1.dp, BorderDark)
                     .padding(20.dp)
+                    .onPreviewKeyEvent { keyEvent ->
+                        if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                            when (keyEvent.nativeKeyEvent.keyCode) {
+                                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                    showChannelList = false
+                                    try { playerSurfaceFocusRequester.requestFocus() } catch (_: Exception) {}
+                                    true
+                                }
+                                else -> false
+                            }
+                        } else false
+                    }
             ) {
                 Column {
                     Row(
@@ -533,7 +636,10 @@ fun LivePlayerScreen(
                             )
                         }
                         TvTouchCard(
-                            onClick = { showChannelList = false },
+                            onClick = {
+                                showChannelList = false
+                                try { playerSurfaceFocusRequester.requestFocus() } catch (_: Exception) {}
+                            },
                             containerColor = BgSurfaceDark,
                             focusedContainerColor = AccentRose,
                             shape = RoundedCornerShape(6.dp),
@@ -560,14 +666,17 @@ fun LivePlayerScreen(
                                 onClick = {
                                     currentChannelIndex = index
                                     showChannelList = false
+                                    try { playerSurfaceFocusRequester.requestFocus() } catch (_: Exception) {}
                                 },
-                                modifier = Modifier.fillMaxWidth(),
-                                containerColor = if (isSelected) AccentEmerald.copy(alpha = 0.2f) else Color.Transparent,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .then(if (isSelected) Modifier.focusRequester(selectedChannelFocusRequester) else Modifier),
+                                containerColor = if (isSelected) AccentEmerald.copy(alpha = 0.25f) else Color.Transparent,
                                 focusedContainerColor = AccentEmerald,
-                                border = BorderStroke(1.dp, if (isSelected) AccentEmerald.copy(alpha = 0.4f) else Color.Transparent),
+                                border = BorderStroke(1.dp, if (isSelected) AccentEmerald.copy(alpha = 0.5f) else Color.Transparent),
                                 focusedBorder = BorderStroke(2.dp, Color.White),
                                 shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
                             ) { isFocused ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -584,11 +693,20 @@ fun LivePlayerScreen(
                                     Text(
                                         text = ch.name,
                                         fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium,
+                                        fontWeight = if (isSelected || isFocused) FontWeight.Bold else FontWeight.Medium,
                                         maxLines = 1,
                                         color = if (isFocused) Color.Black else (if (isSelected) AccentEmerald else TextPrimary),
                                         modifier = Modifier.weight(1f)
                                     )
+                                    if (isSelected) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isFocused) Color.Black else AccentEmerald)
+                                        )
+                                    }
                                 }
                             }
                         }
