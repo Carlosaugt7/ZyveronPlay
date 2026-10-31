@@ -52,6 +52,7 @@ import com.zyveron.play.ui.components.TvNotificationOverlay
 import com.zyveron.play.ui.home.HomeScreen
 import com.zyveron.play.ui.live.LivePlayerScreen
 import com.zyveron.play.ui.live.LiveTvGuideScreen
+import com.zyveron.play.ui.movies.MovieDetailScreen
 import com.zyveron.play.ui.movies.MoviesScreen
 import com.zyveron.play.ui.player.VodPlayerScreen
 import com.zyveron.play.ui.series.SeriesDetailScreen
@@ -71,13 +72,26 @@ import com.zyveron.play.util.UrlHelper
 
 sealed class AppScreen {
     object Home : AppScreen()
-    data class LiveTvGuide(val initialSports: Boolean = false) : AppScreen()
-    data class FullScreenPlayer(val channel: ChannelEntity, val playlist: List<ChannelEntity>) : AppScreen()
+    data class LiveTvGuide(
+        val initialSports: Boolean = false,
+        val initialCategoryId: String? = null,
+        val initialChannelId: Int? = null
+    ) : AppScreen()
+    data class FullScreenPlayer(
+        val channel: ChannelEntity,
+        val playlist: List<ChannelEntity>,
+        val categoryId: String? = null
+    ) : AppScreen()
     object Movies : AppScreen()
-    data class MoviePlayer(val vod: VodEntity) : AppScreen()
+    data class MovieDetail(val vod: VodEntity) : AppScreen()
+    data class MoviePlayer(val vod: VodEntity, val startPositionMs: Long = 0L) : AppScreen()
     object Series : AppScreen()
     data class SeriesDetail(val series: SeriesEntity) : AppScreen()
-    data class SeriesEpisodePlayer(val episode: EpisodeItem, val series: SeriesEntity) : AppScreen()
+    data class SeriesEpisodePlayer(
+        val episode: EpisodeItem,
+        val series: SeriesEntity,
+        val startPositionMs: Long = 0L
+    ) : AppScreen()
     object Accounts : AppScreen()
     object Settings : AppScreen()
 }
@@ -131,8 +145,19 @@ fun MainContent(
     // Interceptador Global do Botão BACK do Controle Remoto
     BackHandler(enabled = true) {
         when (currentScreen) {
-            is AppScreen.FullScreenPlayer -> currentScreen = AppScreen.LiveTvGuide()
-            is AppScreen.MoviePlayer -> currentScreen = AppScreen.Movies
+            is AppScreen.FullScreenPlayer -> {
+                val p = currentScreen as AppScreen.FullScreenPlayer
+                currentScreen = AppScreen.LiveTvGuide(
+                    initialSports = false,
+                    initialCategoryId = p.categoryId,
+                    initialChannelId = p.channel.streamId
+                )
+            }
+            is AppScreen.MoviePlayer -> {
+                val mp = currentScreen as AppScreen.MoviePlayer
+                currentScreen = AppScreen.MovieDetail(mp.vod)
+            }
+            is AppScreen.MovieDetail -> currentScreen = AppScreen.Movies
             is AppScreen.SeriesEpisodePlayer -> {
                 val epState = currentScreen as AppScreen.SeriesEpisodePlayer
                 currentScreen = AppScreen.SeriesDetail(epState.series)
@@ -246,7 +271,7 @@ fun MainContent(
                                 android.widget.Toast.makeText(context, "🔄 Atualizando canais, filmes e séries...", android.widget.Toast.LENGTH_SHORT).show()
                                 syncRetryTrigger++
                             },
-                            onPlayVod = { vod -> currentScreen = AppScreen.MoviePlayer(vod) },
+                            onPlayVod = { vod -> currentScreen = AppScreen.MovieDetail(vod) },
                             onSelectSeries = { series -> currentScreen = AppScreen.SeriesDetail(series) },
                             isSyncing = isSyncing
                         )
@@ -260,8 +285,10 @@ fun MainContent(
                             username = state.username,
                             password = state.password,
                             initialFilterSports = screen.initialSports,
-                            onOpenFullScreenPlayer = { channel, playlist ->
-                                currentScreen = AppScreen.FullScreenPlayer(channel, playlist)
+                            initialCategoryId = screen.initialCategoryId,
+                            initialChannelId = screen.initialChannelId,
+                            onOpenFullScreenPlayer = { channel, playlist, categoryId ->
+                                currentScreen = AppScreen.FullScreenPlayer(channel, playlist, categoryId)
                             },
                             onBack = { currentScreen = AppScreen.Home }
                         )
@@ -276,15 +303,32 @@ fun MainContent(
                             username = state.username,
                             password = state.password,
                             initialChannelIndex = if (initialIndex >= 0) initialIndex else 0,
-                            onBack = { currentScreen = AppScreen.LiveTvGuide() }
+                            onBack = {
+                                currentScreen = AppScreen.LiveTvGuide(
+                                    initialSports = false,
+                                    initialCategoryId = screen.categoryId,
+                                    initialChannelId = screen.channel.streamId
+                                )
+                            }
                         )
                     }
 
                     is AppScreen.Movies -> {
                         MoviesScreen(
                             repository = repository,
-                            onPlayMovie = { vod -> currentScreen = AppScreen.MoviePlayer(vod) },
+                            onSelectMovie = { vod -> currentScreen = AppScreen.MovieDetail(vod) },
                             onBack = { currentScreen = AppScreen.Home }
+                        )
+                    }
+
+                    is AppScreen.MovieDetail -> {
+                        MovieDetailScreen(
+                            vod = screen.vod,
+                            repository = repository,
+                            onPlayMovie = { vod, startPos ->
+                                currentScreen = AppScreen.MoviePlayer(vod, startPos)
+                            },
+                            onBack = { currentScreen = AppScreen.Movies }
                         )
                     }
 
@@ -300,7 +344,11 @@ fun MainContent(
                             title = screen.vod.name,
                             streamUrl = streamUrl,
                             playerManager = playerManager,
-                            onBack = { currentScreen = AppScreen.Movies }
+                            startPositionMs = screen.startPositionMs,
+                            onSaveProgress = { pos, _ ->
+                                repository.saveVodProgress(screen.vod.streamId, pos)
+                            },
+                            onBack = { currentScreen = AppScreen.MovieDetail(screen.vod) }
                         )
                     }
 
@@ -335,10 +383,15 @@ fun MainContent(
                             episodeId = screen.episode.id,
                             containerExt = screen.episode.containerExtension
                         )
+                        val savedPos = repository.getVodProgress(screen.episode.id)
                         VodPlayerScreen(
                             title = "${screen.series.name} • ${screen.episode.title}",
                             streamUrl = streamUrl,
                             playerManager = playerManager,
+                            startPositionMs = savedPos,
+                            onSaveProgress = { pos, _ ->
+                                repository.saveVodProgress(screen.episode.id, pos)
+                            },
                             onBack = { currentScreen = AppScreen.SeriesDetail(screen.series) }
                         )
                     }

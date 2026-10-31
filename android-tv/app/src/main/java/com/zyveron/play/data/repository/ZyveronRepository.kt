@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit
 class ZyveronRepository(context: Context) {
 
     private val channelDao: ChannelDao = ZyveronDatabase.getInstance(context).channelDao()
+    private val prefs = context.getSharedPreferences("zyveron_vod_progress", Context.MODE_PRIVATE)
     private val client = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(25, TimeUnit.SECONDS)
@@ -106,6 +107,25 @@ class ZyveronRepository(context: Context) {
         _vodCount.value = count
         return count
     }
+
+    // --- PROGRESSO DE REPRODUÇÃO (VOD / FILMES / SÉRIES) ---
+    fun saveVodProgress(contentId: String, positionMs: Long) {
+        if (positionMs > 5000) {
+            prefs.edit().putLong("vod_$contentId", positionMs).apply()
+        }
+    }
+
+    fun getVodProgress(contentId: String): Long {
+        return prefs.getLong("vod_$contentId", 0L)
+    }
+
+    fun clearVodProgress(contentId: String) {
+        prefs.edit().remove("vod_$contentId").apply()
+    }
+
+    fun saveVodProgress(streamId: Int, positionMs: Long) = saveVodProgress(streamId.toString(), positionMs)
+    fun getVodProgress(streamId: Int): Long = getVodProgress(streamId.toString())
+    fun clearVodProgress(streamId: Int) = clearVodProgress(streamId.toString())
 
     // --- SÉRIES ---
     fun getSeriesCategories(): Flow<List<CategoryEntity>> = channelDao.getCategoriesByType("series")

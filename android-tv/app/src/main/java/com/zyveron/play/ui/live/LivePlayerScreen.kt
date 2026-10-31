@@ -102,7 +102,7 @@ fun LivePlayerScreen(
         }
     }
 
-    // Auto-scroll e foco automático do canal ativo na gaveta lateral
+    // Auto-scroll e foco automático com retry do canal ativo na gaveta lateral
     LaunchedEffect(showChannelList) {
         if (showChannelList) {
             if (currentChannelIndex in channels.indices) {
@@ -110,14 +110,15 @@ fun LivePlayerScreen(
                     channelListState.scrollToItem(currentChannelIndex)
                 } catch (_: Exception) {}
             }
-            delay(120)
-            try {
-                selectedChannelFocusRequester.requestFocus()
-            } catch (e: Exception) {
-                android.util.Log.e("LivePlayerScreen", "Erro ao focar canal ativo", e)
+            for (i in 1..10) {
+                delay(50)
+                try {
+                    selectedChannelFocusRequester.requestFocus()
+                    break
+                } catch (_: Exception) {}
             }
         } else {
-            delay(60)
+            delay(50)
             try {
                 if (showOsd) {
                     osdButtonsFocusRequester.requestFocus()
@@ -144,13 +145,16 @@ fun LivePlayerScreen(
         }
     }
 
-    // Foco inicial nos botões do OSD ao entrar na tela cheia
-    LaunchedEffect(Unit) {
-        delay(250)
-        try {
-            osdButtonsFocusRequester.requestFocus()
-        } catch (_: Exception) {
-            try { playerSurfaceFocusRequester.requestFocus() } catch (_: Exception) {}
+    // Foco automático nos botões do OSD ao exibir o menu
+    LaunchedEffect(showOsd) {
+        if (showOsd && !showChannelList) {
+            for (i in 1..8) {
+                delay(40)
+                try {
+                    osdButtonsFocusRequester.requestFocus()
+                    break
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -499,12 +503,20 @@ fun LivePlayerScreen(
                                     modifier = Modifier
                                         .focusRequester(osdButtonsFocusRequester)
                                         .onKeyEvent { keyEvent ->
-                                            if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN &&
-                                                keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-                                                if (channels.isNotEmpty()) {
-                                                    currentChannelIndex = if (currentChannelIndex > 0) currentChannelIndex - 1 else channels.size - 1
+                                            if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                                                when (keyEvent.nativeKeyEvent.keyCode) {
+                                                    KeyEvent.KEYCODE_DPAD_UP -> {
+                                                        if (channels.isNotEmpty()) {
+                                                            currentChannelIndex = if (currentChannelIndex > 0) currentChannelIndex - 1 else channels.size - 1
+                                                        }
+                                                        true
+                                                    }
+                                                    KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                                        showChannelList = true
+                                                        true
+                                                    }
+                                                    else -> false
                                                 }
-                                                true
                                             } else false
                                         },
                                     containerColor = BgSurfaceDark,

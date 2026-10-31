@@ -1,11 +1,11 @@
 package com.zyveron.play.ui.components
 
+import android.view.KeyEvent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.unit.dp
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.BgCardDark
@@ -31,7 +32,7 @@ import com.zyveron.play.ui.theme.BorderDark
 /**
  * Componente universal compatível com SMARTPHONES (Touchscreen) e ANDROID TV (D-Pad Controle Remoto).
  * - No Smartphone/Tablet: responde imediatamente a toques, cliques e toques longos com os dedos.
- * - Na Android TV: ganha foco visual com borda branca e responde às teclas Direcionais (D-Pad) e botão OK.
+ * - Na Android TV: ganha foco visual com borda branca e responde a 1 único clique nas teclas D-Pad (OK/Center).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -58,7 +59,15 @@ fun TvTouchCard(
             .background(currentBg)
             .then(if (currentBorder != null) Modifier.border(currentBorder, shape) else Modifier)
             .onFocusChanged { isFocused = it.isFocused }
-            .focusable(enabled)
+            .onKeyEvent { keyEvent ->
+                if (enabled && keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN &&
+                    (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+                     keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_ENTER ||
+                     keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
+                    onClick()
+                    true
+                } else false
+            }
             .combinedClickable(
                 enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },

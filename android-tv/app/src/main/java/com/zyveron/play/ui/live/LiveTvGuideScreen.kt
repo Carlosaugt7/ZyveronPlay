@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
@@ -36,6 +37,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.KeyEventType
@@ -79,7 +82,9 @@ fun LiveTvGuideScreen(
     username: String,
     password: String,
     initialFilterSports: Boolean = false,
-    onOpenFullScreenPlayer: (ChannelEntity, List<ChannelEntity>) -> Unit,
+    initialCategoryId: String? = null,
+    initialChannelId: Int? = null,
+    onOpenFullScreenPlayer: (ChannelEntity, List<ChannelEntity>, String) -> Unit,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -89,8 +94,24 @@ fun LiveTvGuideScreen(
     val favorites by repository.getFavorites().collectAsState(initial = emptyList())
 
     var searchQuery by remember { mutableStateOf("") }
-    var selectedCategoryId by remember { mutableStateOf(if (initialFilterSports) "SPORTS" else "ALL") }
+    var selectedCategoryId by remember { mutableStateOf(initialCategoryId ?: (if (initialFilterSports) "SPORTS" else "ALL")) }
     var selectedChannelIndex by remember { mutableIntStateOf(0) }
+    val channelListState = rememberLazyListState()
+
+    val categoryAllFocusRequester = remember { FocusRequester() }
+    val channelListFocusRequester = remember { FocusRequester() }
+
+    // Foco inicial garantido na categoria "Todos os Canais" ou no canal atual (evita abrir o teclado)
+    LaunchedEffect(Unit) {
+        delay(200)
+        try {
+            if (initialChannelId != null) {
+                channelListFocusRequester.requestFocus()
+            } else {
+                categoryAllFocusRequester.requestFocus()
+            }
+        } catch (_: Exception) {}
+    }
 
     // Agrupamento estrito de categorias: Regionais/Abertos -> Temáticos -> 24 Horas -> Internacionais
     val groupedCategories = remember(categories) {
@@ -138,11 +159,23 @@ fun LiveTvGuideScreen(
 
     val currentChannel = displayedChannels.getOrNull(selectedChannelIndex)
 
-    // Toca o canal selecionado na Mini-Transmissão com debounce de 500ms
-    // Evita travamentos ao passar rapidamente pelas setas do controle remoto
+    // Posiciona o canal ativo caso venha de retorno da tela cheia
+    LaunchedEffect(displayedChannels, initialChannelId) {
+        if (initialChannelId != null && displayedChannels.isNotEmpty()) {
+            val idx = displayedChannels.indexOfFirst { it.streamId == initialChannelId }
+            if (idx >= 0) {
+                selectedChannelIndex = idx
+                try {
+                    channelListState.scrollToItem(idx)
+                    channelListFocusRequester.requestFocus()
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    // Toca o canal selecionado na Mini-Transmissão
     LaunchedEffect(currentChannel?.streamId, serverDns) {
         if (currentChannel != null) {
-            delay(500)
             val streamUrl = currentChannel.directSourceUrl ?: if (serverDns.isNotBlank()) {
                 repository.buildLiveStreamUrl(serverDns, username, password, currentChannel.streamId)
             } else ""
@@ -299,6 +332,7 @@ fun LiveTvGuideScreen(
                                     title = "Todos os Canais",
                                     count = allChannels.size,
                                     isSelected = selectedCategoryId == "ALL",
+                                    modifier = Modifier.focusRequester(categoryAllFocusRequester),
                                     onClick = {
                                         selectedCategoryId = "ALL"
                                         selectedChannelIndex = 0
@@ -461,6 +495,7 @@ fun LiveTvGuideScreen(
                             }
                         } else {
                             LazyColumn(
+                                state = channelListState,
                                 verticalArrangement = Arrangement.spacedBy(6.dp),
                                 modifier = Modifier.fillMaxSize()
                             ) {
@@ -468,14 +503,20 @@ fun LiveTvGuideScreen(
                                     val isSelected = index == selectedChannelIndex
                                     TvTouchCard(
                                         onClick = {
-                                            selectedChannelIndex = index
-                                            onOpenFullScreenPlayer(channel, displayedChannels)
+                                            if (selectedChannelIndex == index) {
+                                                // 2º clique no mesmo canal que já está tocando na mini tela -> expande para Tela Cheia!
+                                                onOpenFullScreenPlayer(channel, displayedChannels, selectedCategoryId)
+                                            } else {
+                                                // 1º clique -> Seleciona o canal e começa a transmissão na mini tela!
+                                                selectedChannelIndex = index
+                                            }
                                         },
                                         onLongClick = {
                                             scope.launch { repository.toggleChannelFavorite(channel) }
                                         },
                                         modifier = Modifier
                                             .fillMaxWidth()
+                                            .then(if (isSelected) Modifier.focusRequester(channelListFocusRequester) else Modifier)
                                             .onKeyEvent { keyEvent ->
                                                 if (keyEvent.type == KeyEventType.KeyDown &&
                                                     (keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_STAR ||
@@ -606,7 +647,7 @@ fun LiveTvGuideScreen(
                                     TvTouchCard(
                                         onClick = {
                                             if (currentChannel != null) {
-                                                onOpenFullScreenPlayer(currentChannel, displayedChannels)
+                                                onOpenFullScreenPlayer(currentChannel, displayedChannels, selectedCategoryId)
                                             }
                                         },
                                         containerColor = Color.Black.copy(alpha = 0.7f),
@@ -730,11 +771,12 @@ fun CategoryItem(
     title: String,
     count: Int?,
     isSelected: Boolean,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     TvTouchCard(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         containerColor = if (isSelected) AccentEmerald.copy(alpha = 0.25f) else Color.Transparent,
         focusedContainerColor = AccentEmerald,
         border = BorderStroke(1.dp, if (isSelected) AccentEmerald.copy(alpha = 0.5f) else Color.Transparent),

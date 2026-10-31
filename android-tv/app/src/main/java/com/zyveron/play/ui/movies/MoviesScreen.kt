@@ -65,7 +65,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun MoviesScreen(
     repository: ZyveronRepository,
-    onPlayMovie: (VodEntity) -> Unit,
+    onSelectMovie: (VodEntity) -> Unit,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -260,7 +260,7 @@ fun MoviesScreen(
                             ) {
                                 items(displayedVods) { vod ->
                                     TvTouchCard(
-                                        onClick = { onPlayMovie(vod) },
+                                        onClick = { onSelectMovie(vod) },
                                         onLongClick = {
                                             scope.launch { repository.toggleVodFavorite(vod) }
                                         },

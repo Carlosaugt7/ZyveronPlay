@@ -29,15 +29,20 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,28 +69,97 @@ fun VodPlayerScreen(
     title: String,
     streamUrl: String,
     playerManager: ZyveronPlayerManager,
+    startPositionMs: Long = 0L,
+    onSaveProgress: ((positionMs: Long, durationMs: Long) -> Unit)? = null,
     onBack: () -> Unit
 ) {
     val playbackState by playerManager.playbackState.collectAsState()
     var showOsd by remember { mutableStateOf(true) }
+    var isOsdFocused by remember { mutableStateOf(false) }
+
+    var currentPositionMs by remember { mutableLongStateOf(startPositionMs) }
+    var durationMs by remember { mutableLongStateOf(0L) }
+    var isPlaying by remember { mutableStateOf(true) }
+
+    val playPauseFocusRequester = remember { FocusRequester() }
+    val playerSurfaceFocusRequester = remember { FocusRequester() }
+
+    fun seekRelative(deltaMs: Long) {
+        val player = playerManager.getPlayer()
+        val current = player.currentPosition
+        val dur = player.duration.coerceAtLeast(0L)
+        val target = (current + deltaMs).coerceIn(0L, if (dur > 0) dur else Long.MAX_VALUE)
+        player.seekTo(target)
+        currentPositionMs = target
+        showOsd = true
+        onSaveProgress?.invoke(target, dur)
+    }
 
     LaunchedEffect(streamUrl) {
         if (streamUrl.isNotBlank()) {
             playerManager.playStream(streamUrl, title)
+            if (startPositionMs > 1000L) {
+                delay(400)
+                try {
+                    playerManager.getPlayer().seekTo(startPositionMs)
+                } catch (_: Exception) {}
+            }
         }
         showOsd = true
     }
 
-    LaunchedEffect(showOsd) {
-        if (showOsd) {
+    // Monitora tempo de reprodução para barra de progresso e persistência contínua
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            try {
+                val player = playerManager.getPlayer()
+                if (player.isPlaying) {
+                    currentPositionMs = player.currentPosition
+                    durationMs = player.duration.coerceAtLeast(0L)
+                    isPlaying = player.playWhenReady
+                    onSaveProgress?.invoke(currentPositionMs, durationMs)
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    // Auto-oculta o OSD após 5 segundos se o usuário não estiver focado nos botões
+    LaunchedEffect(showOsd, isOsdFocused) {
+        if (showOsd && !isOsdFocused) {
             delay(5000)
             showOsd = false
         }
     }
 
+    // Foco inicial no botão Play/Pause
+    LaunchedEffect(Unit) {
+        delay(300)
+        try {
+            playPauseFocusRequester.requestFocus()
+        } catch (_: Exception) {}
+    }
+
     DisposableEffect(Unit) {
         onDispose {
+            try {
+                val player = playerManager.getPlayer()
+                onSaveProgress?.invoke(player.currentPosition, player.duration)
+            } catch (_: Exception) {}
             playerManager.stop()
+        }
+    }
+
+    fun formatDuration(ms: Long): String {
+        if (ms <= 0L) return "00:00"
+        val totalSecs = ms / 1000
+        val hours = totalSecs / 3600
+        val mins = (totalSecs % 3600) / 60
+        val secs = totalSecs % 60
+        return if (hours > 0) {
+            String.format("%02d:%02d:%02d", hours, mins, secs)
+        } else {
+            String.format("%02d:%02d", mins, secs)
         }
     }
 
@@ -93,24 +167,45 @@ fun VodPlayerScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .focusRequester(playerSurfaceFocusRequester)
             .focusable()
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
                 showOsd = !showOsd
+                if (showOsd) {
+                    try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
+                }
             }
-            .onPreviewKeyEvent { keyEvent ->
+            .onKeyEvent { keyEvent ->
                 if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                     when (keyEvent.nativeKeyEvent.keyCode) {
                         KeyEvent.KEYCODE_BACK -> {
-                            playerManager.stop()
-                            onBack()
+                            if (showOsd) {
+                                showOsd = false
+                                true
+                            } else {
+                                playerManager.stop()
+                                onBack()
+                                true
+                            }
+                        }
+                        // Seta Esquerda do controle remoto -> Retrocede 10s
+                        KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                            seekRelative(-10_000L)
                             true
                         }
+                        // Seta Direita do controle remoto -> Avança 10s
+                        KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                            seekRelative(+10_000L)
+                            true
+                        }
+                        // Botão Centro / OK -> Alterna Play / Pause
                         KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                             val player = playerManager.getPlayer()
                             player.playWhenReady = !player.playWhenReady
+                            isPlaying = player.playWhenReady
                             showOsd = true
                             true
                         }
@@ -122,7 +217,7 @@ fun VodPlayerScreen(
                 } else false
             }
     ) {
-        // Player Surface
+        // Player Surface (Media3 / ExoPlayer)
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
@@ -134,7 +229,7 @@ fun VodPlayerScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Indicador de Buffering
+        // Buffering
         if (playbackState is PlaybackState.Buffering) {
             Box(
                 modifier = Modifier
@@ -175,7 +270,7 @@ fun VodPlayerScreen(
                             focusedContainerColor = Color.White,
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                        ) { isFocused ->
+                        ) {
                             Text(text = "🔄 Tentar Novamente", fontWeight = FontWeight.Bold, color = Color.Black)
                         }
                         TvTouchCard(
@@ -187,7 +282,7 @@ fun VodPlayerScreen(
                             focusedContainerColor = Color.White,
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                        ) { isFocused ->
+                        ) {
                             Text(text = "✕ Voltar", fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
@@ -195,7 +290,7 @@ fun VodPlayerScreen(
             }
         }
 
-        // OSD Inferior
+        // OSD Inferior com Barra de Progresso e Botões de Avanço / Retrocesso
         AnimatedVisibility(
             visible = showOsd,
             enter = fadeIn(),
@@ -210,43 +305,140 @@ fun VodPlayerScreen(
                             listOf(Color.Transparent, Color.Black.copy(alpha = 0.95f))
                         )
                     )
-                    .padding(24.dp)
+                    .padding(horizontal = 28.dp, vertical = 20.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Título e Dicas de Atalho
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
                         Text(
                             text = title,
                             color = TextPrimary,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Toque na tela ou use OK para Pausar/Reproduzir",
+                            text = "Use ◀ e ▶ para avançar/retroceder 10s • OK para pausar",
                             color = TextSecondary,
                             fontSize = 11.sp
                         )
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Linha da Barra de Progresso
+                    val progressFraction = if (durationMs > 0) {
+                        (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+                    } else 0f
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(Color.White.copy(alpha = 0.2f))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(progressFraction)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(AccentEmerald)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Tempo Decorrido e Duração Total
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = formatDuration(currentPositionMs),
+                            color = AccentEmerald,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = formatDuration(durationMs),
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Linha de Botões de Controle (Retroceder 10s, Play/Pause, Avançar 10s, Sair)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { isOsdFocused = it.hasFocus },
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Botão Retroceder 10s
+                        TvTouchCard(
+                            onClick = { seekRelative(-10_000L) },
+                            containerColor = BgSurfaceDark,
+                            focusedContainerColor = AccentSky,
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                        ) { isFocused ->
+                            Text(
+                                text = "⏪ -10s",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isFocused) Color.Black else TextPrimary
+                            )
+                        }
+
+                        // Botão Play / Pause
                         TvTouchCard(
                             onClick = {
                                 val player = playerManager.getPlayer()
                                 player.playWhenReady = !player.playWhenReady
+                                isPlaying = player.playWhenReady
                             },
+                            modifier = Modifier.focusRequester(playPauseFocusRequester),
                             containerColor = BgSurfaceDark,
                             focusedContainerColor = AccentEmerald,
                             shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
                         ) { isFocused ->
-                            val isPlaying = playerManager.getPlayer().playWhenReady
-                            Text(text = if (isPlaying) "⏸ Pausar" else "▶ Reproduzir", fontSize = 11.sp, color = if (isFocused) Color.Black else TextPrimary, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (isPlaying) "⏸ Pausar" else "▶ Reproduzir",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isFocused) Color.Black else TextPrimary
+                            )
                         }
 
+                        // Botão Avançar 10s
+                        TvTouchCard(
+                            onClick = { seekRelative(+10_000L) },
+                            containerColor = BgSurfaceDark,
+                            focusedContainerColor = AccentSky,
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                        ) { isFocused ->
+                            Text(
+                                text = "⏩ +10s",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isFocused) Color.Black else TextPrimary
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        // Botão Voltar
                         TvTouchCard(
                             onClick = {
                                 playerManager.stop()
@@ -255,9 +447,14 @@ fun VodPlayerScreen(
                             containerColor = BgSurfaceDark,
                             focusedContainerColor = AccentRose,
                             shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                         ) { isFocused ->
-                            Text(text = "✕ Voltar", fontSize = 11.sp, color = if (isFocused) Color.White else TextSecondary, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = "✕ Sair",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isFocused) Color.White else TextSecondary
+                            )
                         }
                     }
                 }
