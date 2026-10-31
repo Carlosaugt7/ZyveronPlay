@@ -2,13 +2,38 @@ package com.zyveron.play
 
 import android.app.Application
 import android.content.Intent
+import android.graphics.Bitmap
 import android.util.Log
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
 import com.zyveron.play.ui.crash.CrashActivity
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
 
-class ZyveronApplication : Application() {
+class ZyveronApplication : Application(), ImageLoaderFactory {
+
+    override fun newImageLoader(): ImageLoader {
+        return ImageLoader.Builder(this)
+            .bitmapConfig(Bitmap.Config.RGB_565)
+            .allowRgb565(true)
+            .memoryCache {
+                MemoryCache.Builder(this)
+                    .maxSizePercent(0.15)
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(cacheDir.resolve("image_cache"))
+                    .maxSizeBytes(40L * 1024 * 1024)
+                    .build()
+            }
+            .crossfade(false)
+            .respectCacheHeaders(false)
+            .build()
+    }
 
     override fun onCreate() {
         super.onCreate()

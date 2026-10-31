@@ -58,6 +58,7 @@ import com.zyveron.play.data.repository.ZyveronRepository
 import com.zyveron.play.player.ZyveronPlayerManager
 import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.ui.theme.AccentEmerald
+import kotlinx.coroutines.delay
 import com.zyveron.play.ui.theme.AccentSky
 import com.zyveron.play.ui.theme.BgCardDark
 import com.zyveron.play.ui.theme.BgSurfaceDark
@@ -137,9 +138,11 @@ fun LiveTvGuideScreen(
 
     val currentChannel = displayedChannels.getOrNull(selectedChannelIndex)
 
-    // Toca automaticamente o canal selecionado na Mini-Transmissão
-    LaunchedEffect(currentChannel, serverDns) {
+    // Toca o canal selecionado na Mini-Transmissão com debounce de 500ms
+    // Evita travamentos ao passar rapidamente pelas setas do controle remoto
+    LaunchedEffect(currentChannel?.streamId, serverDns) {
         if (currentChannel != null) {
+            delay(500)
             val streamUrl = currentChannel.directSourceUrl ?: if (serverDns.isNotBlank()) {
                 repository.buildLiveStreamUrl(serverDns, username, password, currentChannel.streamId)
             } else ""

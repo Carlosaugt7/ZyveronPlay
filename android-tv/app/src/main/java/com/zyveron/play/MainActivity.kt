@@ -205,22 +205,28 @@ fun MainContent(
                 var syncRetryTrigger by remember { mutableIntStateOf(0) }
                 var isSyncing by remember { mutableStateOf(false) }
 
-                // Dispara sincronização completa em background com feedback visual Toast
+                // Sincroniza apenas no primeiro acesso (banco vazio) ou quando o usuário clica em "Recarregar"
+                // Evita sobrecarregar a CPU e memória do Mi Stick na inicialização
                 LaunchedEffect(cleanDns, state.username, syncRetryTrigger) {
                     if (cleanDns.isNotBlank() && state.username.isNotBlank()) {
-                        isSyncing = true
-                        val result = repository.syncXtreamCatalog(
-                            serverDns = cleanDns,
-                            username = state.username,
-                            password = state.password
-                        )
-                        isSyncing = false
-                        if (syncRetryTrigger > 0) {
-                            if (result.isSuccess) {
-                                val total = result.getOrDefault(0)
-                                android.widget.Toast.makeText(context, "✅ Catálogo atualizado com sucesso! ($total canais)", android.widget.Toast.LENGTH_SHORT).show()
-                            } else {
-                                android.widget.Toast.makeText(context, "⚠️ Falha ao atualizar: ${result.exceptionOrNull()?.message}", android.widget.Toast.LENGTH_LONG).show()
+                        val currentCount = repository.getChannelCount()
+                        val shouldSync = currentCount == 0 || syncRetryTrigger > 0
+
+                        if (shouldSync) {
+                            isSyncing = true
+                            val result = repository.syncXtreamCatalog(
+                                serverDns = cleanDns,
+                                username = state.username,
+                                password = state.password
+                            )
+                            isSyncing = false
+                            if (syncRetryTrigger > 0) {
+                                if (result.isSuccess) {
+                                    val total = result.getOrDefault(0)
+                                    android.widget.Toast.makeText(context, "✅ Catálogo atualizado com sucesso! ($total canais)", android.widget.Toast.LENGTH_SHORT).show()
+                                } else {
+                                    android.widget.Toast.makeText(context, "⚠️ Falha ao atualizar: ${result.exceptionOrNull()?.message}", android.widget.Toast.LENGTH_LONG).show()
+                                }
                             }
                         }
                     }
