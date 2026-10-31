@@ -103,16 +103,35 @@ fun LiveTvGuideScreen(
     val categoryAllFocusRequester = remember { FocusRequester() }
     val channelListFocusRequester = remember { FocusRequester() }
 
-    // Foco inicial garantido na categoria "Todos os Canais" ou no canal atual (evita abrir o teclado)
+    // Quantitativo exato de canais por categoria
+    val channelCountByCat = remember(allChannels) {
+        allChannels.groupingBy { it.categoryId }.eachCount()
+    }
+
+    // Pasta Recém Adicionados
+    val recentChannels = remember(allChannels) {
+        allChannels.sortedByDescending { it.streamId }.take(100)
+    }
+
+    // Foco inicial garantido: no canal anterior ou na categoria "Todos os Canais" (NUNCA abre teclado na busca)
     LaunchedEffect(Unit) {
-        delay(200)
-        try {
-            if (initialChannelId != null) {
-                channelListFocusRequester.requestFocus()
-            } else {
-                categoryAllFocusRequester.requestFocus()
+        delay(150)
+        var focused = false
+        if (initialChannelId != null) {
+            for (i in 1..8) {
+                delay(50)
+                try {
+                    channelListFocusRequester.requestFocus()
+                    focused = true
+                    break
+                } catch (_: Exception) {}
             }
-        } catch (_: Exception) {}
+        }
+        if (!focused) {
+            try {
+                categoryAllFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
     }
 
     // Agrupamento estrito de categorias: Regionais/Abertos -> Temáticos -> 24 Horas -> Internacionais
@@ -144,11 +163,12 @@ fun LiveTvGuideScreen(
     }
 
     // Determina lista de canais da categoria selecionada + filtro de busca
-    val displayedChannels = remember(selectedCategoryId, searchQuery, allChannels, sportsChannels, favorites) {
+    val displayedChannels = remember(selectedCategoryId, searchQuery, allChannels, sportsChannels, favorites, recentChannels) {
         val baseList = when (selectedCategoryId) {
             "SPORTS" -> sportsChannels
             "FAV" -> favorites
             "ALL" -> allChannels
+            "RECENT" -> recentChannels
             "SEARCH" -> allChannels
             else -> allChannels.filter { it.categoryId == selectedCategoryId }
         }
@@ -369,7 +389,20 @@ fun LiveTvGuideScreen(
                                 )
                             }
 
-                            // 4. GUIA DE JOGOS / ESPORTES
+                            // 4. RECÉM ADICIONADOS (Logo após Todos)
+                            item {
+                                CategoryItem(
+                                    title = "⏱️ Recém Adicionados",
+                                    count = recentChannels.size,
+                                    isSelected = selectedCategoryId == "RECENT",
+                                    onClick = {
+                                        selectedCategoryId = "RECENT"
+                                        selectedChannelIndex = 0
+                                    }
+                                )
+                            }
+
+                            // 5. GUIA DE JOGOS / ESPORTES
                             item {
                                 CategoryItem(
                                     title = "⚽ Guia de Jogos / Esportes",
@@ -382,7 +415,7 @@ fun LiveTvGuideScreen(
                                 )
                             }
 
-                            // 5. CANAIS REGIONAIS & ABERTOS (LOGO APÓS TODOS)
+                            // 6. CANAIS REGIONAIS & ABERTOS (LOGO APÓS TODOS)
                             if (groupedCategories.regional.isNotEmpty()) {
                                 item {
                                     Box(
@@ -403,7 +436,7 @@ fun LiveTvGuideScreen(
                                 items(groupedCategories.regional) { cat ->
                                     CategoryItem(
                                         title = cat.categoryName,
-                                        count = null,
+                                        count = channelCountByCat[cat.categoryId] ?: 0,
                                         isSelected = selectedCategoryId == cat.categoryId,
                                         onClick = {
                                             selectedCategoryId = cat.categoryId
@@ -413,7 +446,7 @@ fun LiveTvGuideScreen(
                                 }
                             }
 
-                            // 6. DEMAIS CATEGORIAS NACIONAIS E TEMÁTICAS
+                            // 7. DEMAIS CATEGORIAS NACIONAIS E TEMÁTICAS
                             if (groupedCategories.regular.isNotEmpty()) {
                                 item {
                                     Box(
@@ -434,7 +467,7 @@ fun LiveTvGuideScreen(
                                 items(groupedCategories.regular) { cat ->
                                     CategoryItem(
                                         title = cat.categoryName,
-                                        count = null,
+                                        count = channelCountByCat[cat.categoryId] ?: 0,
                                         isSelected = selectedCategoryId == cat.categoryId,
                                         onClick = {
                                             selectedCategoryId = cat.categoryId
@@ -444,7 +477,7 @@ fun LiveTvGuideScreen(
                                 }
                             }
 
-                            // 7. CANAIS 24 HORAS (NO FINAL, ANTES DOS INTERNACIONAIS)
+                            // 8. CANAIS 24 HORAS (NO FINAL, ANTES DOS INTERNACIONAIS)
                             if (groupedCategories.vinteQuatro.isNotEmpty()) {
                                 item {
                                     Box(
@@ -465,7 +498,7 @@ fun LiveTvGuideScreen(
                                 items(groupedCategories.vinteQuatro) { cat ->
                                     CategoryItem(
                                         title = cat.categoryName,
-                                        count = null,
+                                        count = channelCountByCat[cat.categoryId] ?: 0,
                                         isSelected = selectedCategoryId == cat.categoryId,
                                         onClick = {
                                             selectedCategoryId = cat.categoryId
@@ -475,7 +508,7 @@ fun LiveTvGuideScreen(
                                 }
                             }
 
-                            // 8. CANAIS INTERNACIONAIS (ESTRITAMENTE NO FINAL DE TUDO)
+                            // 9. CANAIS INTERNACIONAIS (ESTRITAMENTE NO FINAL DE TUDO)
                             if (groupedCategories.internacional.isNotEmpty()) {
                                 item {
                                     Box(
@@ -496,7 +529,7 @@ fun LiveTvGuideScreen(
                                 items(groupedCategories.internacional) { cat ->
                                     CategoryItem(
                                         title = cat.categoryName,
-                                        count = null,
+                                        count = channelCountByCat[cat.categoryId] ?: 0,
                                         isSelected = selectedCategoryId == cat.categoryId,
                                         onClick = {
                                             selectedCategoryId = cat.categoryId

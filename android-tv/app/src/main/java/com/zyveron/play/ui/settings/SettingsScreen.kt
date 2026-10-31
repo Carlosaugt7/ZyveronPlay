@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.zyveron.play.ui.components.TvTouchCard
+import com.zyveron.play.util.SettingsHelper
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentSky
 import com.zyveron.play.ui.theme.BgCardDark
@@ -48,11 +49,16 @@ fun SettingsScreen(
     expirationDate: String,
     onBack: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var selectedTab by remember { mutableStateOf("MY_APP") }
 
-    // Preferências de Configuração do Player
-    var adaptiveQualityEnabled by remember { mutableStateOf(true) }
-    var protocolIsHls by remember { mutableStateOf(false) } // Padrão TS nativo de TV
+    // Preferências de Configuração do Player com persistência local
+    var adaptiveQualityEnabled by remember {
+        mutableStateOf(SettingsHelper.isAdaptiveQualityEnabled(context))
+    }
+    var protocolIsHls by remember {
+        mutableStateOf(SettingsHelper.getLiveProtocol(context).equals("hls", ignoreCase = true))
+    }
 
     ZyveronTvBackground {
         Box(
@@ -271,7 +277,11 @@ fun SettingsScreen(
                                         title = "QUALIDADE ADAPTATIVA (AO VIVO)",
                                         description = "Troca automaticamente para versão mais leve do canal se a conexão oscilar.",
                                         isEnabled = adaptiveQualityEnabled,
-                                        onToggle = { adaptiveQualityEnabled = !adaptiveQualityEnabled }
+                                        onToggle = {
+                                            val newVal = !adaptiveQualityEnabled
+                                            adaptiveQualityEnabled = newVal
+                                            SettingsHelper.setAdaptiveQuality(context, newVal)
+                                        }
                                     )
 
                                     // Protocolo de Streaming (TS vs HLS)
@@ -291,13 +301,17 @@ fun SettingsScreen(
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Text(text = "PROTOCOLO (AO VIVO)", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                                 Text(
-                                                    text = if (protocolIsHls) "HLS (.m3u8): playlist segmentada" else "MPEG-TS (.ts): fluxo contínuo de baixa latência direto (recomendado para TV)",
+                                                    text = if (protocolIsHls) "HLS (.m3u8): playlist segmentada (HTTP Live Streaming)" else "MPEG-TS (.ts): fluxo contínuo de baixa latência direto (recomendado para TV)",
                                                     color = TextSecondary,
                                                     fontSize = 11.sp
                                                 )
                                             }
                                             TvTouchCard(
-                                                onClick = { protocolIsHls = !protocolIsHls },
+                                                onClick = {
+                                                    val nextHls = !protocolIsHls
+                                                    protocolIsHls = nextHls
+                                                    SettingsHelper.setLiveProtocol(context, if (nextHls) "hls" else "ts")
+                                                },
                                                 containerColor = if (protocolIsHls) AccentSky else AccentEmerald,
                                                 focusedContainerColor = Color.White,
                                                 shape = RoundedCornerShape(8.dp),

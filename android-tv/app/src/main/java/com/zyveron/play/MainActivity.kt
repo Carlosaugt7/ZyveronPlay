@@ -82,17 +82,34 @@ sealed class AppScreen {
         val playlist: List<ChannelEntity>,
         val categoryId: String? = null
     ) : AppScreen()
-    object Movies : AppScreen()
-    data class MovieDetail(val vod: VodEntity) : AppScreen()
-    data class MoviePlayer(val vod: VodEntity, val startPositionMs: Long = 0L) : AppScreen()
-    object Series : AppScreen()
-    data class SeriesDetail(val series: SeriesEntity) : AppScreen()
+    data class Movies(
+        val categoryId: String = "ALL",
+        val vodId: Int? = null
+    ) : AppScreen()
+    data class MovieDetail(
+        val vod: VodEntity,
+        val categoryId: String = "ALL"
+    ) : AppScreen()
+    data class MoviePlayer(
+        val vod: VodEntity,
+        val startPositionMs: Long = 0L,
+        val categoryId: String = "ALL"
+    ) : AppScreen()
+    data class Series(
+        val categoryId: String = "ALL",
+        val seriesId: Int? = null
+    ) : AppScreen()
+    data class SeriesDetail(
+        val series: SeriesEntity,
+        val categoryId: String = "ALL"
+    ) : AppScreen()
     data class SeriesEpisodePlayer(
         val episode: EpisodeItem,
         val series: SeriesEntity,
         val episodesList: List<EpisodeItem> = emptyList(),
         val currentEpisodeIndex: Int = 0,
-        val startPositionMs: Long = 0L
+        val startPositionMs: Long = 0L,
+        val categoryId: String = "ALL"
     ) : AppScreen()
     object Accounts : AppScreen()
     object Settings : AppScreen()
@@ -157,15 +174,21 @@ fun MainContent(
             }
             is AppScreen.MoviePlayer -> {
                 val mp = currentScreen as AppScreen.MoviePlayer
-                currentScreen = AppScreen.MovieDetail(mp.vod)
+                currentScreen = AppScreen.MovieDetail(mp.vod, mp.categoryId)
             }
-            is AppScreen.MovieDetail -> currentScreen = AppScreen.Movies
+            is AppScreen.MovieDetail -> {
+                val md = currentScreen as AppScreen.MovieDetail
+                currentScreen = AppScreen.Movies(md.categoryId, md.vod.streamId)
+            }
             is AppScreen.SeriesEpisodePlayer -> {
                 val epState = currentScreen as AppScreen.SeriesEpisodePlayer
-                currentScreen = AppScreen.SeriesDetail(epState.series)
+                currentScreen = AppScreen.SeriesDetail(epState.series, epState.categoryId)
             }
-            is AppScreen.SeriesDetail -> currentScreen = AppScreen.Series
-            is AppScreen.LiveTvGuide, AppScreen.Movies, AppScreen.Series, AppScreen.Accounts, AppScreen.Settings -> {
+            is AppScreen.SeriesDetail -> {
+                val sd = currentScreen as AppScreen.SeriesDetail
+                currentScreen = AppScreen.Series(sd.categoryId, sd.series.seriesId)
+            }
+            is AppScreen.LiveTvGuide, is AppScreen.Movies, is AppScreen.Series, AppScreen.Accounts, AppScreen.Settings -> {
                 currentScreen = AppScreen.Home
             }
             AppScreen.Home -> onFinish()
@@ -264,8 +287,8 @@ fun MainContent(
                         HomeScreen(
                             repository = repository,
                             onNavigateLiveTv = { currentScreen = AppScreen.LiveTvGuide(false) },
-                            onNavigateMovies = { currentScreen = AppScreen.Movies },
-                            onNavigateSeries = { currentScreen = AppScreen.Series },
+                            onNavigateMovies = { currentScreen = AppScreen.Movies() },
+                            onNavigateSeries = { currentScreen = AppScreen.Series() },
                             onNavigateSports = { currentScreen = AppScreen.LiveTvGuide(true) },
                             onNavigateAccounts = { currentScreen = AppScreen.Accounts },
                             onNavigateSettings = { currentScreen = AppScreen.Settings },
@@ -319,7 +342,9 @@ fun MainContent(
                     is AppScreen.Movies -> {
                         MoviesScreen(
                             repository = repository,
-                            onSelectMovie = { vod -> currentScreen = AppScreen.MovieDetail(vod) },
+                            initialCategoryId = screen.categoryId,
+                            initialVodId = screen.vodId,
+                            onSelectMovie = { vod, catId -> currentScreen = AppScreen.MovieDetail(vod, catId) },
                             onBack = { currentScreen = AppScreen.Home }
                         )
                     }
@@ -329,9 +354,9 @@ fun MainContent(
                             vod = screen.vod,
                             repository = repository,
                             onPlayMovie = { vod, startPos ->
-                                currentScreen = AppScreen.MoviePlayer(vod, startPos)
+                                currentScreen = AppScreen.MoviePlayer(vod, startPos, screen.categoryId)
                             },
-                            onBack = { currentScreen = AppScreen.Movies }
+                            onBack = { currentScreen = AppScreen.Movies(screen.categoryId, screen.vod.streamId) }
                         )
                     }
 
@@ -351,14 +376,16 @@ fun MainContent(
                             onSaveProgress = { pos, _ ->
                                 repository.saveVodProgress(screen.vod.streamId, pos)
                             },
-                            onBack = { currentScreen = AppScreen.MovieDetail(screen.vod) }
+                            onBack = { currentScreen = AppScreen.MovieDetail(screen.vod, screen.categoryId) }
                         )
                     }
 
                     is AppScreen.Series -> {
                         SeriesScreen(
                             repository = repository,
-                            onSelectSeries = { series -> currentScreen = AppScreen.SeriesDetail(series) },
+                            initialCategoryId = screen.categoryId,
+                            initialSeriesId = screen.seriesId,
+                            onSelectSeries = { series, catId -> currentScreen = AppScreen.SeriesDetail(series, catId) },
                             onBack = { currentScreen = AppScreen.Home }
                         )
                     }
@@ -371,9 +398,9 @@ fun MainContent(
                             username = state.username,
                             password = state.password,
                             onPlayEpisode = { ep, epList, index ->
-                                currentScreen = AppScreen.SeriesEpisodePlayer(ep, screen.series, epList, index)
+                                currentScreen = AppScreen.SeriesEpisodePlayer(ep, screen.series, epList, index, 0L, screen.categoryId)
                             },
-                            onBackToSeries = { currentScreen = AppScreen.Series },
+                            onBackToSeries = { currentScreen = AppScreen.Series(screen.categoryId, screen.series.seriesId) },
                             onBackToHome = { currentScreen = AppScreen.Home }
                         )
                     }
@@ -403,19 +430,19 @@ fun MainContent(
                             onPreviousEpisode = if (hasPrev) {
                                 {
                                     val prevEp = epList[epIndex - 1]
-                                    currentScreen = AppScreen.SeriesEpisodePlayer(prevEp, screen.series, epList, epIndex - 1)
+                                    currentScreen = AppScreen.SeriesEpisodePlayer(prevEp, screen.series, epList, epIndex - 1, 0L, screen.categoryId)
                                 }
                             } else null,
                             onNextEpisode = if (hasNext) {
                                 {
                                     val nextEp = epList[epIndex + 1]
-                                    currentScreen = AppScreen.SeriesEpisodePlayer(nextEp, screen.series, epList, epIndex + 1)
+                                    currentScreen = AppScreen.SeriesEpisodePlayer(nextEp, screen.series, epList, epIndex + 1, 0L, screen.categoryId)
                                 }
                             } else null,
                             onSaveProgress = { pos, _ ->
                                 repository.saveVodProgress(currentEp.id, pos)
                             },
-                            onBack = { currentScreen = AppScreen.SeriesDetail(screen.series) }
+                            onBack = { currentScreen = AppScreen.SeriesDetail(screen.series, screen.categoryId) }
                         )
                     }
 

@@ -16,6 +16,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
+import com.zyveron.play.util.NetworkSecurityHelper
+import com.zyveron.play.util.SettingsHelper
 import com.zyveron.play.util.UrlHelper
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -57,11 +59,7 @@ class ZyveronPlayerManager(private val context: Context) {
     private val maxReconnectAttempts = 3
     private val backoffIntervals = listOf(1500L, 3000L, 6000L) // Decisão 1.A
 
-    private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(true)
-        .build()
+    private val okHttpClient = NetworkSecurityHelper.createUnsafeOkHttpClient(connectTimeoutSec = 12, readTimeoutSec = 20)
 
     fun getPlayer(): ExoPlayer {
         return exoPlayer ?: createPlayer().also { exoPlayer = it }
@@ -94,7 +92,15 @@ class ZyveronPlayerManager(private val context: Context) {
 
             val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory, extractorsFactory)
 
+            val isAdaptive = SettingsHelper.isAdaptiveQualityEnabled(context.applicationContext)
+            val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context.applicationContext).apply {
+                parameters = buildUponParameters()
+                    .setForceHighestSupportedBitrate(!isAdaptive)
+                    .build()
+            }
+
             val builder = ExoPlayer.Builder(context.applicationContext)
+                .setTrackSelector(trackSelector)
                 .setLoadControl(loadControl)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .setHandleAudioBecomingNoisy(true)

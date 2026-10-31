@@ -3,7 +3,9 @@ COPY zyveron-play-tv.apk /usr/share/nginx/html/app.apk
 RUN cp /usr/share/nginx/html/app.apk /usr/share/nginx/html/zyveron-play-tv.apk && \
     cp /usr/share/nginx/html/app.apk /usr/share/nginx/html/zyveron-play-v2.apk && \
     cp /usr/share/nginx/html/app.apk /usr/share/nginx/html/zyveron-play-v21.apk && \
-    cp /usr/share/nginx/html/app.apk /usr/share/nginx/html/zyveron-play-v3.apk
+    cp /usr/share/nginx/html/app.apk /usr/share/nginx/html/zyveron-play-v22.apk && \
+    cp /usr/share/nginx/html/app.apk /usr/share/nginx/html/zyveron-play-v3.apk && \
+    cp /usr/share/nginx/html/app.apk /usr/share/nginx/html/zyveron-play-v4.apk
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 

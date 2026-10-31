@@ -9,7 +9,7 @@ object UrlHelper {
      */
     fun normalizeUrl(rawUrl: String?): String {
         if (rawUrl.isNullOrBlank()) return ""
-        var trimmed = rawUrl.trim().trimEnd('/')
+        var trimmed = rawUrl.trim().replace("\"", "").replace("'", "").trimEnd('/')
         if (!trimmed.startsWith("http://", ignoreCase = true) &&
             !trimmed.startsWith("https://", ignoreCase = true)
         ) {
@@ -18,9 +18,10 @@ object UrlHelper {
         return trimmed
     }
 
-    fun buildLiveStreamUrl(serverDns: String, username: String, password: String, streamId: Int): String {
+    fun buildLiveStreamUrl(serverDns: String, username: String, password: String, streamId: Int, protocol: String = "ts"): String {
         val cleanDns = normalizeUrl(serverDns)
-        return if (cleanDns.isNotBlank()) "$cleanDns/live/$username/$password/$streamId.ts" else ""
+        val ext = if (protocol.equals("hls", ignoreCase = true)) "m3u8" else "ts"
+        return if (cleanDns.isNotBlank()) "$cleanDns/live/$username/$password/$streamId.$ext" else ""
     }
 
     fun buildVodStreamUrl(serverDns: String, username: String, password: String, streamId: Int, containerExt: String = "mp4"): String {

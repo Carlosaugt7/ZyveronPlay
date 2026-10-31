@@ -19,11 +19,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -54,18 +58,20 @@ import com.zyveron.play.ui.live.CategoryItem
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentSky
 import com.zyveron.play.ui.theme.BgCardDark
-import com.zyveron.play.ui.theme.BgDeepDark
 import com.zyveron.play.ui.theme.BgSurfaceDark
 import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
 import com.zyveron.play.ui.theme.ZyveronTvBackground
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun SeriesScreen(
     repository: ZyveronRepository,
-    onSelectSeries: (SeriesEntity) -> Unit,
+    initialCategoryId: String = "ALL",
+    initialSeriesId: Int? = null,
+    onSelectSeries: (SeriesEntity, String) -> Unit,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -73,13 +79,43 @@ fun SeriesScreen(
     val allSeries by repository.getAllSeries().collectAsState(initial = emptyList())
     val favorites by repository.getFavoriteSeries().collectAsState(initial = emptyList())
 
-    var selectedCategoryId by remember { mutableStateOf("ALL") }
+    var selectedCategoryId by remember { mutableStateOf(initialCategoryId) }
     var searchQuery by remember { mutableStateOf("") }
 
-    val displayedSeries = remember(selectedCategoryId, searchQuery, allSeries, favorites) {
+    val gridState = rememberLazyGridState()
+    val categoryFocusRequester = remember { FocusRequester() }
+    val itemFocusRequester = remember { FocusRequester() }
+
+    // Quantitativo exato de cada categoria
+    val seriesCountByCat = remember(allSeries) {
+        allSeries.groupingBy { it.categoryId }.eachCount()
+    }
+
+    // Pasta Recém Adicionadas
+    val recentSeries = remember(allSeries) {
+        allSeries.sortedByDescending { it.seriesId }.take(100)
+    }
+
+    // Pasta Lançamentos
+    val releaseSeries = remember(allSeries, categories) {
+        val releaseCatIds = categories.filter {
+            val n = it.categoryName.lowercase()
+            n.contains("lançamento") || n.contains("lancamento") || n.contains("estreia") || n.contains("novas")
+        }.map { it.categoryId }.toSet()
+
+        allSeries.filter {
+            it.categoryId in releaseCatIds ||
+            it.year?.toIntOrNull()?.let { y -> y >= 2024 } == true ||
+            it.name.contains("2026") || it.name.contains("2025") || it.name.contains("2024")
+        }
+    }
+
+    val displayedSeries = remember(selectedCategoryId, searchQuery, allSeries, favorites, recentSeries, releaseSeries) {
         val baseList = when (selectedCategoryId) {
             "FAV" -> favorites
             "ALL" -> allSeries
+            "RECENT" -> recentSeries
+            "RELEASES" -> releaseSeries
             else -> allSeries.filter { it.categoryId == selectedCategoryId }
         }
         if (searchQuery.isBlank()) {
@@ -87,6 +123,36 @@ fun SeriesScreen(
         } else {
             val q = searchQuery.trim().lowercase()
             baseList.filter { it.name.lowercase().contains(q) }
+        }
+    }
+
+    // Foco inicial garantido: na categoria ou no item anterior (NUNCA abre teclado na busca)
+    LaunchedEffect(Unit) {
+        delay(150)
+        try {
+            if (initialSeriesId != null) {
+                itemFocusRequester.requestFocus()
+            } else {
+                categoryFocusRequester.requestFocus()
+            }
+        } catch (_: Exception) {
+            try { categoryFocusRequester.requestFocus() } catch (_: Exception) {}
+        }
+    }
+
+    // Posiciona na série selecionada anteriormente ao voltar
+    LaunchedEffect(displayedSeries, initialSeriesId) {
+        if (initialSeriesId != null && displayedSeries.isNotEmpty()) {
+            val idx = displayedSeries.indexOfFirst { it.seriesId == initialSeriesId }
+            if (idx >= 0) {
+                try {
+                    gridState.scrollToItem(idx)
+                    for (i in 1..5) {
+                        delay(50)
+                        itemFocusRequester.requestFocus()
+                    }
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -114,7 +180,7 @@ fun SeriesScreen(
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Text(
-                            text = "${displayedSeries.size} séries disponíveis",
+                            text = "${displayedSeries.size} títulos disponíveis",
                             fontSize = 12.sp,
                             color = TextSecondary
                         )
@@ -204,6 +270,7 @@ fun SeriesScreen(
                                 }
                             }
 
+                            // 1. FAVORITOS
                             item {
                                 CategoryItem(
                                     title = "★ Favoritos",
@@ -212,18 +279,43 @@ fun SeriesScreen(
                                     onClick = { selectedCategoryId = "FAV" }
                                 )
                             }
+
+                            // 2. TODAS AS SÉRIES
                             item {
                                 CategoryItem(
                                     title = "Todas as Séries",
                                     count = allSeries.size,
                                     isSelected = selectedCategoryId == "ALL",
+                                    modifier = Modifier.focusRequester(categoryFocusRequester),
                                     onClick = { selectedCategoryId = "ALL" }
                                 )
                             }
+
+                            // 3. RECÉM ADICIONADAS (Logo após Todos)
+                            item {
+                                CategoryItem(
+                                    title = "⏱️ Recém Adicionadas",
+                                    count = recentSeries.size,
+                                    isSelected = selectedCategoryId == "RECENT",
+                                    onClick = { selectedCategoryId = "RECENT" }
+                                )
+                            }
+
+                            // 4. LANÇAMENTOS (Logo após Todos)
+                            item {
+                                CategoryItem(
+                                    title = "✨ Lançamentos",
+                                    count = releaseSeries.size,
+                                    isSelected = selectedCategoryId == "RELEASES",
+                                    onClick = { selectedCategoryId = "RELEASES" }
+                                )
+                            }
+
+                            // 5. DEMAIS CATEGORIAS COM QUANTITATIVO REAL
                             items(categories) { cat ->
                                 CategoryItem(
                                     title = cat.categoryName,
-                                    count = null,
+                                    count = seriesCountByCat[cat.categoryId] ?: 0,
                                     isSelected = selectedCategoryId == cat.categoryId,
                                     onClick = { selectedCategoryId = cat.categoryId }
                                 )
@@ -244,7 +336,7 @@ fun SeriesScreen(
                         if (displayedSeries.isEmpty()) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = if (selectedCategoryId == "FAV") "Nenhuma série favoritada ainda.\nToque e segure no celular ou aperte Amarelo/Menu no controle para favoritar!"
+                                    text = if (selectedCategoryId == "FAV") "Nenhuma série favoritada ainda.\nAperte Amarelo/Menu no controle para favoritar!"
                                     else "Nenhuma série encontrada",
                                     color = TextSecondary,
                                     fontSize = 13.sp
@@ -252,20 +344,23 @@ fun SeriesScreen(
                             }
                         } else {
                             LazyVerticalGrid(
+                                state = gridState,
                                 columns = GridCells.Adaptive(135.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(14.dp),
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(4.dp)
                             ) {
-                                items(displayedSeries) { series ->
+                                itemsIndexed(displayedSeries) { index, series ->
+                                    val isTargetItem = initialSeriesId != null && series.seriesId == initialSeriesId
                                     TvTouchCard(
-                                        onClick = { onSelectSeries(series) },
+                                        onClick = { onSelectSeries(series, selectedCategoryId) },
                                         onLongClick = {
                                             scope.launch { repository.toggleSeriesFavorite(series) }
                                         },
                                         modifier = Modifier
                                             .width(135.dp)
+                                            .then(if (isTargetItem) Modifier.focusRequester(itemFocusRequester) else Modifier)
                                             .onKeyEvent { keyEvent ->
                                                 if (keyEvent.type == KeyEventType.KeyDown &&
                                                     (keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_STAR ||
@@ -305,7 +400,7 @@ fun SeriesScreen(
                                                         .background(
                                                             Brush.verticalGradient(
                                                                 listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))
-                                                            )
+                                                             )
                                                         )
                                                 )
                                                 if (!series.rating.isNullOrBlank()) {

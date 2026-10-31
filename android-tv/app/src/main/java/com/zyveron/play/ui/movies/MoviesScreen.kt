@@ -19,11 +19,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -54,18 +58,20 @@ import com.zyveron.play.ui.live.CategoryItem
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentSky
 import com.zyveron.play.ui.theme.BgCardDark
-import com.zyveron.play.ui.theme.BgDeepDark
 import com.zyveron.play.ui.theme.BgSurfaceDark
 import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
 import com.zyveron.play.ui.theme.ZyveronTvBackground
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun MoviesScreen(
     repository: ZyveronRepository,
-    onSelectMovie: (VodEntity) -> Unit,
+    initialCategoryId: String = "ALL",
+    initialVodId: Int? = null,
+    onSelectMovie: (VodEntity, String) -> Unit,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -73,13 +79,43 @@ fun MoviesScreen(
     val allVods by repository.getAllVods().collectAsState(initial = emptyList())
     val favorites by repository.getFavoriteVods().collectAsState(initial = emptyList())
 
-    var selectedCategoryId by remember { mutableStateOf("ALL") }
+    var selectedCategoryId by remember { mutableStateOf(initialCategoryId) }
     var searchQuery by remember { mutableStateOf("") }
 
-    val displayedVods = remember(selectedCategoryId, searchQuery, allVods, favorites) {
+    val gridState = rememberLazyGridState()
+    val categoryFocusRequester = remember { FocusRequester() }
+    val itemFocusRequester = remember { FocusRequester() }
+
+    // Quantitativo exato de cada categoria
+    val vodCountByCat = remember(allVods) {
+        allVods.groupingBy { it.categoryId }.eachCount()
+    }
+
+    // Pasta Recém Adicionados (mais novos cadastrados no servidor)
+    val recentVods = remember(allVods) {
+        allVods.sortedByDescending { it.streamId }.take(100)
+    }
+
+    // Pasta Lançamentos (filmes de 2026/2025/2024 ou categorias de lançamento)
+    val releaseVods = remember(allVods, categories) {
+        val releaseCatIds = categories.filter {
+            val n = it.categoryName.lowercase()
+            n.contains("lançamento") || n.contains("lancamento") || n.contains("estreia") || n.contains("cinema")
+        }.map { it.categoryId }.toSet()
+
+        allVods.filter {
+            it.categoryId in releaseCatIds ||
+            it.year?.toIntOrNull()?.let { y -> y >= 2024 } == true ||
+            it.name.contains("2026") || it.name.contains("2025") || it.name.contains("2024")
+        }
+    }
+
+    val displayedVods = remember(selectedCategoryId, searchQuery, allVods, favorites, recentVods, releaseVods) {
         val baseList = when (selectedCategoryId) {
             "FAV" -> favorites
             "ALL" -> allVods
+            "RECENT" -> recentVods
+            "RELEASES" -> releaseVods
             else -> allVods.filter { it.categoryId == selectedCategoryId }
         }
         if (searchQuery.isBlank()) {
@@ -87,6 +123,36 @@ fun MoviesScreen(
         } else {
             val q = searchQuery.trim().lowercase()
             baseList.filter { it.name.lowercase().contains(q) }
+        }
+    }
+
+    // Foco inicial garantido: na categoria ou no filme que estava selecionado (NUNCA abre teclado na busca)
+    LaunchedEffect(Unit) {
+        delay(150)
+        try {
+            if (initialVodId != null) {
+                itemFocusRequester.requestFocus()
+            } else {
+                categoryFocusRequester.requestFocus()
+            }
+        } catch (_: Exception) {
+            try { categoryFocusRequester.requestFocus() } catch (_: Exception) {}
+        }
+    }
+
+    // Posiciona no filme que estava selecionado anteriormente ao voltar da tela de detalhes
+    LaunchedEffect(displayedVods, initialVodId) {
+        if (initialVodId != null && displayedVods.isNotEmpty()) {
+            val idx = displayedVods.indexOfFirst { it.streamId == initialVodId }
+            if (idx >= 0) {
+                try {
+                    gridState.scrollToItem(idx)
+                    for (i in 1..5) {
+                        delay(50)
+                        itemFocusRequester.requestFocus()
+                    }
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -204,6 +270,7 @@ fun MoviesScreen(
                                 }
                             }
 
+                            // 1. FAVORITOS
                             item {
                                 CategoryItem(
                                     title = "★ Favoritos",
@@ -212,18 +279,43 @@ fun MoviesScreen(
                                     onClick = { selectedCategoryId = "FAV" }
                                 )
                             }
+
+                            // 2. TODOS OS FILMES
                             item {
                                 CategoryItem(
                                     title = "Todos os Filmes",
                                     count = allVods.size,
                                     isSelected = selectedCategoryId == "ALL",
+                                    modifier = Modifier.focusRequester(categoryFocusRequester),
                                     onClick = { selectedCategoryId = "ALL" }
                                 )
                             }
+
+                            // 3. RECÉM ADICIONADOS (Logo após Todos)
+                            item {
+                                CategoryItem(
+                                    title = "⏱️ Recém Adicionados",
+                                    count = recentVods.size,
+                                    isSelected = selectedCategoryId == "RECENT",
+                                    onClick = { selectedCategoryId = "RECENT" }
+                                )
+                            }
+
+                            // 4. LANÇAMENTOS (Logo após Todos)
+                            item {
+                                CategoryItem(
+                                    title = "✨ Lançamentos",
+                                    count = releaseVods.size,
+                                    isSelected = selectedCategoryId == "RELEASES",
+                                    onClick = { selectedCategoryId = "RELEASES" }
+                                )
+                            }
+
+                            // 5. DEMAIS PASTAS / CATEGORIAS COM QUANTITATIVO REAL
                             items(categories) { cat ->
                                 CategoryItem(
                                     title = cat.categoryName,
-                                    count = null,
+                                    count = vodCountByCat[cat.categoryId] ?: 0,
                                     isSelected = selectedCategoryId == cat.categoryId,
                                     onClick = { selectedCategoryId = cat.categoryId }
                                 )
@@ -244,7 +336,7 @@ fun MoviesScreen(
                         if (displayedVods.isEmpty()) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = if (selectedCategoryId == "FAV") "Nenhum filme favoritado ainda.\nToque e segure no celular ou aperte Amarelo/Menu no controle para favoritar!"
+                                    text = if (selectedCategoryId == "FAV") "Nenhum filme favoritado ainda.\nAperte Amarelo/Menu no controle para favoritar!"
                                     else "Nenhum filme encontrado",
                                     color = TextSecondary,
                                     fontSize = 13.sp
@@ -252,20 +344,23 @@ fun MoviesScreen(
                             }
                         } else {
                             LazyVerticalGrid(
+                                state = gridState,
                                 columns = GridCells.Adaptive(135.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(14.dp),
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(4.dp)
                             ) {
-                                items(displayedVods) { vod ->
+                                itemsIndexed(displayedVods) { index, vod ->
+                                    val isTargetItem = initialVodId != null && vod.streamId == initialVodId
                                     TvTouchCard(
-                                        onClick = { onSelectMovie(vod) },
+                                        onClick = { onSelectMovie(vod, selectedCategoryId) },
                                         onLongClick = {
                                             scope.launch { repository.toggleVodFavorite(vod) }
                                         },
                                         modifier = Modifier
                                             .width(135.dp)
+                                            .then(if (isTargetItem) Modifier.focusRequester(itemFocusRequester) else Modifier)
                                             .onKeyEvent { keyEvent ->
                                                 if (keyEvent.type == KeyEventType.KeyDown &&
                                                     (keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_STAR ||

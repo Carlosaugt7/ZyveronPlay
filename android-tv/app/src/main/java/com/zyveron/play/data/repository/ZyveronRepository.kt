@@ -14,6 +14,8 @@ import com.zyveron.play.data.local.ZyveronDatabase
 import com.zyveron.play.data.model.EpgProgram
 import com.zyveron.play.util.ContentSafetyFilter
 import com.zyveron.play.util.EpgHelper
+import com.zyveron.play.util.NetworkSecurityHelper
+import com.zyveron.play.util.SettingsHelper
 import com.zyveron.play.util.UrlHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,15 +31,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-class ZyveronRepository(context: Context) {
+class ZyveronRepository(private val context: Context) {
 
     private val channelDao: ChannelDao = ZyveronDatabase.getInstance(context).channelDao()
     private val prefs = context.getSharedPreferences("zyveron_vod_progress", Context.MODE_PRIVATE)
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(12, TimeUnit.SECONDS)
-        .readTimeout(25, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(true)
-        .build()
+    private val client = NetworkSecurityHelper.createUnsafeOkHttpClient(connectTimeoutSec = 15, readTimeoutSec = 30)
 
     // Cache em memória de EPG com capacidade para 150 canais (evita requisições repetidas no zapping)
     private val epgCache = object : LruCache<Int, Pair<Long, List<EpgProgram>>>(150) {}
@@ -215,8 +213,16 @@ class ZyveronRepository(context: Context) {
     }
 
     // --- GERADORES DE URL ---
-    fun buildLiveStreamUrl(serverDns: String, username: String, password: String, streamId: Int): String =
-        UrlHelper.buildLiveStreamUrl(serverDns, username, password, streamId)
+    fun buildLiveStreamUrl(
+        serverDns: String,
+        username: String,
+        password: String,
+        streamId: Int,
+        protocol: String? = null
+    ): String {
+        val prot = protocol ?: SettingsHelper.getLiveProtocol(context)
+        return UrlHelper.buildLiveStreamUrl(serverDns, username, password, streamId, prot)
+    }
 
     fun buildVodStreamUrl(serverDns: String, username: String, password: String, streamId: Int, containerExt: String = "mp4"): String =
         UrlHelper.buildVodStreamUrl(serverDns, username, password, streamId, containerExt)
