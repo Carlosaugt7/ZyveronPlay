@@ -51,6 +51,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -58,6 +59,8 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.Text
 import com.zyveron.play.data.local.ChannelEntity
+import com.zyveron.play.data.model.EpgProgram
+import com.zyveron.play.data.repository.ZyveronRepository
 import com.zyveron.play.player.PlaybackState
 import com.zyveron.play.player.ZyveronPlayerManager
 import com.zyveron.play.ui.components.TvTouchCard
@@ -75,6 +78,7 @@ import kotlinx.coroutines.delay
 @OptIn(UnstableApi::class)
 @Composable
 fun LivePlayerScreen(
+    repository: ZyveronRepository? = null,
     playerManager: ZyveronPlayerManager,
     channels: List<ChannelEntity>,
     serverDns: String,
@@ -89,6 +93,28 @@ fun LivePlayerScreen(
     var isOsdFocused by remember { mutableStateOf(false) }
     var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val channelListState = rememberLazyListState()
+
+    var playerEpgList by remember { mutableStateOf<List<EpgProgram>>(emptyList()) }
+    var nowSec by remember { mutableLongStateOf(System.currentTimeMillis() / 1000L) }
+
+    // Atualiza relógio a cada 30 segundos para cálculo dinâmico da barra de progresso do EPG
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000)
+            nowSec = System.currentTimeMillis() / 1000L
+        }
+    }
+
+    // Busca EPG do canal atual em segundo plano
+    LaunchedEffect(currentChannelIndex, serverDns) {
+        val ch = channels.getOrNull(currentChannelIndex)
+        if (repository != null && ch != null && serverDns.isNotBlank()) {
+            val list = repository.getChannelEpg(serverDns, username, password, ch.streamId)
+            playerEpgList = list
+        } else {
+            playerEpgList = emptyList()
+        }
+    }
 
     fun markInteraction() {
         lastInteractionTime = System.currentTimeMillis()
@@ -466,24 +492,110 @@ fun LivePlayerScreen(
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "AO VIVO",
-                                        color = AccentEmerald,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
+                                val nowProg = remember(playerEpgList, nowSec) {
+                                    playerEpgList.firstOrNull { it.isNowPlaying || (it.startTimestamp > 0 && nowSec in it.startTimestamp..it.stopTimestamp) }
+                                        ?: playerEpgList.firstOrNull()
+                                }
+                                val nextProg = remember(playerEpgList, nowProg) {
+                                    playerEpgList.firstOrNull { it != nowProg }
+                                }
+
+                                if (nowProg != null) {
+                                    val prog = remember(nowProg, nowSec) {
+                                        if (nowProg.startTimestamp > 0 && nowProg.stopTimestamp > nowProg.startTimestamp) {
+                                            ((nowSec - nowProg.startTimestamp).toFloat() / (nowProg.stopTimestamp - nowProg.startTimestamp).toFloat()).coerceIn(0f, 1f)
+                                        } else nowProg.progress
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(AccentEmerald.copy(alpha = 0.2f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "● NO AR",
+                                                color = AccentEmerald,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = nowProg.title,
+                                            color = TextPrimary,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "${nowProg.startFormatted} - ${nowProg.endFormatted}",
+                                            color = TextSecondary,
+                                            fontSize = 11.sp,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    // Barra de progresso do programa atual
+                                    Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(AccentEmerald.copy(alpha = 0.2f))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        text = "Toque na tela ou use ▲ ▼ para trocar canal",
-                                        color = TextSecondary,
-                                        fontSize = 12.sp
-                                    )
+                                            .width(280.dp)
+                                            .height(3.dp)
+                                            .clip(RoundedCornerShape(2.dp))
+                                            .background(Color.White.copy(alpha = 0.15f))
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(prog)
+                                                .fillMaxHeight()
+                                                .background(AccentEmerald)
+                                        )
+                                    }
+
+                                    if (nextProg != null) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "A Seguir:",
+                                                color = AccentSky,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "${nextProg.title} (${nextProg.startFormatted})",
+                                                color = TextSecondary,
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "AO VIVO",
+                                            color = AccentEmerald,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(AccentEmerald.copy(alpha = 0.2f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = "Toque na tela ou use ▲ ▼ para trocar canal",
+                                            color = TextSecondary,
+                                            fontSize = 12.sp
+                                        )
+                                    }
                                 }
                             }
 

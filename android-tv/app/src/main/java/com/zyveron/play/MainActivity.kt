@@ -299,6 +299,7 @@ fun MainContent(
                     is AppScreen.FullScreenPlayer -> {
                         val initialIndex = screen.playlist.indexOfFirst { it.streamId == screen.channel.streamId }
                         LivePlayerScreen(
+                            repository = repository,
                             playerManager = playerManager,
                             channels = if (screen.playlist.isNotEmpty()) screen.playlist else listOf(screen.channel),
                             serverDns = cleanDns,

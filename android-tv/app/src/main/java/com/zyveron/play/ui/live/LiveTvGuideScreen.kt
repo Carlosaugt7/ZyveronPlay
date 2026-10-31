@@ -30,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -57,6 +58,7 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.zyveron.play.data.local.CategoryEntity
 import com.zyveron.play.data.local.ChannelEntity
+import com.zyveron.play.data.model.EpgProgram
 import com.zyveron.play.data.repository.ZyveronRepository
 import com.zyveron.play.player.ZyveronPlayerManager
 import com.zyveron.play.ui.components.TvTouchCard
@@ -183,6 +185,33 @@ fun LiveTvGuideScreen(
             if (streamUrl.isNotBlank()) {
                 playerManager.playStream(streamUrl, currentChannel.name)
             }
+        }
+    }
+
+    var epgPrograms by remember { mutableStateOf<List<EpgProgram>>(emptyList()) }
+    var isEpgLoading by remember { mutableStateOf(false) }
+    var nowSec by remember { mutableLongStateOf(System.currentTimeMillis() / 1000L) }
+
+    // Atualiza relógio a cada 30 segundos para atualizar barra de progresso do EPG
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000)
+            nowSec = System.currentTimeMillis() / 1000L
+        }
+    }
+
+    // Busca EPG sob demanda para o canal atual com debounce para zapping fluido
+    LaunchedEffect(currentChannel?.streamId, serverDns) {
+        val ch = currentChannel
+        if (ch != null && serverDns.isNotBlank()) {
+            isEpgLoading = true
+            delay(250)
+            val list = repository.getChannelEpg(serverDns, username, password, ch.streamId)
+            epgPrograms = list
+            isEpgLoading = false
+        } else {
+            epgPrograms = emptyList()
+            isEpgLoading = false
         }
     }
 
@@ -690,72 +719,238 @@ fun LiveTvGuideScreen(
                             Spacer(modifier = Modifier.height(12.dp))
 
                             // Bloco de EPG / Programação
-                            Text(
-                                text = "GUIA DE PROGRAMAÇÃO (EPG)",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = AccentSky,
-                                letterSpacing = 0.8.sp
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Programa Atual (No Ar)
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(BgSurfaceDark)
-                                    .border(1.dp, BorderDark, RoundedCornerShape(8.dp))
-                                    .padding(10.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(AccentEmerald.copy(alpha = 0.2f))
-                                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                                        ) {
-                                            Text(text = "AGORA", color = AccentEmerald, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "16:00 - 18:00",
-                                            color = TextSecondary,
-                                            fontSize = 10.sp,
-                                            fontFamily = FontFamily.Monospace
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "GUIA DE PROGRAMAÇÃO (EPG)",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = AccentSky,
+                                    letterSpacing = 0.8.sp
+                                )
+                                if (isEpgLoading) {
                                     Text(
-                                        text = "Programação Ao Vivo • ${currentChannel?.name ?: "Canal HD"}",
-                                        color = TextPrimary,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = "Transmissão contínua em alta definição sem travamentos.",
-                                        color = TextSecondary,
+                                        text = "Sincronizando...",
                                         fontSize = 10.sp,
-                                        maxLines = 2
+                                        color = TextSecondary
                                     )
                                 }
                             }
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // Próximo Programa
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(BgSurfaceDark.copy(alpha = 0.6f))
-                                    .padding(10.dp)
-                            ) {
-                                Column {
-                                    Text(text = "18:00 - 19:30 • A Seguir", color = TextSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-                                    Text(text = "Edição Especial & Notícias", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            val nowProgram = remember(epgPrograms, nowSec) {
+                                epgPrograms.firstOrNull { it.isNowPlaying || (it.startTimestamp > 0 && nowSec in it.startTimestamp..it.stopTimestamp) }
+                                    ?: epgPrograms.firstOrNull()
+                            }
+                            val nextPrograms = remember(epgPrograms, nowProgram) {
+                                epgPrograms.filter { it != nowProgram }
+                            }
+                            val nextProgram = nextPrograms.firstOrNull()
+
+                            if (isEpgLoading && epgPrograms.isEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(BgSurfaceDark)
+                                        .border(1.dp, BorderDark, RoundedCornerShape(8.dp))
+                                        .padding(14.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Carregando programação do canal...",
+                                        color = TextSecondary,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            } else if (nowProgram != null) {
+                                val prog = remember(nowProgram, nowSec) {
+                                    if (nowProgram.startTimestamp > 0 && nowProgram.stopTimestamp > nowProgram.startTimestamp) {
+                                        ((nowSec - nowProgram.startTimestamp).toFloat() / (nowProgram.stopTimestamp - nowProgram.startTimestamp).toFloat()).coerceIn(0f, 1f)
+                                    } else nowProgram.progress
+                                }
+
+                                // Programa Atual (No Ar)
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(BgSurfaceDark)
+                                        .border(1.dp, BorderDark, RoundedCornerShape(8.dp))
+                                        .padding(10.dp)
+                                ) {
+                                    Column {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(4.dp))
+                                                        .background(AccentEmerald.copy(alpha = 0.2f))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "● NO AR",
+                                                        color = AccentEmerald,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = "${nowProgram.startFormatted} - ${nowProgram.endFormatted}",
+                                                    color = TextSecondary,
+                                                    fontSize = 10.sp,
+                                                    fontFamily = FontFamily.Monospace
+                                                )
+                                            }
+                                            if (prog > 0f) {
+                                                Text(
+                                                    text = "${(prog * 100).toInt()}%",
+                                                    color = AccentEmerald,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontFamily = FontFamily.Monospace
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = nowProgram.title,
+                                            color = TextPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(modifier = Modifier.height(5.dp))
+                                        // Barra de progresso do programa
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(3.dp)
+                                                .clip(RoundedCornerShape(2.dp))
+                                                .background(Color.White.copy(alpha = 0.12f))
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth(prog)
+                                                    .fillMaxHeight()
+                                                    .background(AccentEmerald)
+                                            )
+                                        }
+                                        if (nowProgram.description.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(5.dp))
+                                            Text(
+                                                text = nowProgram.description,
+                                                color = TextSecondary,
+                                                fontSize = 10.sp,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Próximo Programa (A Seguir)
+                                if (nextProgram != null) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(BgSurfaceDark.copy(alpha = 0.6f))
+                                            .border(1.dp, BorderDark.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                            .padding(10.dp)
+                                    ) {
+                                        Column {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(4.dp))
+                                                        .background(AccentSky.copy(alpha = 0.18f))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "A SEGUIR",
+                                                        color = AccentSky,
+                                                        fontSize = 8.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = "${nextProgram.startFormatted} - ${nextProgram.endFormatted}",
+                                                    color = TextSecondary,
+                                                    fontSize = 10.sp,
+                                                    fontFamily = FontFamily.Monospace
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = nextProgram.title,
+                                                color = TextPrimary,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Canal sem dados de EPG cadastrados no servidor
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(BgSurfaceDark)
+                                        .border(1.dp, BorderDark, RoundedCornerShape(8.dp))
+                                        .padding(12.dp)
+                                ) {
+                                    Column {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(AccentEmerald.copy(alpha = 0.2f))
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = "AO VIVO",
+                                                    color = AccentEmerald,
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Transmissão Contínua",
+                                                color = TextSecondary,
+                                                fontSize = 10.sp
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = currentChannel?.name ?: "Canal Selecionado",
+                                            color = TextPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "Guia de programação não disponibilizado pelo servidor para este canal.",
+                                            color = TextSecondary,
+                                            fontSize = 10.sp
+                                        )
+                                    }
                                 }
                             }
                         }

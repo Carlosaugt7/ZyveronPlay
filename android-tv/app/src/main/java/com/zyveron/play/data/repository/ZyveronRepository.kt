@@ -2,6 +2,7 @@ package com.zyveron.play.data.repository
 
 import android.content.Context
 import android.util.Log
+import android.util.LruCache
 import com.zyveron.play.data.local.CategoryEntity
 import com.zyveron.play.data.local.ChannelDao
 import com.zyveron.play.data.local.ChannelEntity
@@ -10,7 +11,9 @@ import com.zyveron.play.data.local.SeasonEpisodes
 import com.zyveron.play.data.local.SeriesEntity
 import com.zyveron.play.data.local.VodEntity
 import com.zyveron.play.data.local.ZyveronDatabase
+import com.zyveron.play.data.model.EpgProgram
 import com.zyveron.play.util.ContentSafetyFilter
+import com.zyveron.play.util.EpgHelper
 import com.zyveron.play.util.UrlHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +38,9 @@ class ZyveronRepository(context: Context) {
         .readTimeout(25, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
+
+    // Cache em memória de EPG com capacidade para 150 canais (evita requisições repetidas no zapping)
+    private val epgCache = object : LruCache<Int, Pair<Long, List<EpgProgram>>>(150) {}
 
     private val _liveCount = MutableStateFlow(0)
     val liveCount: StateFlow<Int> = _liveCount.asStateFlow()
@@ -84,6 +90,65 @@ class ZyveronRepository(context: Context) {
 
     suspend fun toggleChannelFavorite(channel: ChannelEntity) = withContext(Dispatchers.IO) {
         channelDao.setChannelFavorite(channel.streamId, !channel.isFavorite)
+    }
+
+    // --- GUIA DE PROGRAMAÇÃO (EPG) ---
+    fun clearEpgCache() {
+        epgCache.evictAll()
+    }
+
+    /**
+     * Busca o guia de programação (EPG) do canal sob demanda via Xtream API.
+     * Utiliza cache em memória de 10 minutos para garantir fluidez no controle remoto (zapping instantâneo).
+     */
+    suspend fun getChannelEpg(
+        serverDns: String,
+        username: String,
+        password: String,
+        streamId: Int,
+        forceRefresh: Boolean = false
+    ): List<EpgProgram> = withContext(Dispatchers.IO) {
+        if (streamId <= 0 || serverDns.isBlank() || username.isBlank()) {
+            return@withContext emptyList()
+        }
+
+        val now = System.currentTimeMillis()
+        val cached = epgCache.get(streamId)
+        if (!forceRefresh && cached != null && (now - cached.first) < 10 * 60 * 1000L) {
+            return@withContext cached.second
+        }
+
+        val cleanDns = UrlHelper.normalizeUrl(serverDns)
+
+        // 1. Tenta endpoint padrão leve de EPG rápido
+        val shortEpgUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_short_epg&stream_id=$streamId&limit=6"
+        var programs = tryFetchEpg(shortEpgUrl)
+
+        // 2. Fallback para tabela simples caso get_short_epg não retorne dados
+        if (programs.isEmpty()) {
+            val tableEpgUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_simple_data_table&stream_id=$streamId"
+            programs = tryFetchEpg(tableEpgUrl)
+        }
+
+        // Armazena no cache LRU em memória
+        epgCache.put(streamId, Pair(now, programs))
+        programs
+    }
+
+    private fun tryFetchEpg(url: String): List<EpgProgram> {
+        return try {
+            val request = Request.Builder().url(url).build()
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val bodyStr = response.body?.string().orEmpty()
+                    EpgHelper.parseEpgJson(bodyStr)
+                } else {
+                    emptyList()
+                }
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
     }
 
     // --- FILMES (VOD) ---
@@ -175,6 +240,7 @@ class ZyveronRepository(context: Context) {
             }
 
             Log.d("ZyveronRepo", "Iniciando sincronização completa de catálogo em $cleanDns...")
+            clearEpgCache()
 
             // 1. SINCRONIZA CANAIS AO VIVO
             syncLiveStreams(cleanDns, username, password)
