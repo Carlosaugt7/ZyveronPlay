@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -62,7 +63,7 @@ fun SeriesDetailScreen(
     serverDns: String,
     username: String,
     password: String,
-    onPlayEpisode: (EpisodeItem) -> Unit,
+    onPlayEpisode: (EpisodeItem, List<EpisodeItem>, Int) -> Unit,
     onBackToSeries: () -> Unit,
     onBackToHome: () -> Unit
 ) {
@@ -287,9 +288,9 @@ fun SeriesDetailScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            items(currentSeason.episodes) { ep ->
+                            itemsIndexed(currentSeason.episodes) { index, ep ->
                                 TvTouchCard(
-                                    onClick = { onPlayEpisode(ep) },
+                                    onClick = { onPlayEpisode(ep, currentSeason.episodes, index) },
                                     modifier = Modifier.size(width = 175.dp, height = 105.dp),
                                     containerColor = BgCardDark,
                                     focusedContainerColor = AccentEmerald,

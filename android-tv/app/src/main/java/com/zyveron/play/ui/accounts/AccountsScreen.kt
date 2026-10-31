@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import com.zyveron.play.data.remote.PlaylistAccount
 import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentRose
@@ -50,10 +51,28 @@ fun AccountsScreen(
     mac: String,
     deviceKey: String,
     expirationDate: String,
+    playlists: List<PlaylistAccount> = emptyList(),
+    activePlaylistIndex: Int = 0,
+    onSelectPlaylist: (Int) -> Unit = {},
     onDisconnect: () -> Unit,
     onBack: () -> Unit
 ) {
     var showConfirmDialog by remember { mutableStateOf(false) }
+
+    val displayPlaylists = if (playlists.isNotEmpty()) {
+        playlists
+    } else {
+        listOf(
+            PlaylistAccount(
+                listIndex = 1,
+                serverName = serverName.ifBlank { "Lista Principal" },
+                serverDns = "",
+                username = username,
+                password = "",
+                expirationDate = expirationDate
+            )
+        )
+    }
 
     ZyveronTvBackground {
         Box(
@@ -63,7 +82,7 @@ fun AccountsScreen(
         ) {
             Column(
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Header
                 Row(
@@ -76,13 +95,13 @@ fun AccountsScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "Contas",
+                                text = "Contas & Listas Conectadas",
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
                             )
                             Text(
-                                text = "Conta ativa neste aparelho. Autenticado via Virtual MAC.",
+                                text = "Exibindo até 2 listas de servidores configuradas para este aparelho.",
                                 fontSize = 12.sp,
                                 color = TextSecondary
                             )
@@ -105,92 +124,102 @@ fun AccountsScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
-                // Card Principal da Conta em Uso (Exibindo Nome do Servidor)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(BgCardDark)
-                        .border(1.dp, BorderDark, RoundedCornerShape(16.dp))
-                        .padding(24.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Indicador Verde Ativo
-                            Box(
-                                modifier = Modifier
-                                    .size(12.dp)
-                                    .clip(CircleShape)
-                                    .background(AccentEmerald)
+                // Cards de Listas de Servidores
+                displayPlaylists.forEachIndexed { index, pl ->
+                    val isActive = index == activePlaylistIndex
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (isActive) BgCardDark else BgSurfaceDark.copy(alpha = 0.6f))
+                            .border(
+                                width = if (isActive) 1.5.dp else 1.dp,
+                                color = if (isActive) AccentEmerald.copy(alpha = 0.6f) else BorderDark,
+                                shape = RoundedCornerShape(16.dp)
                             )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = serverName.ifBlank { "Zyveron Server" },
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(AccentEmerald.copy(alpha = 0.2f))
-                                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                                    ) {
+                            .padding(20.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isActive) AccentEmerald else TextSecondary.copy(alpha = 0.4f))
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            text = "EM USO",
-                                            color = AccentEmerald,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold
+                                            text = pl.serverName.ifBlank { "Lista ${index + 1}" },
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimary
                                         )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(
+                                                    if (isActive) AccentEmerald.copy(alpha = 0.2f)
+                                                    else BorderDark.copy(alpha = 0.4f)
+                                                )
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = if (isActive) "EM USO" else "DISPONÍVEL",
+                                                color = if (isActive) AccentEmerald else TextSecondary,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Usuário: ${pl.username.ifBlank { "autenticado" }} • Validade: ${pl.expirationDate.take(10).ifBlank { "Ativo" }}",
+                                        color = TextSecondary,
+                                        fontSize = 12.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
                                 }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "lista • conta.protegida • ${username.ifBlank { "autenticado" }}",
-                                    color = TextSecondary,
-                                    fontSize = 12.sp,
-                                    fontFamily = FontFamily.Monospace
-                                )
                             }
-                        }
 
-                        // Ações da Conta
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            TvTouchCard(
-                                onClick = { showConfirmDialog = true },
-                                containerColor = BgSurfaceDark,
-                                focusedContainerColor = AccentRose,
-                                shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                            ) { isFocused ->
-                                Text(
-                                    text = "✕ Desconectar / Remover",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (isFocused) Color.White else AccentRose
-                                )
+                            // Botão de Trocar Lista
+                            if (!isActive) {
+                                TvTouchCard(
+                                    onClick = { onSelectPlaylist(index) },
+                                    containerColor = AccentSky,
+                                    focusedContainerColor = Color.White,
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                ) { isFocused ->
+                                    Text(
+                                        text = "▶ Usar esta Lista",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isFocused) Color.Black else Color.Black
+                                    )
+                                }
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                // Card Informativo de Identificação
+                // Card Informativo de Identificação e Desconectar
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(BgSurfaceDark.copy(alpha = 0.6f))
+                        .background(BgSurfaceDark.copy(alpha = 0.5f))
                         .border(1.dp, BorderDark, RoundedCornerShape(16.dp))
                         .padding(20.dp)
                 ) {
@@ -200,17 +229,27 @@ fun AccountsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text(text = "IDENTIFICAÇÃO DESTE DISPOSITIVO", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "IDENTIFICAÇÃO DESTE APARELHO", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                 Text(text = "MAC: $mac", color = TextPrimary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                                 Text(text = "PIN: $deviceKey", color = AccentSky, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                             }
                         }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(text = "VALIDADE DA ASSINATURA", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(text = expirationDate.take(10).ifBlank { "Ativo" }, color = AccentEmerald, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+
+                        TvTouchCard(
+                            onClick = { showConfirmDialog = true },
+                            containerColor = BgCardDark,
+                            focusedContainerColor = AccentRose,
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) { isFocused ->
+                            Text(
+                                text = "✕ Desconectar Aparelho",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isFocused) Color.White else AccentRose
+                            )
                         }
                     }
                 }

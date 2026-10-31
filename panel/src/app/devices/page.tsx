@@ -40,6 +40,13 @@ export default function DevicesPage() {
   const [noteInput, setNoteInput] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
+  // Lista 2 (Novo Aparelho)
+  const [enableSecondList, setEnableSecondList] = useState(false);
+  const [serverId2Input, setServerId2Input] = useState("");
+  const [username2Input, setUsername2Input] = useState("");
+  const [password2Input, setPassword2Input] = useState("");
+  const [months2Input, setMonths2Input] = useState(1);
+
   // Modal de Edição de Aparelho
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<DeviceDocument | null>(null);
@@ -51,6 +58,14 @@ export default function DevicesPage() {
   const [editServerIdInput, setEditServerIdInput] = useState("");
   const [editServerDnsInput, setEditServerDnsInput] = useState("");
   const [editErrorMsg, setEditErrorMsg] = useState("");
+
+  // Lista 2 (Edição)
+  const [editEnableSecondList, setEditEnableSecondList] = useState(false);
+  const [editServerId2Input, setEditServerId2Input] = useState("");
+  const [editServerDns2Input, setEditServerDns2Input] = useState("");
+  const [editUsername2Input, setEditUsername2Input] = useState("");
+  const [editPassword2Input, setEditPassword2Input] = useState("");
+  const [editExpDate2Input, setEditExpDate2Input] = useState("");
 
   const loadData = () => {
     if (!user) return;
@@ -103,7 +118,11 @@ export default function DevicesPage() {
         passwordInput,
         monthsInput,
         user.uid,
-        noteInput
+        noteInput,
+        enableSecondList ? serverId2Input : undefined,
+        enableSecondList ? username2Input : undefined,
+        enableSecondList ? password2Input : undefined,
+        enableSecondList ? months2Input : undefined
       );
       setIsModalOpen(false);
       setMacInput("");
@@ -111,6 +130,9 @@ export default function DevicesPage() {
       setUsernameInput("");
       setPasswordInput("");
       setNoteInput("");
+      setEnableSecondList(false);
+      setUsername2Input("");
+      setPassword2Input("");
       loadData();
       refreshUser();
     } catch (err: any) {
@@ -163,6 +185,24 @@ export default function DevicesPage() {
     }
     setEditServerIdInput(dev.serverId || (servers[0]?.id || ""));
     setEditServerDnsInput(dev.serverDns || "");
+
+    // Lista 2
+    const has2 = !!dev.username2;
+    setEditEnableSecondList(has2);
+    setEditServerId2Input(dev.serverId2 || (servers[1]?.id || servers[0]?.id || ""));
+    setEditServerDns2Input(dev.serverDns2 || "");
+    setEditUsername2Input(dev.username2 || "");
+    setEditPassword2Input(dev.password2 || "");
+    try {
+      if (dev.expirationDate2) {
+        setEditExpDate2Input(new Date(dev.expirationDate2).toISOString().split("T")[0]);
+      } else {
+        setEditExpDate2Input("");
+      }
+    } catch {
+      setEditExpDate2Input("");
+    }
+
     setEditErrorMsg("");
     setIsEditModalOpen(true);
   };
@@ -172,6 +212,14 @@ export default function DevicesPage() {
     const selected = servers.find((s) => s.id === newServerId);
     if (selected && selected.activeDns) {
       setEditServerDnsInput(selected.activeDns);
+    }
+  };
+
+  const handleEditServer2Change = (newServerId: string) => {
+    setEditServerId2Input(newServerId);
+    const selected = servers.find((s) => s.id === newServerId);
+    if (selected && selected.activeDns) {
+      setEditServerDns2Input(selected.activeDns);
     }
   };
 
@@ -196,19 +244,19 @@ export default function DevicesPage() {
       return;
     }
     if (!editUsernameInput.trim()) {
-      setEditErrorMsg("Informe o Usuário da Lista (Xtream).");
+      setEditErrorMsg("Informe o Usuário da Lista 1 (Xtream).");
       return;
     }
     if (!editPasswordInput.trim()) {
-      setEditErrorMsg("Informe a Senha da Lista (Xtream).");
+      setEditErrorMsg("Informe a Senha da Lista 1 (Xtream).");
       return;
     }
     if (!editExpDateInput) {
-      setEditErrorMsg("Selecione uma data de vencimento válida.");
+      setEditErrorMsg("Selecione uma data de vencimento válida para a Lista 1.");
       return;
     }
     if (!editServerDnsInput.trim()) {
-      setEditErrorMsg("O DNS do servidor é obrigatório.");
+      setEditErrorMsg("O DNS do servidor da Lista 1 é obrigatório.");
       return;
     }
 
@@ -216,6 +264,16 @@ export default function DevicesPage() {
       const targetDate = new Date(`${editExpDateInput}T23:59:59.000Z`).toISOString();
       const selectedServer = servers.find((s) => s.id === editServerIdInput);
       const serverName = selectedServer ? selectedServer.name : (editingDevice.serverName || "Servidor Padrão");
+
+      let serverName2 = "";
+      let targetDate2 = "";
+      if (editEnableSecondList && editUsername2Input.trim()) {
+        const s2 = servers.find((s) => s.id === editServerId2Input);
+        serverName2 = s2 ? s2.name : (editingDevice.serverName2 || "Servidor 2");
+        if (editExpDate2Input) {
+          targetDate2 = new Date(`${editExpDate2Input}T23:59:59.000Z`).toISOString();
+        }
+      }
 
       store.updateDevice(
         editingDevice.mac,
@@ -226,7 +284,13 @@ export default function DevicesPage() {
         serverName,
         editServerDnsInput.trim(),
         editUsernameInput.trim(),
-        editPasswordInput.trim()
+        editPasswordInput.trim(),
+        editEnableSecondList ? editServerId2Input : "",
+        editEnableSecondList ? serverName2 : "",
+        editEnableSecondList ? editServerDns2Input.trim() : "",
+        editEnableSecondList ? editUsername2Input.trim() : "",
+        editEnableSecondList ? editPassword2Input.trim() : "",
+        editEnableSecondList ? targetDate2 : ""
       );
       setIsEditModalOpen(false);
       setEditingDevice(null);
@@ -349,8 +413,14 @@ export default function DevicesPage() {
                         <td className="py-3.5 px-3 text-zinc-300">
                           <div className="flex items-center gap-1.5">
                             <Server className="w-3 h-3 text-sky-400 shrink-0" />
-                            <span className="font-medium text-white">{dev.serverName || "Padrão"}</span>
+                            <span className="font-medium text-white">{dev.serverName || "Lista 1"}</span>
                           </div>
+                          {dev.username2 && (
+                            <div className="flex items-center gap-1.5 mt-1 text-emerald-400">
+                              <Server className="w-3 h-3 text-emerald-400 shrink-0" />
+                              <span className="font-medium text-[11px]">{dev.serverName2 || "Lista 2"}</span>
+                            </div>
+                          )}
                           {dev.serverDns && (
                             <p className="text-[10px] text-zinc-400 font-mono truncate max-w-[180px] mt-0.5" title={dev.serverDns}>
                               {dev.serverDns}
@@ -358,7 +428,12 @@ export default function DevicesPage() {
                           )}
                         </td>
                         <td className="py-3.5 px-3 font-mono text-zinc-300">
-                          {dev.username}
+                          <div>{dev.username}</div>
+                          {dev.username2 && (
+                            <div className="text-[11px] text-emerald-400 mt-1 font-mono" title={`Lista 2: ${dev.username2}`}>
+                              {dev.username2}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3.5 px-3 text-zinc-400">{dev.resellerName}</td>
                         <td className="py-3.5 px-3">
@@ -572,6 +647,72 @@ export default function DevicesPage() {
                   </div>
                 </div>
 
+                {/* Seção Opcional: Lista 2 de Servidor */}
+                <div className="pt-2 border-t border-zinc-800">
+                  <label className="flex items-center gap-2 cursor-pointer text-sky-400 font-semibold text-xs select-none">
+                    <input
+                      type="checkbox"
+                      checked={enableSecondList}
+                      onChange={(e) => {
+                        setEnableSecondList(e.target.checked);
+                        if (e.target.checked && !serverId2Input && servers.length > 0) {
+                          setServerId2Input(servers[1]?.id || servers[0]?.id);
+                        }
+                      }}
+                      className="rounded bg-zinc-900 border-zinc-700 text-sky-500 focus:ring-0"
+                    />
+                    <span>+ Adicionar 2ª Lista de Servidor no mesmo aparelho (Opcional)</span>
+                  </label>
+
+                  {enableSecondList && (
+                    <div className="mt-3 p-3 bg-zinc-950/60 border border-sky-500/20 rounded-xl space-y-3">
+                      <div>
+                        <label className="block text-zinc-300 font-medium mb-1">
+                          Servidor / DNS da Lista 2
+                        </label>
+                        <select
+                          value={serverId2Input || servers[0]?.id || ""}
+                          onChange={(e) => setServerId2Input(e.target.value)}
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-sky-500"
+                        >
+                          {servers.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name} ({s.activeDns})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-zinc-300 font-medium mb-1">
+                            Usuário (Lista 2)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="usuario2"
+                            value={username2Input}
+                            onChange={(e) => setUsername2Input(e.target.value)}
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-sky-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-zinc-300 font-medium mb-1">
+                            Senha (Lista 2)
+                          </label>
+                          <input
+                            type="password"
+                            placeholder="••••••••"
+                            value={password2Input}
+                            onChange={(e) => setPassword2Input(e.target.value)}
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-sky-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="pt-3 border-t border-zinc-800 flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-amber-400 font-medium">
                     <Coins className="w-4 h-4" />
@@ -739,6 +880,98 @@ export default function DevicesPage() {
                   <p className="text-[10px] text-zinc-400 mt-1">
                     O aparelho terá sinal ativo até as 23:59 desta data
                   </p>
+                </div>
+
+                {/* Seção Opcional: Lista 2 de Servidor (Edição) */}
+                <div className="pt-2 border-t border-zinc-800">
+                  <label className="flex items-center gap-2 cursor-pointer text-emerald-400 font-semibold text-xs select-none">
+                    <input
+                      type="checkbox"
+                      checked={editEnableSecondList}
+                      onChange={(e) => {
+                        setEditEnableSecondList(e.target.checked);
+                        if (e.target.checked && !editServerId2Input && servers.length > 0) {
+                          setEditServerId2Input(servers[1]?.id || servers[0]?.id);
+                        }
+                      }}
+                      className="rounded bg-zinc-900 border-zinc-700 text-emerald-500 focus:ring-0"
+                    />
+                    <span>Configurar 2ª Lista de Servidor (Opcional)</span>
+                  </label>
+
+                  {editEnableSecondList && (
+                    <div className="mt-3 p-3 bg-zinc-950/60 border border-emerald-500/20 rounded-xl space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-zinc-300 font-medium mb-1">
+                            Servidor (Lista 2)
+                          </label>
+                          <select
+                            value={editServerId2Input || servers[0]?.id || ""}
+                            onChange={(e) => handleEditServer2Change(e.target.value)}
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                          >
+                            {servers.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-zinc-300 font-medium mb-1">
+                            DNS da Lista 2
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="http://dns2.exemplo.com:8080"
+                            value={editServerDns2Input}
+                            onChange={(e) => setEditServerDns2Input(e.target.value)}
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-zinc-300 font-medium mb-1">
+                            Usuário (Lista 2)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="usuario2_iptv"
+                            value={editUsername2Input}
+                            onChange={(e) => setEditUsername2Input(e.target.value)}
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-zinc-300 font-medium mb-1">
+                            Senha (Lista 2)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="••••••••"
+                            value={editPassword2Input}
+                            onChange={(e) => setEditPassword2Input(e.target.value)}
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-zinc-300 font-medium mb-1">
+                          Vencimento (Lista 2)
+                        </label>
+                        <input
+                          type="date"
+                          value={editExpDate2Input}
+                          onChange={(e) => setEditExpDate2Input(e.target.value)}
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2">

@@ -45,6 +45,14 @@ export interface DeviceDocument {
   lastSeen?: string | null;
   createdAt: string;
   updatedAt: string;
+
+  // Lista 2 (Opcional - suporte a até duas listas de servidores no mesmo aparelho)
+  serverId2?: string;
+  serverName2?: string;
+  serverDns2?: string;
+  username2?: string;
+  password2?: string;
+  expirationDate2?: string;
 }
 
 export interface CreditLogDocument {

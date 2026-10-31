@@ -29,6 +29,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,11 +43,13 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.Text
@@ -70,12 +73,17 @@ fun VodPlayerScreen(
     streamUrl: String,
     playerManager: ZyveronPlayerManager,
     startPositionMs: Long = 0L,
+    hasPreviousEpisode: Boolean = false,
+    hasNextEpisode: Boolean = false,
+    onPreviousEpisode: (() -> Unit)? = null,
+    onNextEpisode: (() -> Unit)? = null,
     onSaveProgress: ((positionMs: Long, durationMs: Long) -> Unit)? = null,
     onBack: () -> Unit
 ) {
     val playbackState by playerManager.playbackState.collectAsState()
     var showOsd by remember { mutableStateOf(true) }
-    var isOsdFocused by remember { mutableStateOf(false) }
+    var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var nextEpisodeCountdown by remember { mutableIntStateOf(-1) }
 
     var currentPositionMs by remember { mutableLongStateOf(startPositionMs) }
     var durationMs by remember { mutableLongStateOf(0L) }
@@ -83,6 +91,12 @@ fun VodPlayerScreen(
 
     val playPauseFocusRequester = remember { FocusRequester() }
     val playerSurfaceFocusRequester = remember { FocusRequester() }
+    val nextEpisodeFocusRequester = remember { FocusRequester() }
+
+    fun markInteraction() {
+        lastInteractionTime = System.currentTimeMillis()
+        showOsd = true
+    }
 
     fun seekRelative(deltaMs: Long) {
         val player = playerManager.getPlayer()
@@ -91,7 +105,7 @@ fun VodPlayerScreen(
         val target = (current + deltaMs).coerceIn(0L, if (dur > 0) dur else Long.MAX_VALUE)
         player.seekTo(target)
         currentPositionMs = target
-        showOsd = true
+        markInteraction()
         onSaveProgress?.invoke(target, dur)
     }
 
@@ -105,10 +119,10 @@ fun VodPlayerScreen(
                 } catch (_: Exception) {}
             }
         }
-        showOsd = true
+        markInteraction()
     }
 
-    // Monitora tempo de reprodução para barra de progresso e persistência contínua
+    // Monitora tempo de reprodução para barra de progresso, persistência e detecção de próximo episódio
     LaunchedEffect(Unit) {
         while (true) {
             delay(1000)
@@ -119,20 +133,56 @@ fun VodPlayerScreen(
                     durationMs = player.duration.coerceAtLeast(0L)
                     isPlaying = player.playWhenReady
                     onSaveProgress?.invoke(currentPositionMs, durationMs)
+
+                    // Transição Opção A: Contagem regressiva nos últimos 10 segundos
+                    if (hasNextEpisode && durationMs > 20000L) {
+                        val remainingMs = durationMs - currentPositionMs
+                        if (remainingMs in 1000L..10000L) {
+                            nextEpisodeCountdown = (remainingMs / 1000).toInt()
+                        } else if (remainingMs < 1000L && nextEpisodeCountdown > 0) {
+                            nextEpisodeCountdown = -1
+                            onNextEpisode?.invoke()
+                        } else if (remainingMs > 10000L) {
+                            nextEpisodeCountdown = -1
+                        }
+                    } else {
+                        nextEpisodeCountdown = -1
+                    }
                 }
             } catch (_: Exception) {}
         }
     }
 
-    // Auto-oculta o OSD após 5 segundos se o usuário não estiver focado nos botões
-    LaunchedEffect(showOsd, isOsdFocused) {
-        if (showOsd && !isOsdFocused) {
-            delay(5000)
-            showOsd = false
+    // Ouvinte nativo para STATE_ENDED (passa para o próximo episódio ao terminar)
+    DisposableEffect(playerManager) {
+        val player = playerManager.getPlayer()
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_ENDED) {
+                    if (hasNextEpisode) {
+                        onNextEpisode?.invoke()
+                    }
+                }
+            }
+        }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
         }
     }
 
-    // Foco inicial no botão Play/Pause
+    // Auto-oculta o OSD após 2 segundos de inatividade
+    LaunchedEffect(showOsd, lastInteractionTime) {
+        if (showOsd) {
+            delay(2000)
+            showOsd = false
+            try {
+                playerSurfaceFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
+
+    // Foco inicial
     LaunchedEffect(Unit) {
         delay(300)
         try {
@@ -180,6 +230,7 @@ fun VodPlayerScreen(
             }
             .onKeyEvent { keyEvent ->
                 if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                    markInteraction()
                     when (keyEvent.nativeKeyEvent.keyCode) {
                         KeyEvent.KEYCODE_BACK -> {
                             if (showOsd) {
@@ -201,16 +252,20 @@ fun VodPlayerScreen(
                             seekRelative(+10_000L)
                             true
                         }
-                        // Botão Centro / OK -> Alterna Play / Pause
-                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                            val player = playerManager.getPlayer()
-                            player.playWhenReady = !player.playWhenReady
-                            isPlaying = player.playWhenReady
-                            showOsd = true
-                            true
+                        // Botão Centro / OK -> Alterna Play / Pause ou Próximo Episódio
+                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                            if (nextEpisodeCountdown > 0 && hasNextEpisode) {
+                                nextEpisodeCountdown = -1
+                                onNextEpisode?.invoke()
+                                true
+                            } else {
+                                val player = playerManager.getPlayer()
+                                player.playWhenReady = !player.playWhenReady
+                                isPlaying = player.playWhenReady
+                                true
+                            }
                         }
                         else -> {
-                            showOsd = true
                             false
                         }
                     }
@@ -375,14 +430,35 @@ fun VodPlayerScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Linha de Botões de Controle (Retroceder 10s, Play/Pause, Avançar 10s, Sair)
+                    // Linha de Botões de Controle (Anterior, Retroceder 10s, Play/Pause, Avançar 10s, Próximo, Sair)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .onFocusChanged { isOsdFocused = it.hasFocus },
+                            .onPreviewKeyEvent {
+                                markInteraction()
+                                false
+                            },
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Botão Episódio Anterior (se for série e houver anterior)
+                        if (hasPreviousEpisode && onPreviousEpisode != null) {
+                            TvTouchCard(
+                                onClick = { onPreviousEpisode() },
+                                containerColor = BgSurfaceDark,
+                                focusedContainerColor = AccentSky,
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                            ) { isFocused ->
+                                Text(
+                                    text = "⏮ Anterior",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isFocused) Color.Black else TextPrimary
+                                )
+                            }
+                        }
+
                         // Botão Retroceder 10s
                         TvTouchCard(
                             onClick = { seekRelative(-10_000L) },
@@ -405,6 +481,7 @@ fun VodPlayerScreen(
                                 val player = playerManager.getPlayer()
                                 player.playWhenReady = !player.playWhenReady
                                 isPlaying = player.playWhenReady
+                                markInteraction()
                             },
                             modifier = Modifier.focusRequester(playPauseFocusRequester),
                             containerColor = BgSurfaceDark,
@@ -436,6 +513,24 @@ fun VodPlayerScreen(
                             )
                         }
 
+                        // Botão Próximo Episódio (se for série e houver próximo)
+                        if (hasNextEpisode && onNextEpisode != null) {
+                            TvTouchCard(
+                                onClick = { onNextEpisode() },
+                                containerColor = BgSurfaceDark,
+                                focusedContainerColor = AccentEmerald,
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                            ) { isFocused ->
+                                Text(
+                                    text = "⏭ Próximo",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isFocused) Color.Black else TextPrimary
+                                )
+                            }
+                        }
+
                         Spacer(modifier = Modifier.weight(1f))
 
                         // Botão Voltar
@@ -457,6 +552,40 @@ fun VodPlayerScreen(
                             )
                         }
                     }
+                }
+            }
+        }
+
+        // Overlay de Transição: Próximo Episódio nos últimos 10 segundos
+        AnimatedVisibility(
+            visible = nextEpisodeCountdown in 1..10 && hasNextEpisode,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = if (showOsd) 110.dp else 36.dp, end = 36.dp)
+        ) {
+            TvTouchCard(
+                onClick = {
+                    nextEpisodeCountdown = -1
+                    onNextEpisode?.invoke()
+                },
+                containerColor = Color.Black.copy(alpha = 0.90f),
+                focusedContainerColor = AccentEmerald,
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, AccentEmerald),
+                focusedBorder = androidx.compose.foundation.BorderStroke(2.dp, Color.White),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
+            ) { isFocused ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "⏭", fontSize = 18.sp)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Próximo episódio em ${nextEpisodeCountdown}s • Pressione OK",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isFocused) Color.Black else TextPrimary
+                    )
                 }
             }
         }

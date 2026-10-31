@@ -35,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -86,7 +87,13 @@ fun LivePlayerScreen(
     var showOsd by remember { mutableStateOf(true) }
     var showChannelList by remember { mutableStateOf(false) }
     var isOsdFocused by remember { mutableStateOf(false) }
+    var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val channelListState = rememberLazyListState()
+
+    fun markInteraction() {
+        lastInteractionTime = System.currentTimeMillis()
+        showOsd = true
+    }
 
     val playerSurfaceFocusRequester = remember { FocusRequester() }
     val osdButtonsFocusRequester = remember { FocusRequester() }
@@ -158,10 +165,10 @@ fun LivePlayerScreen(
         }
     }
 
-    // Auto-ocultar OSD após 5 segundos (apenas se o usuário não estiver com foco nos botões)
-    LaunchedEffect(showOsd, isOsdFocused) {
-        if (showOsd && !isOsdFocused) {
-            delay(5000)
+    // Auto-ocultar OSD após 2 segundos de inatividade
+    LaunchedEffect(showOsd, lastInteractionTime, showChannelList) {
+        if (showOsd && !showChannelList) {
+            delay(2000)
             showOsd = false
             try {
                 playerSurfaceFocusRequester.requestFocus()
@@ -179,8 +186,10 @@ fun LivePlayerScreen(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
-                showOsd = !showOsd
                 if (showOsd) {
+                    showOsd = false
+                } else {
+                    markInteraction()
                     try { osdButtonsFocusRequester.requestFocus() } catch (_: Exception) {}
                 }
             }
@@ -200,11 +209,12 @@ fun LivePlayerScreen(
                                 true
                             }
                         }
+                        // Zapping Rápido: Cima/Baixo troca canal e exibe OSD por 2s
                         KeyEvent.KEYCODE_DPAD_UP -> {
                             if (!showChannelList && playbackState !is PlaybackState.Error) {
                                 if (channels.isNotEmpty()) {
                                     currentChannelIndex = if (currentChannelIndex > 0) currentChannelIndex - 1 else channels.size - 1
-                                    showOsd = true
+                                    markInteraction()
                                 }
                                 true
                             } else false
@@ -213,7 +223,7 @@ fun LivePlayerScreen(
                             if (!showChannelList && playbackState !is PlaybackState.Error) {
                                 if (channels.isNotEmpty()) {
                                     currentChannelIndex = (currentChannelIndex + 1) % channels.size
-                                    showOsd = true
+                                    markInteraction()
                                 }
                                 true
                             } else false
@@ -224,16 +234,19 @@ fun LivePlayerScreen(
                                 true
                             } else false
                         }
-                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                             if (!showChannelList && playbackState !is PlaybackState.Error) {
-                                showOsd = true
+                                markInteraction()
                                 try {
                                     osdButtonsFocusRequester.requestFocus()
                                 } catch (_: Exception) {}
                                 true
                             } else false
                         }
-                        else -> false
+                        else -> {
+                            markInteraction()
+                            false
+                        }
                     }
                 } else false
             }
@@ -480,6 +493,7 @@ fun LivePlayerScreen(
                                     .onFocusChanged { isOsdFocused = it.hasFocus }
                                     .onPreviewKeyEvent { keyEvent ->
                                         if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                                            markInteraction()
                                             when (keyEvent.nativeKeyEvent.keyCode) {
                                                 KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_DPAD_UP -> {
                                                     showOsd = false

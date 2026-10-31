@@ -165,7 +165,12 @@ class LocalStore {
     password: string,
     months: number,
     resellerId: string,
-    customNote: string = ""
+    customNote: string = "",
+    // Lista 2 (Opcional)
+    serverId2?: string,
+    username2?: string,
+    password2?: string,
+    months2?: number
   ): DeviceDocument {
     this.init();
     const cleanMac = mac.trim().toUpperCase();
@@ -184,6 +189,19 @@ class LocalStore {
     // Calcula data de expiração (hoje + 30 dias * meses)
     const exp = new Date();
     exp.setDate(exp.getDate() + (30 * months));
+
+    // Dados Lista 2 (se fornecida)
+    let serverName2 = "";
+    let serverDns2 = "";
+    let exp2Str = "";
+    if (serverId2 && username2) {
+      const s2 = this.servers.find(s => s.id === serverId2);
+      serverName2 = s2 ? s2.name : "Servidor 2";
+      serverDns2 = s2 ? normalizeDnsUrl(s2.activeDns) : "";
+      const exp2 = new Date();
+      exp2.setDate(exp2.getDate() + (30 * (months2 || months)));
+      exp2Str = exp2.toISOString();
+    }
 
     // Deduz créditos
     if (reseller.role !== "superadmin") {
@@ -224,6 +242,13 @@ class LocalStore {
       lastSeen: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      // Lista 2
+      serverId2: serverId2 || "",
+      serverName2,
+      serverDns2,
+      username2: username2 || "",
+      password2: password2 || "",
+      expirationDate2: exp2Str,
     };
 
     if (existingIndex >= 0) {
@@ -305,7 +330,13 @@ class LocalStore {
     newServerName?: string,
     newServerDns?: string,
     newUsername?: string,
-    newPassword?: string
+    newPassword?: string,
+    newServerId2?: string,
+    newServerName2?: string,
+    newServerDns2?: string,
+    newUsername2?: string,
+    newPassword2?: string,
+    newExpirationDate2?: string
   ): DeviceDocument {
     this.init();
     const cleanOldMac = oldMac.trim().toUpperCase();
@@ -346,6 +377,26 @@ class LocalStore {
     }
     if (newPassword !== undefined && newPassword.trim() !== "") {
       dev.password = newPassword.trim();
+    }
+
+    // Lista 2
+    if (newServerId2 !== undefined) {
+      dev.serverId2 = newServerId2;
+    }
+    if (newServerName2 !== undefined) {
+      dev.serverName2 = newServerName2;
+    }
+    if (newServerDns2 !== undefined) {
+      dev.serverDns2 = newServerDns2 ? normalizeDnsUrl(newServerDns2) : "";
+    }
+    if (newUsername2 !== undefined) {
+      dev.username2 = newUsername2.trim();
+    }
+    if (newPassword2 !== undefined) {
+      dev.password2 = newPassword2.trim();
+    }
+    if (newExpirationDate2 !== undefined) {
+      dev.expirationDate2 = newExpirationDate2 ? new Date(newExpirationDate2).toISOString() : "";
     }
 
     this.devices[devIndex] = dev;

@@ -90,6 +90,8 @@ sealed class AppScreen {
     data class SeriesEpisodePlayer(
         val episode: EpisodeItem,
         val series: SeriesEntity,
+        val episodesList: List<EpisodeItem> = emptyList(),
+        val currentEpisodeIndex: Int = 0,
         val startPositionMs: Long = 0L
     ) : AppScreen()
     object Accounts : AppScreen()
@@ -367,8 +369,8 @@ fun MainContent(
                             serverDns = cleanDns,
                             username = state.username,
                             password = state.password,
-                            onPlayEpisode = { ep ->
-                                currentScreen = AppScreen.SeriesEpisodePlayer(ep, screen.series)
+                            onPlayEpisode = { ep, epList, index ->
+                                currentScreen = AppScreen.SeriesEpisodePlayer(ep, screen.series, epList, index)
                             },
                             onBackToSeries = { currentScreen = AppScreen.Series },
                             onBackToHome = { currentScreen = AppScreen.Home }
@@ -376,21 +378,41 @@ fun MainContent(
                     }
 
                     is AppScreen.SeriesEpisodePlayer -> {
+                        val epList = screen.episodesList
+                        val epIndex = screen.currentEpisodeIndex
+                        val currentEp = screen.episode
+                        val hasPrev = epIndex > 0 && epList.isNotEmpty()
+                        val hasNext = epIndex < epList.size - 1 && epList.isNotEmpty()
+
                         val streamUrl = repository.buildSeriesStreamUrl(
                             serverDns = cleanDns,
                             username = state.username,
                             password = state.password,
-                            episodeId = screen.episode.id,
-                            containerExt = screen.episode.containerExtension
+                            episodeId = currentEp.id,
+                            containerExt = currentEp.containerExtension
                         )
-                        val savedPos = repository.getVodProgress(screen.episode.id)
+                        val savedPos = repository.getVodProgress(currentEp.id)
                         VodPlayerScreen(
-                            title = "${screen.series.name} • ${screen.episode.title}",
+                            title = "${screen.series.name} • ${currentEp.title}",
                             streamUrl = streamUrl,
                             playerManager = playerManager,
                             startPositionMs = savedPos,
+                            hasPreviousEpisode = hasPrev,
+                            hasNextEpisode = hasNext,
+                            onPreviousEpisode = if (hasPrev) {
+                                {
+                                    val prevEp = epList[epIndex - 1]
+                                    currentScreen = AppScreen.SeriesEpisodePlayer(prevEp, screen.series, epList, epIndex - 1)
+                                }
+                            } else null,
+                            onNextEpisode = if (hasNext) {
+                                {
+                                    val nextEp = epList[epIndex + 1]
+                                    currentScreen = AppScreen.SeriesEpisodePlayer(nextEp, screen.series, epList, epIndex + 1)
+                                }
+                            } else null,
                             onSaveProgress = { pos, _ ->
-                                repository.saveVodProgress(screen.episode.id, pos)
+                                repository.saveVodProgress(currentEp.id, pos)
                             },
                             onBack = { currentScreen = AppScreen.SeriesDetail(screen.series) }
                         )
@@ -403,6 +425,12 @@ fun MainContent(
                             mac = state.mac,
                             deviceKey = deviceManager.deviceKey,
                             expirationDate = state.expirationDate,
+                            playlists = state.playlists,
+                            activePlaylistIndex = state.activePlaylistIndex,
+                            onSelectPlaylist = { idx ->
+                                deviceManager.switchPlaylist(idx)
+                                syncRetryTrigger++
+                            },
                             onDisconnect = {
                                 deviceManager.disconnectDevice {
                                     currentScreen = AppScreen.Home

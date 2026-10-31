@@ -61,6 +61,13 @@ export const FirestoreSync = {
         expirationDate: device.expirationDate,
         status: device.status,
         customNote: device.customNote || "",
+        // Lista 2 (Opcional)
+        serverId2: device.serverId2 || "",
+        serverName2: device.serverName2 || "",
+        serverDns2: device.serverDns2 || "",
+        username2: device.username2 || "",
+        password2: device.password2 || "",
+        expirationDate2: device.expirationDate2 || "",
         updatedAt: new Date().toISOString()
       }, { merge: true });
       console.log(`[Firestore] Aparelho ativado/atualizado com sucesso: ${cleanMac}`);

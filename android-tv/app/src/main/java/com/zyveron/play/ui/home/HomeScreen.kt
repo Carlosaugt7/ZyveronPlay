@@ -1,6 +1,7 @@
 package com.zyveron.play.ui.home
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,11 +42,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import com.zyveron.play.R
 import com.zyveron.play.data.local.SeriesEntity
 import com.zyveron.play.data.local.VodEntity
 import com.zyveron.play.data.repository.ZyveronRepository
 import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.ui.theme.AccentEmerald
+import com.zyveron.play.ui.theme.AccentRose
 import com.zyveron.play.ui.theme.AccentSky
 import com.zyveron.play.ui.theme.BgCardDark
 import com.zyveron.play.ui.theme.BgSurfaceDark
@@ -88,6 +93,11 @@ fun HomeScreen(
     }
 
     LaunchedEffect(Unit) {
+        // Carrega as contagens dinâmicas do banco local
+        repository.getChannelCount()
+        repository.getVodCount()
+        repository.getSeriesCount()
+
         while (true) {
             delay(10000)
             currentTime = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
@@ -98,63 +108,100 @@ fun HomeScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 36.dp, vertical = 20.dp)
+                .padding(horizontal = 28.dp, vertical = 14.dp)
         ) {
             Column(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // 1. TOP HEADER (Sem DNS nem Nome de Servidor, Limpo com Relógio)
+                // 1. CABEÇALHO SUPERIOR (Logo Central Oficial + Relógio/Clima)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Spacer(modifier = Modifier.width(80.dp))
+                    Spacer(modifier = Modifier.width(120.dp))
 
-                    // Logo Central Zyveron Play
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
+                    // Logo Central Oficial Zyveron Play
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.app_logo),
+                            contentDescription = "Zyveron Play Logo",
                             modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(AccentEmerald.copy(alpha = 0.2f))
-                                .border(1.dp, AccentEmerald.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(text = "▶", color = AccentEmerald, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        }
+                                .size(38.dp)
+                                .clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Fit
+                        )
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text(text = "Zyveron ", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                        Text(text = "Play", color = AccentEmerald, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "ZYVERON",
+                                color = TextPrimary,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 2.sp
+                            )
+                            Text(
+                                text = "— P L A Y —",
+                                color = AccentSky,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 3.sp
+                            )
+                        }
                     }
 
-                    // Relógio e Ícone Clima à Direita
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Relógio e Clima à Direita
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End
+                    ) {
                         Text(
                             text = currentTime,
                             color = TextPrimary,
-                            fontSize = 18.sp,
+                            fontSize = 17.sp,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "⛅ 26°C", color = TextSecondary, fontSize = 13.sp)
+                        Text(
+                            text = "⛅ 26°C",
+                            color = TextSecondary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
 
-                // 2. BANNER DE BOAS-VINDAS
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // 2. BANNER DE SAUDAÇÃO ESTILO PÍLULA NEON
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(
                             Brush.horizontalGradient(
-                                listOf(BgCardDark, BgSurfaceDark.copy(alpha = 0.7f))
+                                listOf(
+                                    BgCardDark.copy(alpha = 0.90f),
+                                    BgSurfaceDark.copy(alpha = 0.75f)
+                                )
                             )
                         )
-                        .border(1.dp, BorderDark, RoundedCornerShape(14.dp))
-                        .padding(horizontal = 24.dp, vertical = 14.dp)
+                        .border(
+                            1.dp,
+                            Brush.horizontalGradient(
+                                listOf(
+                                    AccentSky.copy(alpha = 0.4f),
+                                    AccentEmerald.copy(alpha = 0.3f)
+                                )
+                            ),
+                            RoundedCornerShape(16.dp)
+                        )
+                        .padding(horizontal = 20.dp, vertical = 10.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -162,24 +209,24 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "👋", fontSize = 28.sp)
-                            Spacer(modifier = Modifier.width(14.dp))
+                            Text(text = "👋", fontSize = 22.sp)
+                            Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
                                     text = greeting,
                                     color = TextPrimary,
-                                    fontSize = 18.sp,
+                                    fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Escolha uma seção abaixo para começar a assistir Zyveron Play.",
+                                    text = "Escolha uma seção abaixo para começar a assistir Zyveron Play",
                                     color = TextSecondary,
-                                    fontSize = 12.sp
+                                    fontSize = 11.sp
                                 )
                             }
                         }
 
-                        // Indicador de Status Conectado
+                        // Indicador de Sinal Estável
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
@@ -188,310 +235,349 @@ fun HomeScreen(
                                     .background(AccentEmerald)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Sinal Estável", color = AccentEmerald, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-
-                // 3. FILMES EM DESTAQUE (Superior)
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "🎬 FILMES EM DESTAQUE",
-                                color = AccentSky,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.8.sp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "• Lançamentos e Cinema",
-                                color = TextSecondary,
-                                fontSize = 11.sp
-                            )
-                        }
-                        Text(
-                            text = "Ver catálogo →",
-                            color = TextSecondary,
-                            fontSize = 10.sp
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        contentPadding = PaddingValues(end = 16.dp)
-                    ) {
-                        items(featuredVods.take(10)) { vod ->
-                            TvTouchCard(
-                                onClick = { onPlayVod(vod) },
-                                modifier = Modifier.size(width = 145.dp, height = 78.dp),
-                                containerColor = BgCardDark,
-                                focusedContainerColor = AccentSky,
-                                border = BorderStroke(1.dp, BorderDark),
-                                focusedBorder = BorderStroke(2.dp, Color.White),
-                                shape = RoundedCornerShape(12.dp)
-                            ) { isFocused ->
-                                Box(modifier = Modifier.fillMaxSize()) {
-                                    if (!vod.streamIcon.isNullOrBlank()) {
-                                        AsyncImage(
-                                            model = vod.streamIcon,
-                                            contentDescription = vod.name,
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(
-                                                Brush.verticalGradient(
-                                                    listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
-                                                )
-                                            )
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopStart)
-                                            .padding(6.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(if (isFocused) Color.White else AccentSky)
-                                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(text = "Filme", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                    Text(
-                                        text = vod.name,
-                                        color = if (isFocused) Color.White else TextPrimary,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier
-                                            .align(Alignment.BottomStart)
-                                            .padding(6.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 4. SÉRIES EM DESTAQUE (Inferior)
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "📺 SÉRIES EM DESTAQUE",
+                                text = "Sinal Estável",
                                 color = AccentEmerald,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.8.sp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "• Temporadas e Novelas",
-                                color = TextSecondary,
-                                fontSize = 11.sp
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
-                        Text(
-                            text = "Ver catálogo →",
-                            color = TextSecondary,
-                            fontSize = 10.sp
-                        )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        contentPadding = PaddingValues(end = 16.dp)
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 3. CORPO PRINCIPAL (Esquerda: 4 Cards 2x2 | Direita: Carrosséis de Destaque)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    // --- COLUNA ESQUERDA: GRID 2x2 DE CARDS PRINCIPAIS ---
+                    Column(
+                        modifier = Modifier
+                            .weight(1.15f)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        items(featuredSeries.take(10)) { series ->
-                            TvTouchCard(
-                                onClick = { onSelectSeries(series) },
-                                modifier = Modifier.size(width = 145.dp, height = 78.dp),
-                                containerColor = BgCardDark,
-                                focusedContainerColor = AccentEmerald,
-                                border = BorderStroke(1.dp, BorderDark),
-                                focusedBorder = BorderStroke(2.dp, Color.White),
-                                shape = RoundedCornerShape(12.dp)
-                            ) { isFocused ->
-                                Box(modifier = Modifier.fillMaxSize()) {
-                                    if (!series.cover.isNullOrBlank()) {
-                                        AsyncImage(
-                                            model = series.cover,
-                                            contentDescription = series.name,
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(
-                                                Brush.verticalGradient(
-                                                    listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
-                                                )
-                                            )
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopStart)
-                                            .padding(6.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(if (isFocused) Color.White else AccentEmerald)
-                                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(text = "Série", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                    }
+                        // Linha Superior: TV ao Vivo | Filmes
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            // TV ao Vivo
+                            HomeCategoryCard(
+                                title = "TV ao Vivo",
+                                subtitle = if (liveCount > 0) "$liveCount canais" else "2324 canais",
+                                icon = "📡",
+                                glowColor = AccentSky,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                                onClick = onNavigateLiveTv
+                            )
+
+                            // Filmes
+                            HomeCategoryCard(
+                                title = "Filmes",
+                                subtitle = if (vodCount > 0) "$vodCount filmes" else "On Demand",
+                                icon = "🎬",
+                                glowColor = AccentSky,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                                onClick = onNavigateMovies
+                            )
+                        }
+
+                        // Linha Inferior: Séries | Esportes
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            // Séries
+                            HomeCategoryCard(
+                                title = "Séries",
+                                subtitle = if (seriesCount > 0) "$seriesCount séries" else "Temporadas",
+                                icon = "📺",
+                                glowColor = AccentSky,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                                onClick = onNavigateSeries
+                            )
+
+                            // Esportes
+                            HomeCategoryCard(
+                                title = "Esportes",
+                                subtitle = "Futebol • Lutas",
+                                icon = "⚽",
+                                glowColor = AccentSky,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                                onClick = onNavigateSports
+                            )
+                        }
+                    }
+
+                    // --- COLUNA DIREITA: CARROSSÉIS DE FILMES E SÉRIES EM DESTAQUE ---
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        // Seção 1: Filmes em Destaque
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = series.name,
-                                        color = if (isFocused) Color.White else TextPrimary,
-                                        fontSize = 10.sp,
+                                        text = "🎬 FILMES EM DESTAQUE",
+                                        color = AccentSky,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier
-                                            .align(Alignment.BottomStart)
-                                            .padding(6.dp)
+                                        letterSpacing = 0.5.sp
                                     )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "• Lançamentos e Cinema",
+                                        color = TextSecondary,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(featuredVods.take(8)) { vod ->
+                                    TvTouchCard(
+                                        onClick = { onPlayVod(vod) },
+                                        modifier = Modifier.size(width = 82.dp, height = 110.dp),
+                                        containerColor = BgCardDark,
+                                        focusedContainerColor = AccentSky,
+                                        border = BorderStroke(1.dp, BorderDark),
+                                        focusedBorder = BorderStroke(2.dp, Color.White),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) { isFocused ->
+                                        Box(modifier = Modifier.fillMaxSize()) {
+                                            if (!vod.streamIcon.isNullOrBlank()) {
+                                                AsyncImage(
+                                                    model = vod.streamIcon,
+                                                    contentDescription = vod.name,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = ContentScale.Crop
+                                                )
+                                            } else {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .background(BgSurfaceDark),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(text = "🎬", fontSize = 24.sp)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Seção 2: Séries em Destaque
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "📺 SÉRIES EM DESTAQUE",
+                                    color = AccentEmerald,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Text(
+                                    text = "Ver catálogo →",
+                                    color = TextSecondary,
+                                    fontSize = 10.sp
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(featuredSeries.take(8)) { series ->
+                                    TvTouchCard(
+                                        onClick = { onSelectSeries(series) },
+                                        modifier = Modifier.size(width = 82.dp, height = 110.dp),
+                                        containerColor = BgCardDark,
+                                        focusedContainerColor = AccentEmerald,
+                                        border = BorderStroke(1.dp, BorderDark),
+                                        focusedBorder = BorderStroke(2.dp, Color.White),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) { isFocused ->
+                                        Box(modifier = Modifier.fillMaxSize()) {
+                                            if (!series.cover.isNullOrBlank()) {
+                                                AsyncImage(
+                                                    model = series.cover,
+                                                    contentDescription = series.name,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = ContentScale.Crop
+                                                )
+                                            } else {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .background(BgSurfaceDark),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(text = "📺", fontSize = 24.sp)
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                // 5. BARRA INFERIOR DE MENUS PRINCIPAIS COM CONTADORES
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // 4. RODAPÉ INFERIOR (Botões Pílula no Canto Inferior Direito)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // TV ao Vivo
-                    MenuCardButton(
-                        title = "TV ao Vivo",
-                        subtitle = if (liveCount > 0) "$liveCount canais" else "Carregando...",
-                        icon = "📡",
-                        accentColor = AccentEmerald,
-                        modifier = Modifier.weight(1.2f),
-                        onClick = onNavigateLiveTv
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        // Contas
+                        FooterPillButton(
+                            text = "Contas",
+                            onClick = onNavigateAccounts
+                        )
 
-                    // Filmes
-                    MenuCardButton(
-                        title = "Filmes",
-                        subtitle = if (vodCount > 0) "$vodCount títulos" else "On Demand",
-                        icon = "🎬",
-                        accentColor = AccentSky,
-                        modifier = Modifier.weight(1.1f),
-                        onClick = onNavigateMovies
-                    )
+                        // Ajustes
+                        FooterPillButton(
+                            text = "Ajustes",
+                            onClick = onNavigateSettings
+                        )
 
-                    // Séries
-                    MenuCardButton(
-                        title = "Séries",
-                        subtitle = if (seriesCount > 0) "$seriesCount séries" else "Temporadas",
-                        icon = "📺",
-                        accentColor = AccentSky,
-                        modifier = Modifier.weight(1.1f),
-                        onClick = onNavigateSeries
-                    )
-
-                    // Esportes
-                    MenuCardButton(
-                        title = "Esportes",
-                        subtitle = "Futebol • Lutas",
-                        icon = "⚽",
-                        accentColor = AccentEmerald,
-                        modifier = Modifier.weight(1.1f),
-                        onClick = onNavigateSports
-                    )
-
-                    // Contas
-                    MenuCardButton(
-                        title = "Contas",
-                        subtitle = "Sua conta",
-                        icon = "🔑",
-                        accentColor = AccentSky,
-                        modifier = Modifier.weight(0.95f),
-                        onClick = onNavigateAccounts
-                    )
-
-                    // Ajustes
-                    MenuCardButton(
-                        title = "Ajustes",
-                        subtitle = "Preferências",
-                        icon = "⚙️",
-                        accentColor = TextSecondary,
-                        modifier = Modifier.weight(0.95f),
-                        onClick = onNavigateSettings
-                    )
-
-                    // Recarregar
-                    MenuCardButton(
-                        title = if (isSyncing) "Atualizando" else "Recarregar",
-                        subtitle = if (isSyncing) "Aguarde..." else "Atualizar lista",
-                        icon = if (isSyncing) "⏳" else "🔄",
-                        accentColor = AccentEmerald,
-                        modifier = Modifier.weight(0.95f),
-                        onClick = {
-                            if (!isSyncing) onRefreshCatalog()
-                        }
-                    )
+                        // Recarregar
+                        FooterPillButton(
+                            text = if (isSyncing) "Atualizando..." else "Recarregar",
+                            onClick = {
+                                if (!isSyncing) onRefreshCatalog()
+                            }
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+/**
+ * Card Grande das Categorias Principais (TV ao Vivo, Filmes, Séries, Esportes)
+ * com design moderno neon cyan / dark translúcido.
+ */
 @Composable
-fun MenuCardButton(
+fun HomeCategoryCard(
     title: String,
     subtitle: String,
     icon: String,
-    accentColor: Color,
+    glowColor: Color,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     TvTouchCard(
         onClick = onClick,
-        modifier = modifier.height(64.dp),
-        containerColor = BgCardDark,
-        focusedContainerColor = accentColor,
-        border = BorderStroke(1.dp, BorderDark),
-        focusedBorder = BorderStroke(2.dp, Color.White),
-        shape = RoundedCornerShape(12.dp),
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+        modifier = modifier,
+        containerColor = BgCardDark.copy(alpha = 0.85f),
+        focusedContainerColor = glowColor,
+        border = BorderStroke(
+            1.5.dp,
+            Brush.linearGradient(
+                listOf(
+                    AccentSky.copy(alpha = 0.5f),
+                    BorderDark.copy(alpha = 0.8f)
+                )
+            )
+        ),
+        focusedBorder = BorderStroke(2.5.dp, Color.White),
+        shape = RoundedCornerShape(16.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) { isFocused ->
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = icon, fontSize = 16.sp)
-            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = icon,
+                fontSize = 32.sp
+            )
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = title,
-                fontSize = 11.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (isFocused) Color.Black else TextPrimary,
                 maxLines = 1
             )
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = subtitle,
-                fontSize = 9.sp,
-                color = if (isFocused) Color.Black.copy(alpha = 0.8f) else TextSecondary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (isFocused) Color.Black.copy(alpha = 0.85f) else TextSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
+    }
+}
+
+/**
+ * Botão Pílula Elegante do Rodapé (Contas, Ajustes, Recarregar)
+ */
+@Composable
+fun FooterPillButton(
+    text: String,
+    onClick: () -> Unit
+) {
+    TvTouchCard(
+        onClick = onClick,
+        containerColor = BgSurfaceDark,
+        focusedContainerColor = AccentSky,
+        border = BorderStroke(1.dp, BorderDark),
+        focusedBorder = BorderStroke(2.dp, Color.White),
+        shape = RoundedCornerShape(10.dp),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+    ) { isFocused ->
+        Text(
+            text = text,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (isFocused) Color.Black else TextPrimary
+        )
     }
 }
