@@ -7,10 +7,13 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,15 +44,15 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
-import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import com.zyveron.play.player.PlaybackState
 import com.zyveron.play.player.ZyveronPlayerManager
+import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentRose
 import com.zyveron.play.ui.theme.AccentSky
 import com.zyveron.play.ui.theme.BgCardDark
+import com.zyveron.play.ui.theme.BgSurfaceDark
 import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
@@ -75,7 +78,7 @@ fun VodPlayerScreen(
 
     LaunchedEffect(showOsd) {
         if (showOsd) {
-            delay(4000)
+            delay(5000)
             showOsd = false
         }
     }
@@ -91,6 +94,12 @@ fun VodPlayerScreen(
             .fillMaxSize()
             .background(Color.Black)
             .focusable()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                showOsd = !showOsd
+            }
             .onPreviewKeyEvent { keyEvent ->
                 if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                     when (keyEvent.nativeKeyEvent.keyCode) {
@@ -160,20 +169,26 @@ fun VodPlayerScreen(
                     Text(text = err.message, color = TextSecondary, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(18.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(
+                        TvTouchCard(
                             onClick = { playerManager.retryCurrentStream() },
-                            colors = ButtonDefaults.colors(containerColor = AccentEmerald, contentColor = Color.Black)
-                        ) {
-                            Text(text = "🔄 Tentar Novamente", fontWeight = FontWeight.Bold)
+                            containerColor = AccentEmerald,
+                            focusedContainerColor = Color.White,
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                        ) { isFocused ->
+                            Text(text = "🔄 Tentar Novamente", fontWeight = FontWeight.Bold, color = Color.Black)
                         }
-                        Button(
+                        TvTouchCard(
                             onClick = {
                                 playerManager.stop()
                                 onBack()
                             },
-                            colors = ButtonDefaults.colors(containerColor = AccentRose, contentColor = Color.White)
-                        ) {
-                            Text(text = "✕ Voltar", fontWeight = FontWeight.Bold)
+                            containerColor = AccentRose,
+                            focusedContainerColor = Color.White,
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                        ) { isFocused ->
+                            Text(text = "✕ Voltar", fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
                 }
@@ -195,7 +210,7 @@ fun VodPlayerScreen(
                             listOf(Color.Transparent, Color.Black.copy(alpha = 0.95f))
                         )
                     )
-                    .padding(28.dp)
+                    .padding(24.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -211,23 +226,42 @@ fun VodPlayerScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "OK Pausar/Reproduzir  •  BACK Voltar",
+                            text = "Toque na tela ou use OK para Pausar/Reproduzir",
                             color = TextSecondary,
                             fontSize = 11.sp
                         )
                     }
 
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .border(1.dp, BorderDark, RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(text = "VOD • On Demand", color = AccentSky, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TvTouchCard(
+                            onClick = {
+                                val player = playerManager.getPlayer()
+                                player.playWhenReady = !player.playWhenReady
+                            },
+                            containerColor = BgSurfaceDark,
+                            focusedContainerColor = AccentEmerald,
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) { isFocused ->
+                            val isPlaying = playerManager.getPlayer().playWhenReady
+                            Text(text = if (isPlaying) "⏸ Pausar" else "▶ Reproduzir", fontSize = 11.sp, color = if (isFocused) Color.Black else TextPrimary, fontWeight = FontWeight.Bold)
+                        }
+
+                        TvTouchCard(
+                            onClick = {
+                                playerManager.stop()
+                                onBack()
+                            },
+                            containerColor = BgSurfaceDark,
+                            focusedContainerColor = AccentRose,
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) { isFocused ->
+                            Text(text = "✕ Voltar", fontSize = 11.sp, color = if (isFocused) Color.White else TextSecondary, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
         }
     }
 }
-

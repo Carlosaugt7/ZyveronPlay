@@ -3,6 +3,7 @@ package com.zyveron.play.ui.series
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -33,26 +35,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Border
-import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.zyveron.play.data.local.SeriesEntity
 import com.zyveron.play.data.repository.ZyveronRepository
+import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.ui.live.CategoryItem
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentSky
 import com.zyveron.play.ui.theme.BgCardDark
 import com.zyveron.play.ui.theme.BgDeepDark
+import com.zyveron.play.ui.theme.BgSurfaceDark
 import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
@@ -71,12 +74,19 @@ fun SeriesScreen(
     val favorites by repository.getFavoriteSeries().collectAsState(initial = emptyList())
 
     var selectedCategoryId by remember { mutableStateOf("ALL") }
+    var searchQuery by remember { mutableStateOf("") }
 
-    val displayedSeries = remember(selectedCategoryId, allSeries, favorites) {
-        when (selectedCategoryId) {
+    val displayedSeries = remember(selectedCategoryId, searchQuery, allSeries, favorites) {
+        val baseList = when (selectedCategoryId) {
             "FAV" -> favorites
             "ALL" -> allSeries
             else -> allSeries.filter { it.categoryId == selectedCategoryId }
+        }
+        if (searchQuery.isBlank()) {
+            baseList
+        } else {
+            val q = searchQuery.trim().lowercase()
+            baseList.filter { it.name.lowercase().contains(q) }
         }
     }
 
@@ -110,18 +120,19 @@ fun SeriesScreen(
                         )
                     }
 
-                    Button(
+                    TvTouchCard(
                         onClick = onBack,
-                        colors = ButtonDefaults.colors(
-                            containerColor = BgCardDark,
-                            focusedContainerColor = AccentEmerald,
-                            contentColor = TextPrimary,
-                            focusedContentColor = Color.Black
-                        ),
-                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                        containerColor = BgCardDark,
+                        focusedContainerColor = AccentEmerald,
+                        shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text(text = "← Voltar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    ) { isFocused ->
+                        Text(
+                            text = "← Voltar",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isFocused) Color.Black else TextPrimary
+                        )
                     }
                 }
 
@@ -146,6 +157,53 @@ fun SeriesScreen(
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
+                            // Busca rápida de série
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(BgSurfaceDark)
+                                        .border(
+                                            1.dp,
+                                            if (searchQuery.isNotEmpty()) AccentSky else BorderDark,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(text = "🔍", fontSize = 11.sp)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        BasicTextField(
+                                            value = searchQuery,
+                                            onValueChange = { searchQuery = it },
+                                            singleLine = true,
+                                            textStyle = TextStyle(color = TextPrimary, fontSize = 11.sp),
+                                            cursorBrush = SolidColor(AccentSky),
+                                            decorationBox = { innerTextField ->
+                                                if (searchQuery.isEmpty()) {
+                                                    Text(
+                                                        text = "Buscar série...",
+                                                        color = TextSecondary,
+                                                        fontSize = 11.sp
+                                                    )
+                                                }
+                                                innerTextField()
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (searchQuery.isNotEmpty()) {
+                                            Text(
+                                                text = "✕",
+                                                color = TextSecondary,
+                                                fontSize = 11.sp,
+                                                modifier = Modifier.clickable { searchQuery = "" }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
                             item {
                                 CategoryItem(
                                     title = "★ Favoritos",
@@ -186,8 +244,8 @@ fun SeriesScreen(
                         if (displayedSeries.isEmpty()) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = if (selectedCategoryId == "FAV") "Nenhuma série favoritada ainda.\nPressione o botão Amarelo/Menu no controle para favoritar!"
-                                    else "Nenhuma série nesta categoria",
+                                    text = if (selectedCategoryId == "FAV") "Nenhuma série favoritada ainda.\nToque e segure no celular ou aperte Amarelo/Menu no controle para favoritar!"
+                                    else "Nenhuma série encontrada",
                                     color = TextSecondary,
                                     fontSize = 13.sp
                                 )
@@ -201,33 +259,31 @@ fun SeriesScreen(
                                 contentPadding = PaddingValues(4.dp)
                             ) {
                                 items(displayedSeries) { series ->
-                                    Button(
+                                    TvTouchCard(
                                         onClick = { onSelectSeries(series) },
-                                        modifier = Modifier.onKeyEvent { keyEvent ->
-                                            if (keyEvent.type == KeyEventType.KeyDown &&
-                                                (keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_STAR ||
-                                                 keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_PROG_YELLOW ||
-                                                 keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_MENU ||
-                                                 keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_BOOKMARK)
-                                            ) {
-                                                scope.launch { repository.toggleSeriesFavorite(series) }
-                                                true
-                                            } else false
+                                        onLongClick = {
+                                            scope.launch { repository.toggleSeriesFavorite(series) }
                                         },
-                                        colors = ButtonDefaults.colors(
-                                            containerColor = Color.Transparent,
-                                            focusedContainerColor = AccentEmerald,
-                                            contentColor = TextPrimary,
-                                            focusedContentColor = Color.Black
-                                        ),
-                                        border = ButtonDefaults.border(
-                                            border = Border(BorderStroke(1.dp, BorderDark)),
-                                            focusedBorder = Border(BorderStroke(2.dp, Color.White))
-                                        ),
-                                        shape = ButtonDefaults.shape(RoundedCornerShape(10.dp)),
-                                        contentPadding = PaddingValues(0.dp)
-                                    ) {
-                                        Column(modifier = Modifier.width(135.dp)) {
+                                        modifier = Modifier
+                                            .width(135.dp)
+                                            .onKeyEvent { keyEvent ->
+                                                if (keyEvent.type == KeyEventType.KeyDown &&
+                                                    (keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_STAR ||
+                                                     keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_PROG_YELLOW ||
+                                                     keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_MENU ||
+                                                     keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_BOOKMARK)
+                                                ) {
+                                                    scope.launch { repository.toggleSeriesFavorite(series) }
+                                                    true
+                                                } else false
+                                            },
+                                        containerColor = BgSurfaceDark,
+                                        focusedContainerColor = AccentEmerald,
+                                        border = BorderStroke(1.dp, BorderDark),
+                                        focusedBorder = BorderStroke(2.dp, Color.White),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) { isFocused ->
+                                        Column(modifier = Modifier.fillMaxWidth()) {
                                             Box(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
@@ -273,7 +329,7 @@ fun SeriesScreen(
                                                             .background(Color(0xFFF59E0B))
                                                             .padding(horizontal = 4.dp, vertical = 2.dp)
                                                     ) {
-                                                        Text(text = "★ Favorita", color = Color.Black, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                                        Text(text = "★ Favorito", color = Color.Black, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                                                     }
                                                 }
                                             }
@@ -284,7 +340,8 @@ fun SeriesScreen(
                                                 fontWeight = FontWeight.SemiBold,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                                                color = if (isFocused) Color.Black else TextPrimary,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp)
                                             )
                                         }
                                     }

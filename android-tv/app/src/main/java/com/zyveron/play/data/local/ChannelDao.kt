@@ -76,6 +76,12 @@ interface ChannelDao {
     @Query("SELECT * FROM vod_movies WHERE isFavorite = 1 ORDER BY streamId DESC")
     fun getFavoriteVods(): Flow<List<VodEntity>>
 
+    @Query("SELECT streamId FROM vod_movies WHERE isFavorite = 1")
+    suspend fun getFavoriteVodIds(): List<Int>
+
+    @Query("UPDATE vod_movies SET isFavorite = 1 WHERE streamId IN (:ids)")
+    suspend fun markVodFavorites(ids: List<Int>)
+
     @Query("UPDATE vod_movies SET isFavorite = :isFav WHERE streamId = :streamId")
     suspend fun setVodFavorite(streamId: Int, isFav: Boolean)
 
@@ -103,6 +109,12 @@ interface ChannelDao {
 
     @Query("SELECT * FROM series WHERE isFavorite = 1 ORDER BY seriesId DESC")
     fun getFavoriteSeries(): Flow<List<SeriesEntity>>
+
+    @Query("SELECT seriesId FROM series WHERE isFavorite = 1")
+    suspend fun getFavoriteSeriesIds(): List<Int>
+
+    @Query("UPDATE series SET isFavorite = 1 WHERE seriesId IN (:ids)")
+    suspend fun markSeriesFavorites(ids: List<Int>)
 
     @Query("UPDATE series SET isFavorite = :isFav WHERE seriesId = :seriesId")
     suspend fun setSeriesFavorite(seriesId: Int, isFav: Boolean)

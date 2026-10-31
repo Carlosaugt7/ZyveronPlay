@@ -29,10 +29,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Border
-import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
+import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentSky
 import com.zyveron.play.ui.theme.BgCardDark
@@ -64,275 +62,281 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(24.dp)
         ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Configurações",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Configurações",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
 
-                Button(
-                    onClick = onBack,
-                    colors = ButtonDefaults.colors(
+                    TvTouchCard(
+                        onClick = onBack,
                         containerColor = BgCardDark,
                         focusedContainerColor = AccentEmerald,
-                        contentColor = TextPrimary,
-                        focusedContentColor = Color.Black
-                    ),
-                    shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                ) {
-                    Text(text = "← Voltar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
-
-            // Layout 2 Colunas: Sidebar de Abas à Esquerda | Painel de Conteúdo à Direita
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                // Sidebar de Abas
-                Box(
-                    modifier = Modifier
-                        .width(220.dp)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(BgCardDark)
-                        .border(1.dp, BorderDark, RoundedCornerShape(14.dp))
-                        .padding(10.dp)
-                ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        TabSidebarButton(
-                            title = "Meu App",
-                            icon = "📱",
-                            isSelected = selectedTab == "MY_APP",
-                            onClick = { selectedTab = "MY_APP" }
-                        )
-                        TabSidebarButton(
-                            title = "Configurações",
-                            icon = "⚙️",
-                            isSelected = selectedTab == "SETTINGS",
-                            onClick = { selectedTab = "SETTINGS" }
-                        )
-                        TabSidebarButton(
-                            title = "Aparência",
-                            icon = "🎨",
-                            isSelected = selectedTab == "THEME",
-                            onClick = { selectedTab = "THEME" }
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
-                        TabSidebarButton(
-                            title = "Voltar",
-                            icon = "←",
-                            isSelected = false,
-                            onClick = onBack
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                    ) { isFocused ->
+                        Text(
+                            text = "← Voltar",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isFocused) Color.Black else TextPrimary
                         )
                     }
                 }
 
-                // Painel da Aba Selecionada
-                Box(
+                // Layout 2 Colunas: Sidebar de Abas à Esquerda | Painel de Conteúdo à Direita
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(BgCardDark)
-                        .border(1.dp, BorderDark, RoundedCornerShape(14.dp))
-                        .padding(20.dp)
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    when (selectedTab) {
-                        "MY_APP" -> {
-                            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                // Card Identificação do Aparelho
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(BgSurfaceDark)
-                                        .border(1.dp, BorderDark, RoundedCornerShape(12.dp))
-                                        .padding(16.dp)
-                                ) {
-                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(text = "IDENTIFICAÇÃO DO APARELHO", color = AccentSky, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(text = "MAC:", color = TextSecondary, fontSize = 12.sp)
-                                            Text(text = mac, color = TextPrimary, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                                        }
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(text = "DEVICE KEY (PIN):", color = TextSecondary, fontSize = 12.sp)
-                                            Text(text = deviceKey, color = AccentSky, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                                        }
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(text = "Aparelho:", color = TextSecondary, fontSize = 12.sp)
-                                            Text(text = "Android TV / Smart TV", color = TextPrimary, fontSize = 12.sp)
-                                        }
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(text = "Status:", color = TextSecondary, fontSize = 12.sp)
-                                            Text(text = "● Ativo e Sincronizado", color = AccentEmerald, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(text = "Vencimento:", color = TextSecondary, fontSize = 12.sp)
-                                            Text(text = expirationDate.take(10).ifBlank { "Ativo" }, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
+                    // Sidebar de Abas
+                    Box(
+                        modifier = Modifier
+                            .width(220.dp)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(BgCardDark)
+                            .border(1.dp, BorderDark, RoundedCornerShape(14.dp))
+                            .padding(10.dp)
+                    ) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            TabSidebarButton(
+                                title = "Meu App",
+                                icon = "📱",
+                                isSelected = selectedTab == "MY_APP",
+                                onClick = { selectedTab = "MY_APP" }
+                            )
+                            TabSidebarButton(
+                                title = "Configurações",
+                                icon = "⚙️",
+                                isSelected = selectedTab == "SETTINGS",
+                                onClick = { selectedTab = "SETTINGS" }
+                            )
+                            TabSidebarButton(
+                                title = "Aparência",
+                                icon = "🎨",
+                                isSelected = selectedTab == "THEME",
+                                onClick = { selectedTab = "THEME" }
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            TabSidebarButton(
+                                title = "Voltar",
+                                icon = "←",
+                                isSelected = false,
+                                onClick = onBack
+                            )
+                        }
+                    }
 
-                                // Card Aplicativo
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(BgSurfaceDark)
-                                        .border(1.dp, BorderDark, RoundedCornerShape(12.dp))
-                                        .padding(16.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                    // Painel da Aba Selecionada
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(BgCardDark)
+                            .border(1.dp, BorderDark, RoundedCornerShape(14.dp))
+                            .padding(20.dp)
+                    ) {
+                        when (selectedTab) {
+                            "MY_APP" -> {
+                                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                    // Card Identificação do Aparelho
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(BgSurfaceDark)
+                                            .border(1.dp, BorderDark, RoundedCornerShape(12.dp))
+                                            .padding(16.dp)
                                     ) {
-                                        Column {
-                                            Text(text = "APLICATIVO", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                            Text(text = "Zyveron Play • v1.0.0", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(AccentEmerald.copy(alpha = 0.2f))
-                                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                                        ) {
-                                            Text(text = "Versão Mais Recente", color = AccentEmerald, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text(text = "IDENTIFICAÇÃO DO APARELHO", color = AccentSky, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(text = "MAC:", color = TextSecondary, fontSize = 12.sp)
+                                                Text(text = mac, color = TextPrimary, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                            }
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(text = "DEVICE KEY (PIN):", color = TextSecondary, fontSize = 12.sp)
+                                                Text(text = deviceKey, color = AccentSky, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                            }
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(text = "Aparelho:", color = TextSecondary, fontSize = 12.sp)
+                                                Text(text = "Android TV / Smartphone", color = TextPrimary, fontSize = 12.sp)
+                                            }
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(text = "Status:", color = TextSecondary, fontSize = 12.sp)
+                                                Text(text = "● Ativo e Sincronizado", color = AccentEmerald, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(text = "Vencimento:", color = TextSecondary, fontSize = 12.sp)
+                                                Text(text = expirationDate.take(10).ifBlank { "Ativo" }, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            }
                                         }
                                     }
-                                }
 
-                                // Card Idioma
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(BgSurfaceDark)
-                                        .border(1.dp, BorderDark, RoundedCornerShape(12.dp))
-                                        .padding(16.dp)
-                                ) {
-                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(text = "IDIOMA DO APLICATIVO", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                            Button(
-                                                onClick = {},
-                                                colors = ButtonDefaults.colors(
-                                                    containerColor = AccentEmerald,
-                                                    contentColor = Color.Black
-                                                ),
-                                                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                    // Card Aplicativo
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(BgSurfaceDark)
+                                            .border(1.dp, BorderDark, RoundedCornerShape(12.dp))
+                                            .padding(16.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text(text = "APLICATIVO", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                Text(text = "Zyveron Play • v1.0.0", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(AccentEmerald.copy(alpha = 0.2f))
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
                                             ) {
-                                                Text(text = "Português (Brasil) ✓", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                Text(text = "Versão Mais Recente", color = AccentEmerald, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+
+                                    // Card Idioma
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(BgSurfaceDark)
+                                            .border(1.dp, BorderDark, RoundedCornerShape(12.dp))
+                                            .padding(16.dp)
+                                    ) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text(text = "IDIOMA DO APLICATIVO", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                                TvTouchCard(
+                                                    onClick = {},
+                                                    containerColor = AccentEmerald,
+                                                    focusedContainerColor = Color.White,
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                                ) { isFocused ->
+                                                    Text(
+                                                        text = "Português (Brasil) ✓",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.Black
+                                                    )
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        "SETTINGS" -> {
-                            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                // Alerta de Gol
-                                SettingToggleCard(
-                                    title = "ALERTA DE GOL",
-                                    description = "Comemoração na tela quando sai um gol nos jogos ao vivo (Início e Player).",
-                                    isEnabled = goalAlertEnabled,
-                                    onToggle = { goalAlertEnabled = !goalAlertEnabled }
-                                )
+                            "SETTINGS" -> {
+                                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                    // Alerta de Gol
+                                    SettingToggleCard(
+                                        title = "ALERTA DE GOL",
+                                        description = "Comemoração na tela quando sai um gol nos jogos ao vivo (Início e Player).",
+                                        isEnabled = goalAlertEnabled,
+                                        onToggle = { goalAlertEnabled = !goalAlertEnabled }
+                                    )
 
-                                // Som da Torcida
-                                SettingToggleCard(
-                                    title = "SOM DA TORCIDA",
-                                    description = "Reproduz áudio comemoração de torcida ao sair gol.",
-                                    isEnabled = crowdSoundEnabled,
-                                    onToggle = { crowdSoundEnabled = !crowdSoundEnabled }
-                                )
+                                    // Som da Torcida
+                                    SettingToggleCard(
+                                        title = "SOM DA TORCIDA",
+                                        description = "Reproduz áudio comemoração de torcida ao sair gol.",
+                                        isEnabled = crowdSoundEnabled,
+                                        onToggle = { crowdSoundEnabled = !crowdSoundEnabled }
+                                    )
 
-                                // Qualidade Adaptativa
-                                SettingToggleCard(
-                                    title = "QUALIDADE ADAPTATIVA (AO VIVO)",
-                                    description = "Troca automaticamente para versão mais leve do canal se a conexão oscilar.",
-                                    isEnabled = adaptiveQualityEnabled,
-                                    onToggle = { adaptiveQualityEnabled = !adaptiveQualityEnabled }
-                                )
+                                    // Qualidade Adaptativa
+                                    SettingToggleCard(
+                                        title = "QUALIDADE ADAPTATIVA (AO VIVO)",
+                                        description = "Troca automaticamente para versão mais leve do canal se a conexão oscilar.",
+                                        isEnabled = adaptiveQualityEnabled,
+                                        onToggle = { adaptiveQualityEnabled = !adaptiveQualityEnabled }
+                                    )
 
-                                // Protocolo de Streaming (TS vs HLS)
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(BgSurfaceDark)
-                                        .border(1.dp, BorderDark, RoundedCornerShape(12.dp))
-                                        .padding(16.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                    // Protocolo de Streaming (TS vs HLS)
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(BgSurfaceDark)
+                                            .border(1.dp, BorderDark, RoundedCornerShape(12.dp))
+                                            .padding(16.dp)
                                     ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(text = "PROTOCOLO (AO VIVO)", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                            Text(
-                                                text = if (protocolIsHls) "HLS (.m3u8): playlist segmentada" else "MPEG-TS (.ts): fluxo contínuo de baixa latência direto (recomendado para TV)",
-                                                color = TextSecondary,
-                                                fontSize = 11.sp
-                                            )
-                                        }
-                                        Button(
-                                            onClick = { protocolIsHls = !protocolIsHls },
-                                            colors = ButtonDefaults.colors(
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(text = "PROTOCOLO (AO VIVO)", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                Text(
+                                                    text = if (protocolIsHls) "HLS (.m3u8): playlist segmentada" else "MPEG-TS (.ts): fluxo contínuo de baixa latência direto (recomendado para TV)",
+                                                    color = TextSecondary,
+                                                    fontSize = 11.sp
+                                                )
+                                            }
+                                            TvTouchCard(
+                                                onClick = { protocolIsHls = !protocolIsHls },
                                                 containerColor = if (protocolIsHls) AccentSky else AccentEmerald,
                                                 focusedContainerColor = Color.White,
-                                                contentColor = Color.Black,
-                                                focusedContentColor = Color.Black
-                                            ),
-                                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                                        ) {
-                                            Text(text = if (protocolIsHls) "Protocolo: HLS" else "Protocolo: TS", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                shape = RoundedCornerShape(8.dp),
+                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                            ) { isFocused ->
+                                                Text(
+                                                    text = if (protocolIsHls) "Protocolo: HLS" else "Protocolo: TS",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.Black
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        else -> {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text(text = "Tema Padrão Cinematic Stealth Dark ativado", color = TextSecondary, fontSize = 13.sp)
+                            else -> {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Text(text = "Tema Padrão Cinematic Stealth Dark ativado", color = TextSecondary, fontSize = 13.sp)
+                                }
                             }
                         }
                     }
@@ -340,7 +344,6 @@ fun SettingsScreen(
             }
         }
     }
-}
 }
 
 @Composable
@@ -350,22 +353,16 @@ fun TabSidebarButton(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Button(
+    TvTouchCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.colors(
-            containerColor = if (isSelected) AccentSky else Color.Transparent,
-            focusedContainerColor = AccentEmerald,
-            contentColor = if (isSelected) Color.Black else TextPrimary,
-            focusedContentColor = Color.Black
-        ),
-        border = ButtonDefaults.border(
-            border = Border(BorderStroke(1.dp, if (isSelected) AccentSky else Color.Transparent)),
-            focusedBorder = Border(BorderStroke(2.dp, Color.White))
-        ),
-        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+        containerColor = if (isSelected) AccentSky else Color.Transparent,
+        focusedContainerColor = AccentEmerald,
+        border = BorderStroke(1.dp, if (isSelected) AccentSky else Color.Transparent),
+        focusedBorder = BorderStroke(2.dp, Color.White),
+        shape = RoundedCornerShape(8.dp),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
-    ) {
+    ) { isFocused ->
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -375,7 +372,8 @@ fun TabSidebarButton(
             Text(
                 text = title,
                 fontSize = 12.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = if (isFocused || isSelected) Color.Black else TextPrimary
             )
         }
     }
@@ -407,24 +405,22 @@ fun SettingToggleCard(
                 Text(text = description, color = TextSecondary, fontSize = 11.sp)
             }
             Spacer(modifier = Modifier.width(12.dp))
-            Button(
+            TvTouchCard(
                 onClick = onToggle,
-                colors = ButtonDefaults.colors(
-                    containerColor = if (isEnabled) AccentEmerald else BgCardDark,
-                    focusedContainerColor = Color.White,
-                    contentColor = if (isEnabled) Color.Black else TextSecondary,
-                    focusedContentColor = Color.Black
-                ),
-                border = ButtonDefaults.border(
-                    border = Border(BorderStroke(1.dp, BorderDark)),
-                    focusedBorder = Border(BorderStroke(2.dp, Color.White))
-                ),
-                shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                containerColor = if (isEnabled) AccentEmerald else BgCardDark,
+                focusedContainerColor = Color.White,
+                border = BorderStroke(1.dp, BorderDark),
+                focusedBorder = BorderStroke(2.dp, Color.White),
+                shape = RoundedCornerShape(8.dp),
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-            ) {
-                Text(text = if (isEnabled) "● Ativado" else "○ Desativado", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            ) { isFocused ->
+                Text(
+                    text = if (isEnabled) "● Ativado" else "○ Desativado",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isFocused) Color.Black else (if (isEnabled) Color.Black else TextSecondary)
+                )
             }
         }
     }
 }
-

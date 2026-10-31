@@ -1,10 +1,12 @@
 package com.zyveron.play.ui.activation
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,10 +25,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Border
-import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
+import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.ui.theme.AccentAmber
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentRose
@@ -126,47 +126,35 @@ fun BlockedOrExpiredScreen(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(
+                    TvTouchCard(
                         onClick = onRetry,
-                        colors = ButtonDefaults.colors(
-                            containerColor = accentColor,
-                            focusedContainerColor = Color.White,
-                            contentColor = Color.Black,
-                            focusedContentColor = Color.Black
-                        ),
-                        border = ButtonDefaults.border(
-                            border = Border(border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark)),
-                            focusedBorder = Border(border = androidx.compose.foundation.BorderStroke(2.dp, accentColor))
-                        ),
-                        shape = ButtonDefaults.shape(shape = RoundedCornerShape(12.dp))
-                    ) {
+                        containerColor = accentColor,
+                        focusedContainerColor = Color.White,
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                    ) { isFocused ->
                         Text(
                             text = "🔄 Verificar Novamente",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                            color = Color.Black
                         )
                     }
 
-                    Button(
+                    TvTouchCard(
                         onClick = onExit,
-                        colors = ButtonDefaults.colors(
-                            containerColor = BgSurfaceDark,
-                            focusedContainerColor = AccentRose,
-                            contentColor = TextPrimary,
-                            focusedContentColor = Color.White
-                        ),
-                        border = ButtonDefaults.border(
-                            border = Border(border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark)),
-                            focusedBorder = Border(border = androidx.compose.foundation.BorderStroke(2.dp, Color.White))
-                        ),
-                        shape = ButtonDefaults.shape(shape = RoundedCornerShape(12.dp))
-                    ) {
+                        containerColor = BgSurfaceDark,
+                        focusedContainerColor = Color.White,
+                        border = BorderStroke(1.dp, BorderDark),
+                        focusedBorder = BorderStroke(2.dp, Color.White),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                    ) { isFocused ->
                         Text(
-                            text = "✕ Sair",
-                            fontWeight = FontWeight.Bold,
+                            text = "✕ Fechar App",
+                            fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                            color = if (isFocused) Color.Black else TextSecondary
                         )
                     }
                 }
@@ -174,4 +162,3 @@ fun BlockedOrExpiredScreen(
         }
     }
 }
-

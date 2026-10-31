@@ -36,9 +36,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Border
-import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import com.zyveron.play.data.local.ChannelEntity
 import com.zyveron.play.data.local.EpisodeItem
@@ -200,6 +197,7 @@ fun MainContent(
             }
 
             is DeviceAuthState.Active -> {
+                val context = androidx.compose.ui.platform.LocalContext.current
                 val cleanDns = remember(state.serverDns) {
                     UrlHelper.normalizeUrl(state.serverDns)
                 }
@@ -207,16 +205,24 @@ fun MainContent(
                 var syncRetryTrigger by remember { mutableIntStateOf(0) }
                 var isSyncing by remember { mutableStateOf(false) }
 
-                // Dispara sincronização completa em background
+                // Dispara sincronização completa em background com feedback visual Toast
                 LaunchedEffect(cleanDns, state.username, syncRetryTrigger) {
                     if (cleanDns.isNotBlank() && state.username.isNotBlank()) {
                         isSyncing = true
-                        repository.syncXtreamCatalog(
+                        val result = repository.syncXtreamCatalog(
                             serverDns = cleanDns,
                             username = state.username,
                             password = state.password
                         )
                         isSyncing = false
+                        if (syncRetryTrigger > 0) {
+                            if (result.isSuccess) {
+                                val total = result.getOrDefault(0)
+                                android.widget.Toast.makeText(context, "✅ Catálogo atualizado com sucesso! ($total canais)", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                android.widget.Toast.makeText(context, "⚠️ Falha ao atualizar: ${result.exceptionOrNull()?.message}", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
                     }
                 }
 
@@ -230,9 +236,13 @@ fun MainContent(
                             onNavigateSports = { currentScreen = AppScreen.LiveTvGuide(true) },
                             onNavigateAccounts = { currentScreen = AppScreen.Accounts },
                             onNavigateSettings = { currentScreen = AppScreen.Settings },
-                            onRefreshCatalog = { syncRetryTrigger++ },
+                            onRefreshCatalog = {
+                                android.widget.Toast.makeText(context, "🔄 Atualizando canais, filmes e séries...", android.widget.Toast.LENGTH_SHORT).show()
+                                syncRetryTrigger++
+                            },
                             onPlayVod = { vod -> currentScreen = AppScreen.MoviePlayer(vod) },
-                            onSelectSeries = { series -> currentScreen = AppScreen.SeriesDetail(series) }
+                            onSelectSeries = { series -> currentScreen = AppScreen.SeriesDetail(series) },
+                            isSyncing = isSyncing
                         )
                     }
 

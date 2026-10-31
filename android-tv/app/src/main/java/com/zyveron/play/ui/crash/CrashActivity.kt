@@ -4,11 +4,13 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,11 +30,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Border
-import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import com.zyveron.play.MainActivity
+import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentRose
 import com.zyveron.play.ui.theme.BgCardDark
@@ -99,53 +99,45 @@ fun CrashScreen(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.85f)
+                .width(620.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .background(BgCardDark)
-                .border(1.dp, BorderDark, RoundedCornerShape(16.dp))
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .border(1.dp, AccentRose.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                .padding(28.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "⚠",
-                    color = AccentRose,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text(text = "⚠", color = AccentRose, fontSize = 24.sp)
                 Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "Falha Inesperada no Aplicativo",
-                    color = TextPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Column {
+                    Text(
+                        text = "Zyveron Play encontrou uma falha inesperada",
+                        color = AccentRose,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "O aplicativo foi mantido seguro e isolado para proteção do sistema.",
+                        color = TextSecondary,
+                        fontSize = 11.sp
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-            Text(
-                text = "Ocorreu um erro ao processar o fluxo de reprodução:",
-                color = TextSecondary,
-                fontSize = 13.sp
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Caixa com a mensagem de erro
+            // Resumo do Erro
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color.Black.copy(alpha = 0.6f))
-                    .border(1.dp, AccentRose.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                    .padding(12.dp)
+                    .background(BgSurfaceDark)
+                    .border(1.dp, BorderDark, RoundedCornerShape(8.dp))
+                    .padding(14.dp)
             ) {
                 Text(
                     text = errorMessage,
-                    color = AccentRose,
+                    color = TextPrimary,
                     fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -177,53 +169,42 @@ fun CrashScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Button(
+                TvTouchCard(
                     onClick = onRestart,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.colors(
-                        containerColor = AccentEmerald,
-                        focusedContainerColor = Color.White,
-                        contentColor = Color.Black,
-                        focusedContentColor = Color.Black
-                    ),
-                    border = ButtonDefaults.border(
-                        border = Border(border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark)),
-                        focusedBorder = Border(border = androidx.compose.foundation.BorderStroke(2.dp, AccentEmerald))
-                    ),
-                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp))
-                ) {
+                    containerColor = AccentEmerald,
+                    focusedContainerColor = Color.White,
+                    border = BorderStroke(1.dp, BorderDark),
+                    focusedBorder = BorderStroke(2.dp, AccentEmerald),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(vertical = 10.dp)
+                ) { isFocused ->
                     Text(
                         text = "🔄 Reiniciar Aplicativo",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
-                        modifier = Modifier.padding(vertical = 4.dp)
+                        color = Color.Black
                     )
                 }
 
-                Button(
+                TvTouchCard(
                     onClick = onClearCacheAndRestart,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.colors(
-                        containerColor = BgSurfaceDark,
-                        focusedContainerColor = Color(0xFFEF4444),
-                        contentColor = TextPrimary,
-                        focusedContentColor = Color.White
-                    ),
-                    border = ButtonDefaults.border(
-                        border = Border(border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark)),
-                        focusedBorder = Border(border = androidx.compose.foundation.BorderStroke(2.dp, Color.White))
-                    ),
-                    shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp))
-                ) {
+                    containerColor = BgSurfaceDark,
+                    focusedContainerColor = Color(0xFFEF4444),
+                    border = BorderStroke(1.dp, BorderDark),
+                    focusedBorder = BorderStroke(2.dp, Color.White),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(vertical = 10.dp)
+                ) { isFocused ->
                     Text(
                         text = "🧹 Limpar Cache e Reiniciar",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 13.sp,
-                        modifier = Modifier.padding(vertical = 4.dp)
+                        color = if (isFocused) Color.White else TextPrimary
                     )
                 }
             }
         }
     }
 }
-

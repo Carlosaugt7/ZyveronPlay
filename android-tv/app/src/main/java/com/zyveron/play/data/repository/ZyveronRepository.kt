@@ -130,22 +130,14 @@ class ZyveronRepository(context: Context) {
     }
 
     // --- GERADORES DE URL ---
-    fun buildLiveStreamUrl(serverDns: String, username: String, password: String, streamId: Int): String {
-        val cleanDns = UrlHelper.normalizeUrl(serverDns)
-        return if (cleanDns.isNotBlank()) "$cleanDns/live/$username/$password/$streamId.ts" else ""
-    }
+    fun buildLiveStreamUrl(serverDns: String, username: String, password: String, streamId: Int): String =
+        UrlHelper.buildLiveStreamUrl(serverDns, username, password, streamId)
 
-    fun buildVodStreamUrl(serverDns: String, username: String, password: String, streamId: Int, containerExt: String = "mp4"): String {
-        val cleanDns = UrlHelper.normalizeUrl(serverDns)
-        val ext = containerExt.ifBlank { "mp4" }
-        return if (cleanDns.isNotBlank()) "$cleanDns/movie/$username/$password/$streamId.$ext" else ""
-    }
+    fun buildVodStreamUrl(serverDns: String, username: String, password: String, streamId: Int, containerExt: String = "mp4"): String =
+        UrlHelper.buildVodStreamUrl(serverDns, username, password, streamId, containerExt)
 
-    fun buildSeriesStreamUrl(serverDns: String, username: String, password: String, episodeId: String, containerExt: String = "mp4"): String {
-        val cleanDns = UrlHelper.normalizeUrl(serverDns)
-        val ext = containerExt.ifBlank { "mp4" }
-        return if (cleanDns.isNotBlank()) "$cleanDns/series/$username/$password/$episodeId.$ext" else ""
-    }
+    fun buildSeriesStreamUrl(serverDns: String, username: String, password: String, episodeId: String, containerExt: String = "mp4"): String =
+        UrlHelper.buildSeriesStreamUrl(serverDns, username, password, episodeId, containerExt)
 
     /**
      * Sincronização completa de Canais, Filmes e Séries (com filtro estrito contra conteúdo adulto)
@@ -229,6 +221,7 @@ class ZyveronRepository(context: Context) {
         client.newCall(liveRequest).execute().use { response ->
             if (response.isSuccessful) {
                 val json = JSONArray(response.body?.string() ?: "[]")
+                channelDao.clearChannels()
                 val list = mutableListOf<ChannelEntity>()
                 for (i in 0 until json.length()) {
                     val item = json.getJSONObject(i)
@@ -263,6 +256,8 @@ class ZyveronRepository(context: Context) {
     }
 
     private suspend fun syncVodStreams(cleanDns: String, username: String, password: String) {
+        val savedFavoriteVodIds = try { channelDao.getFavoriteVodIds() } catch (_: Exception) { emptyList() }
+
         // Categorias VOD
         val catUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_vod_categories"
         client.newCall(Request.Builder().url(catUrl).build()).execute().use { response ->
@@ -293,6 +288,7 @@ class ZyveronRepository(context: Context) {
         client.newCall(Request.Builder().url(vodUrl).build()).execute().use { response ->
             if (response.isSuccessful) {
                 val json = JSONArray(response.body?.string() ?: "[]")
+                channelDao.clearVods()
                 val list = mutableListOf<VodEntity>()
                 for (i in 0 until json.length()) {
                     val item = json.getJSONObject(i)
@@ -321,9 +317,15 @@ class ZyveronRepository(context: Context) {
                 }
             }
         }
+
+        if (savedFavoriteVodIds.isNotEmpty()) {
+            try { channelDao.markVodFavorites(savedFavoriteVodIds) } catch (_: Exception) {}
+        }
     }
 
     private suspend fun syncSeriesStreams(cleanDns: String, username: String, password: String) {
+        val savedFavoriteSeriesIds = try { channelDao.getFavoriteSeriesIds() } catch (_: Exception) { emptyList() }
+
         // Categorias Séries
         val catUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_series_categories"
         client.newCall(Request.Builder().url(catUrl).build()).execute().use { response ->
@@ -354,6 +356,7 @@ class ZyveronRepository(context: Context) {
         client.newCall(Request.Builder().url(seriesUrl).build()).execute().use { response ->
             if (response.isSuccessful) {
                 val json = JSONArray(response.body?.string() ?: "[]")
+                channelDao.clearSeries()
                 val list = mutableListOf<SeriesEntity>()
                 for (i in 0 until json.length()) {
                     val item = json.getJSONObject(i)
@@ -383,6 +386,10 @@ class ZyveronRepository(context: Context) {
                     channelDao.insertSeriesBatch(list)
                 }
             }
+        }
+
+        if (savedFavoriteSeriesIds.isNotEmpty()) {
+            try { channelDao.markSeriesFavorites(savedFavoriteSeriesIds) } catch (_: Exception) {}
         }
     }
 

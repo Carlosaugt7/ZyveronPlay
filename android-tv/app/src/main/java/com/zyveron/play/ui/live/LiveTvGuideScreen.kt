@@ -50,57 +50,24 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
-import androidx.tv.material3.Border
-import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.zyveron.play.data.local.CategoryEntity
 import com.zyveron.play.data.local.ChannelEntity
 import com.zyveron.play.data.repository.ZyveronRepository
 import com.zyveron.play.player.ZyveronPlayerManager
+import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentSky
 import com.zyveron.play.ui.theme.BgCardDark
-import com.zyveron.play.ui.theme.BgDeepDark
 import com.zyveron.play.ui.theme.BgSurfaceDark
 import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
 import com.zyveron.play.ui.theme.ZyveronTvBackground
+import com.zyveron.play.util.CategoryGroup
+import com.zyveron.play.util.CategorySorter
 import kotlinx.coroutines.launch
-
-private fun isInternationalCategory(name: String): Boolean {
-    val n = name.lowercase()
-    return n.contains("internaciona") ||
-           n.contains("international") ||
-           n.contains("usa") ||
-           n.contains("estados unidos") ||
-           n.contains("uk") ||
-           n.contains("united kingdom") ||
-           n.contains("inglaterra") ||
-           n.contains("espan") ||
-           n.contains("spain") ||
-           n.contains("portugal") ||
-           n.contains("italia") ||
-           n.contains("italy") ||
-           n.contains("frança") ||
-           n.contains("france") ||
-           n.contains("alemanha") ||
-           n.contains("germany") ||
-           n.contains("mexic") ||
-           n.contains("argentin") ||
-           n.contains("chile") ||
-           n.contains("colomb") ||
-           n.contains("urugua") ||
-           n.contains("paragua") ||
-           n.contains("latino") ||
-           n.contains("mundo") ||
-           n.contains("world") ||
-           n.contains("arab") ||
-           n.contains("turk") ||
-           n.contains("russia")
-}
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -124,9 +91,32 @@ fun LiveTvGuideScreen(
     var selectedCategoryId by remember { mutableStateOf(if (initialFilterSports) "SPORTS" else "ALL") }
     var selectedChannelIndex by remember { mutableIntStateOf(0) }
 
-    // Separação estrita: Categorias Nacionais no início, Internacionais no final
-    val (internationalCategories, nationalCategories) = remember(categories) {
-        categories.partition { isInternationalCategory(it.categoryName) }
+    // Agrupamento estrito de categorias: Regionais/Abertos -> Temáticos -> 24 Horas -> Internacionais
+    val groupedCategories = remember(categories) {
+        val regionaisAbertos = mutableListOf<CategoryEntity>()
+        val regulares = mutableListOf<CategoryEntity>()
+        val vinteQuatroHoras = mutableListOf<CategoryEntity>()
+        val internacionais = mutableListOf<CategoryEntity>()
+
+        categories.forEach { cat ->
+            when (CategorySorter.classify(cat.categoryName)) {
+                CategoryGroup.REGIONAL_ABERTO -> regionaisAbertos.add(cat)
+                CategoryGroup.REGULAR -> regulares.add(cat)
+                CategoryGroup.VINTE_QUATRO_HORAS -> vinteQuatroHoras.add(cat)
+                CategoryGroup.INTERNACIONAL -> internacionais.add(cat)
+            }
+        }
+        regionaisAbertos.sortBy { it.categoryName.lowercase() }
+        regulares.sortBy { it.categoryName.lowercase() }
+        vinteQuatroHoras.sortBy { it.categoryName.lowercase() }
+        internacionais.sortBy { it.categoryName.lowercase() }
+
+        object {
+            val regional = regionaisAbertos
+            val regular = regulares
+            val vinteQuatro = vinteQuatroHoras
+            val internacional = internacionais
+        }
     }
 
     // Determina lista de canais da categoria selecionada + filtro de busca
@@ -196,18 +186,19 @@ fun LiveTvGuideScreen(
                         )
                     }
 
-                    Button(
+                    TvTouchCard(
                         onClick = onBack,
-                        colors = ButtonDefaults.colors(
-                            containerColor = BgCardDark,
-                            focusedContainerColor = AccentEmerald,
-                            contentColor = TextPrimary,
-                            focusedContentColor = Color.Black
-                        ),
-                        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+                        containerColor = BgCardDark,
+                        focusedContainerColor = AccentEmerald,
+                        shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text(text = "← Voltar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    ) { isFocused ->
+                        Text(
+                            text = "← Voltar",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isFocused) Color.Black else TextPrimary
+                        )
                     }
                 }
 
@@ -218,7 +209,7 @@ fun LiveTvGuideScreen(
                         .weight(1f),
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // COLUNA 1: Categorias (Busca, Favoritos, Nacionais, e Internacionais no Final)
+                    // COLUNA 1: Categorias (Busca -> Favoritos -> Todos -> Regionais/Abertos -> Temáticos -> 24h -> Internacionais)
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -325,21 +316,101 @@ fun LiveTvGuideScreen(
                                 )
                             }
 
-                            // 5. DEMAIS CATEGORIAS NACIONAIS
-                            items(nationalCategories) { cat ->
-                                CategoryItem(
-                                    title = cat.categoryName,
-                                    count = null,
-                                    isSelected = selectedCategoryId == cat.categoryId,
-                                    onClick = {
-                                        selectedCategoryId = cat.categoryId
-                                        selectedChannelIndex = 0
+                            // 5. CANAIS REGIONAIS & ABERTOS (LOGO APÓS TODOS)
+                            if (groupedCategories.regional.isNotEmpty()) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 8.dp, bottom = 4.dp),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        Text(
+                                            text = "REGIONAIS & ABERTOS",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AccentEmerald,
+                                            letterSpacing = 0.5.sp
+                                        )
                                     }
-                                )
+                                }
+                                items(groupedCategories.regional) { cat ->
+                                    CategoryItem(
+                                        title = cat.categoryName,
+                                        count = null,
+                                        isSelected = selectedCategoryId == cat.categoryId,
+                                        onClick = {
+                                            selectedCategoryId = cat.categoryId
+                                            selectedChannelIndex = 0
+                                        }
+                                    )
+                                }
                             }
 
-                            // 6. CATEGORIAS INTERNACIONAIS (SEMPRE NO FINAL DA LISTA)
-                            if (internationalCategories.isNotEmpty()) {
+                            // 6. DEMAIS CATEGORIAS NACIONAIS E TEMÁTICAS
+                            if (groupedCategories.regular.isNotEmpty()) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 8.dp, bottom = 4.dp),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        Text(
+                                            text = "CANAIS TEMÁTICOS",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextSecondary,
+                                            letterSpacing = 0.5.sp
+                                        )
+                                    }
+                                }
+                                items(groupedCategories.regular) { cat ->
+                                    CategoryItem(
+                                        title = cat.categoryName,
+                                        count = null,
+                                        isSelected = selectedCategoryId == cat.categoryId,
+                                        onClick = {
+                                            selectedCategoryId = cat.categoryId
+                                            selectedChannelIndex = 0
+                                        }
+                                    )
+                                }
+                            }
+
+                            // 7. CANAIS 24 HORAS (NO FINAL, ANTES DOS INTERNACIONAIS)
+                            if (groupedCategories.vinteQuatro.isNotEmpty()) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 10.dp, bottom = 4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "── CANAIS 24 HORAS ──",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AccentSky,
+                                            letterSpacing = 0.5.sp
+                                        )
+                                    }
+                                }
+                                items(groupedCategories.vinteQuatro) { cat ->
+                                    CategoryItem(
+                                        title = cat.categoryName,
+                                        count = null,
+                                        isSelected = selectedCategoryId == cat.categoryId,
+                                        onClick = {
+                                            selectedCategoryId = cat.categoryId
+                                            selectedChannelIndex = 0
+                                        }
+                                    )
+                                }
+                            }
+
+                            // 8. CANAIS INTERNACIONAIS (ESTRITAMENTE NO FINAL DE TUDO)
+                            if (groupedCategories.internacional.isNotEmpty()) {
                                 item {
                                     Box(
                                         modifier = Modifier
@@ -351,12 +422,12 @@ fun LiveTvGuideScreen(
                                             text = "── CANAIS INTERNACIONAIS ──",
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = AccentSky,
+                                            color = Color(0xFFF59E0B),
                                             letterSpacing = 0.5.sp
                                         )
                                     }
                                 }
-                                items(internationalCategories) { cat ->
+                                items(groupedCategories.internacional) { cat ->
                                     CategoryItem(
                                         title = cat.categoryName,
                                         count = null,
@@ -371,7 +442,7 @@ fun LiveTvGuideScreen(
                         }
                     }
 
-                    // COLUNA 2: Lista de Canais (~340dp) com Favoritos via Remoto
+                    // COLUNA 2: Lista de Canais (~340dp) com Suporte Touch + D-Pad + Favoritos
                     Box(
                         modifier = Modifier
                             .weight(1.3f)
@@ -392,10 +463,13 @@ fun LiveTvGuideScreen(
                             ) {
                                 itemsIndexed(displayedChannels) { index, channel ->
                                     val isSelected = index == selectedChannelIndex
-                                    Button(
+                                    TvTouchCard(
                                         onClick = {
                                             selectedChannelIndex = index
                                             onOpenFullScreenPlayer(channel, displayedChannels)
+                                        },
+                                        onLongClick = {
+                                            scope.launch { repository.toggleChannelFavorite(channel) }
                                         },
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -412,19 +486,13 @@ fun LiveTvGuideScreen(
                                                     false
                                                 }
                                             },
-                                        colors = ButtonDefaults.colors(
-                                            containerColor = if (isSelected) AccentEmerald.copy(alpha = 0.2f) else BgSurfaceDark,
-                                            focusedContainerColor = AccentEmerald,
-                                            contentColor = if (isSelected) AccentEmerald else TextPrimary,
-                                            focusedContentColor = Color.Black
-                                        ),
-                                        border = ButtonDefaults.border(
-                                            border = Border(BorderStroke(1.dp, if (isSelected) AccentEmerald.copy(alpha = 0.5f) else BorderDark)),
-                                            focusedBorder = Border(BorderStroke(2.dp, Color.White))
-                                        ),
-                                        shape = ButtonDefaults.shape(RoundedCornerShape(10.dp)),
+                                        containerColor = if (isSelected) AccentEmerald.copy(alpha = 0.2f) else BgSurfaceDark,
+                                        focusedContainerColor = AccentEmerald,
+                                        border = BorderStroke(1.dp, if (isSelected) AccentEmerald.copy(alpha = 0.5f) else BorderDark),
+                                        focusedBorder = BorderStroke(2.dp, Color.White),
+                                        shape = RoundedCornerShape(10.dp),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
-                                    ) {
+                                    ) { isFocused ->
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             verticalAlignment = Alignment.CenterVertically
@@ -443,7 +511,8 @@ fun LiveTvGuideScreen(
                                                 text = channel.num.toString().padStart(3, '0'),
                                                 fontFamily = FontFamily.Monospace,
                                                 fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isFocused) Color.Black else (if (isSelected) AccentEmerald else TextPrimary)
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text(
@@ -452,13 +521,14 @@ fun LiveTvGuideScreen(
                                                 fontWeight = FontWeight.SemiBold,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
+                                                color = if (isFocused) Color.Black else (if (isSelected) AccentEmerald else TextPrimary),
                                                 modifier = Modifier.weight(1f)
                                             )
                                             if (channel.isFavorite) {
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
                                                     text = "★",
-                                                    color = Color(0xFFF59E0B),
+                                                    color = if (isFocused) Color.Black else Color(0xFFF59E0B),
                                                     fontSize = 13.sp,
                                                     fontWeight = FontWeight.Bold
                                                 )
@@ -510,45 +580,43 @@ fun LiveTvGuideScreen(
                                 ) {
                                     if (currentChannel != null) {
                                         val isFav = currentChannel.isFavorite
-                                        Button(
+                                        TvTouchCard(
                                             onClick = {
                                                 scope.launch {
                                                     repository.toggleChannelFavorite(currentChannel)
                                                 }
                                             },
-                                            colors = ButtonDefaults.colors(
-                                                containerColor = if (isFav) Color(0xFFF59E0B).copy(alpha = 0.85f) else Color.Black.copy(alpha = 0.7f),
-                                                focusedContainerColor = Color(0xFFF59E0B),
-                                                contentColor = if (isFav) Color.Black else Color.White,
-                                                focusedContentColor = Color.Black
-                                            ),
-                                            shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                                            containerColor = if (isFav) Color(0xFFF59E0B).copy(alpha = 0.85f) else Color.Black.copy(alpha = 0.7f),
+                                            focusedContainerColor = Color(0xFFF59E0B),
+                                            shape = RoundedCornerShape(6.dp),
                                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                                        ) {
+                                        ) { isFocused ->
                                             Text(
                                                 text = if (isFav) "★ Favorito" else "☆ Favoritar",
                                                 fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isFocused || isFav) Color.Black else Color.White
                                             )
                                         }
                                     }
 
-                                    Button(
+                                    TvTouchCard(
                                         onClick = {
                                             if (currentChannel != null) {
                                                 onOpenFullScreenPlayer(currentChannel, displayedChannels)
                                             }
                                         },
-                                        colors = ButtonDefaults.colors(
-                                            containerColor = Color.Black.copy(alpha = 0.7f),
-                                            focusedContainerColor = AccentEmerald,
-                                            contentColor = Color.White,
-                                            focusedContentColor = Color.Black
-                                        ),
-                                        shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                                        containerColor = Color.Black.copy(alpha = 0.7f),
+                                        focusedContainerColor = AccentEmerald,
+                                        shape = RoundedCornerShape(6.dp),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                                    ) {
-                                        Text(text = "⛶ Tela Cheia", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    ) { isFocused ->
+                                        Text(
+                                            text = "⛶ Tela Cheia",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isFocused) Color.Black else Color.White
+                                        )
                                     }
                                 }
                             }
@@ -661,22 +729,16 @@ fun CategoryItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Button(
+    TvTouchCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.colors(
-            containerColor = if (isSelected) AccentEmerald.copy(alpha = 0.25f) else Color.Transparent,
-            focusedContainerColor = AccentEmerald,
-            contentColor = if (isSelected) AccentEmerald else TextPrimary,
-            focusedContentColor = Color.Black
-        ),
-        border = ButtonDefaults.border(
-            border = Border(BorderStroke(1.dp, if (isSelected) AccentEmerald.copy(alpha = 0.5f) else Color.Transparent)),
-            focusedBorder = Border(BorderStroke(2.dp, Color.White))
-        ),
-        shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+        containerColor = if (isSelected) AccentEmerald.copy(alpha = 0.25f) else Color.Transparent,
+        focusedContainerColor = AccentEmerald,
+        border = BorderStroke(1.dp, if (isSelected) AccentEmerald.copy(alpha = 0.5f) else Color.Transparent),
+        focusedBorder = BorderStroke(2.dp, Color.White),
+        shape = RoundedCornerShape(8.dp),
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
-    ) {
+    ) { isFocused ->
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -688,17 +750,17 @@ fun CategoryItem(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                color = if (isFocused) Color.Black else (if (isSelected) AccentEmerald else TextPrimary),
                 modifier = Modifier.weight(1f)
             )
             if (count != null) {
                 Text(
                     text = "$count",
                     fontSize = 10.sp,
-                    color = if (isSelected) Color.Black else TextSecondary,
+                    color = if (isFocused || isSelected) Color.Black else TextSecondary,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
     }
 }
-

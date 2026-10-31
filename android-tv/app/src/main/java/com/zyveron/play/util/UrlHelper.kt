@@ -17,5 +17,21 @@ object UrlHelper {
         }
         return trimmed
     }
-}
 
+    fun buildLiveStreamUrl(serverDns: String, username: String, password: String, streamId: Int): String {
+        val cleanDns = normalizeUrl(serverDns)
+        return if (cleanDns.isNotBlank()) "$cleanDns/live/$username/$password/$streamId.ts" else ""
+    }
+
+    fun buildVodStreamUrl(serverDns: String, username: String, password: String, streamId: Int, containerExt: String = "mp4"): String {
+        val cleanDns = normalizeUrl(serverDns)
+        val ext = containerExt.ifBlank { "mp4" }
+        return if (cleanDns.isNotBlank()) "$cleanDns/movie/$username/$password/$streamId.$ext" else ""
+    }
+
+    fun buildSeriesStreamUrl(serverDns: String, username: String, password: String, episodeId: String, containerExt: String = "mp4"): String {
+        val cleanDns = normalizeUrl(serverDns)
+        val ext = containerExt.ifBlank { "mp4" }
+        return if (cleanDns.isNotBlank()) "$cleanDns/series/$username/$password/$episodeId.$ext" else ""
+    }
+}

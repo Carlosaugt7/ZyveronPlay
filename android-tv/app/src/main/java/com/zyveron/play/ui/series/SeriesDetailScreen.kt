@@ -37,15 +37,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Border
-import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.zyveron.play.data.local.EpisodeItem
 import com.zyveron.play.data.local.SeasonEpisodes
 import com.zyveron.play.data.local.SeriesEntity
 import com.zyveron.play.data.repository.ZyveronRepository
+import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentSky
 import com.zyveron.play.ui.theme.BgCardDark
@@ -96,271 +94,256 @@ fun SeriesDetailScreen(
                 .fillMaxSize()
                 .padding(24.dp)
         ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            // Seção Superior: Banner, Detalhes, Sinopse e Botões
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(24.dp)
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // Pôster Principal
-                Box(
+                // Seção Superior: Banner, Detalhes, Sinopse e Botões
+                Row(
                     modifier = Modifier
-                        .width(180.dp)
-                        .height(260.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(BgCardDark)
-                        .border(1.dp, BorderDark, RoundedCornerShape(14.dp))
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
-                    if (!series.cover.isNullOrBlank()) {
-                        AsyncImage(
-                            model = series.cover,
-                            contentDescription = series.name,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
+                    // Pôster Principal
+                    Box(
+                        modifier = Modifier
+                            .width(180.dp)
+                            .height(260.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(BgCardDark)
+                            .border(1.dp, BorderDark, RoundedCornerShape(14.dp))
+                    ) {
+                        if (!series.cover.isNullOrBlank()) {
+                            AsyncImage(
+                                model = series.cover,
+                                contentDescription = series.name,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
                     }
-                }
 
-                // Informações e Sinopse
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(vertical = 4.dp)
-                ) {
-                    Text(
-                        text = series.name,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Metadados (Ano, Nota, Classificação, Gênero)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    // Informações e Sinopse
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(vertical = 4.dp)
                     ) {
                         Text(
-                            text = series.year ?: "2024",
-                            color = TextSecondary,
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace
+                            text = series.name,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
                         )
-                        if (!series.rating.isNullOrBlank()) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(AccentEmerald.copy(alpha = 0.2f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Metadados (Ano, Nota, Classificação, Gênero)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = series.year ?: "2024",
+                                color = TextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            if (!series.rating.isNullOrBlank()) {
                                 Text(
                                     text = "★ ${series.rating}",
-                                    color = AccentEmerald,
-                                    fontSize = 10.sp,
+                                    color = Color(0xFFF59E0B),
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
+                            if (!series.genre.isNullOrBlank()) {
+                                Text(
+                                    text = series.genre,
+                                    color = AccentSky,
+                                    fontSize = 11.sp
+                                )
+                            }
                         }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .border(1.dp, BorderDark, RoundedCornerShape(4.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(text = "14+", color = TextSecondary, fontSize = 10.sp)
-                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Sinopse
                         Text(
-                            text = series.genre ?: "Drama / Séries",
-                            color = AccentSky,
-                            fontSize = 11.sp
+                            text = series.plot ?: "Sem sinopse disponível para esta série.",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            maxLines = 4,
+                            overflow = TextOverflow.Ellipsis
                         )
-                    }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(18.dp))
 
-                    // Sinopse
-                    Text(
-                        text = series.plot ?: "Sem sinopse disponível para esta série.",
-                        color = TextSecondary,
-                        fontSize = 12.sp,
-                        maxLines = 4,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // Botões de Ação
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(
-                            onClick = {
-                                isFavoriteState = !isFavoriteState
-                                scope.launch {
-                                    repository.toggleSeriesFavorite(series.copy(isFavorite = !isFavoriteState))
-                                }
-                            },
-                            colors = ButtonDefaults.colors(
+                        // Botões de Ação
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            TvTouchCard(
+                                onClick = {
+                                    isFavoriteState = !isFavoriteState
+                                    scope.launch {
+                                        repository.toggleSeriesFavorite(series.copy(isFavorite = !isFavoriteState))
+                                    }
+                                },
                                 containerColor = if (isFavoriteState) Color(0xFFF59E0B).copy(alpha = 0.85f) else BgSurfaceDark,
                                 focusedContainerColor = Color(0xFFF59E0B),
-                                contentColor = if (isFavoriteState) Color.Black else TextPrimary,
-                                focusedContentColor = Color.Black
-                            ),
-                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = if (isFavoriteState) "★ Favorita" else "☆ Adicionar aos Favoritos",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                            ) { isFocused ->
+                                Text(
+                                    text = if (isFavoriteState) "★ Favorita" else "☆ Adicionar aos Favoritos",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isFocused || isFavoriteState) Color.Black else TextPrimary
+                                )
+                            }
 
-                        Button(
-                            onClick = onBackToSeries,
-                            colors = ButtonDefaults.colors(
+                            TvTouchCard(
+                                onClick = onBackToSeries,
                                 containerColor = BgSurfaceDark,
                                 focusedContainerColor = AccentEmerald,
-                                contentColor = TextPrimary,
-                                focusedContentColor = Color.Black
-                            ),
-                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                        ) {
-                            Text(text = "← Séries", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                            ) { isFocused ->
+                                Text(
+                                    text = "← Séries",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isFocused) Color.Black else TextPrimary
+                                )
+                            }
 
-                        Button(
-                            onClick = onBackToHome,
-                            colors = ButtonDefaults.colors(
+                            TvTouchCard(
+                                onClick = onBackToHome,
                                 containerColor = BgSurfaceDark,
                                 focusedContainerColor = AccentSky,
-                                contentColor = TextPrimary,
-                                focusedContentColor = Color.Black
-                            ),
-                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                        ) {
-                            Text(text = "⌂ Início", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                            ) { isFocused ->
+                                Text(
+                                    text = "⌂ Início",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isFocused) Color.Black else TextPrimary
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            // Seletor de Temporadas (Pills)
-            if (seasonsData.isNotEmpty()) {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(seasonsData.indices.toList()) { index ->
-                        val season = seasonsData[index]
-                        val isSelected = index == selectedSeasonIndex
-                        Button(
-                            onClick = { selectedSeasonIndex = index },
-                            colors = ButtonDefaults.colors(
+                // Seletor de Temporadas (Pills)
+                if (seasonsData.isNotEmpty()) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(seasonsData.indices.toList()) { index ->
+                            val season = seasonsData[index]
+                            val isSelected = index == selectedSeasonIndex
+                            TvTouchCard(
+                                onClick = { selectedSeasonIndex = index },
                                 containerColor = if (isSelected) AccentEmerald else BgSurfaceDark,
                                 focusedContainerColor = Color.White,
-                                contentColor = if (isSelected) Color.Black else TextPrimary,
-                                focusedContentColor = Color.Black
-                            ),
-                            shape = ButtonDefaults.shape(RoundedCornerShape(8.dp)),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = "Temporada ${season.seasonNumber.toString().padStart(2, '0')} (${season.episodes.size} ep)",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                                border = BorderStroke(1.dp, if (isSelected) AccentEmerald else BorderDark),
+                                focusedBorder = BorderStroke(2.dp, Color.White),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            ) { isFocused ->
+                                Text(
+                                    text = "Temporada ${season.seasonNumber.toString().padStart(2, '0')} (${season.episodes.size} ep)",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isFocused || isSelected) Color.Black else TextPrimary
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-            // Lista Horizontal de Episódios
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(115.dp)
-            ) {
-                if (isLoadingEpisodes) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = "Carregando episódios...", color = TextSecondary, fontSize = 12.sp)
-                    }
-                } else if (currentSeason == null || currentSeason.episodes.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = "Nenhum episódio cadastrado nesta temporada.", color = TextSecondary, fontSize = 12.sp)
-                    }
-                } else {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        items(currentSeason.episodes) { ep ->
-                            Button(
-                                onClick = { onPlayEpisode(ep) },
-                                colors = ButtonDefaults.colors(
+                // Lista Horizontal de Episódios
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(115.dp)
+                ) {
+                    if (isLoadingEpisodes) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(text = "Carregando episódios...", color = TextSecondary, fontSize = 12.sp)
+                        }
+                    } else if (currentSeason == null || currentSeason.episodes.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(text = "Nenhum episódio cadastrado nesta temporada.", color = TextSecondary, fontSize = 12.sp)
+                        }
+                    } else {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            items(currentSeason.episodes) { ep ->
+                                TvTouchCard(
+                                    onClick = { onPlayEpisode(ep) },
+                                    modifier = Modifier.size(width = 175.dp, height = 105.dp),
                                     containerColor = BgCardDark,
                                     focusedContainerColor = AccentEmerald,
-                                    contentColor = TextPrimary,
-                                    focusedContentColor = Color.Black
-                                ),
-                                border = ButtonDefaults.border(
-                                    border = Border(BorderStroke(1.dp, BorderDark)),
-                                    focusedBorder = Border(BorderStroke(2.dp, Color.White))
-                                ),
-                                shape = ButtonDefaults.shape(RoundedCornerShape(10.dp)),
-                                contentPadding = PaddingValues(0.dp)
-                            ) {
-                                Box(modifier = Modifier.size(width = 175.dp, height = 105.dp)) {
-                                    if (!series.cover.isNullOrBlank()) {
-                                        AsyncImage(
-                                            model = series.cover,
-                                            contentDescription = ep.title,
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop
+                                    border = BorderStroke(1.dp, BorderDark),
+                                    focusedBorder = BorderStroke(2.dp, Color.White),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) { isFocused ->
+                                    Box(modifier = Modifier.fillMaxSize()) {
+                                        if (!series.cover.isNullOrBlank()) {
+                                            AsyncImage(
+                                                model = series.cover,
+                                                contentDescription = ep.title,
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(
+                                                    Brush.verticalGradient(
+                                                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                                                    )
+                                                )
+                                        )
+                                        // Badge do Número do Episódio
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopStart)
+                                                .padding(6.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(if (isFocused) Color.White else AccentEmerald)
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "EP ${ep.episodeNum}",
+                                                color = Color.Black,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        // Título
+                                        Text(
+                                            text = ep.title,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isFocused) Color.White else TextPrimary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier
+                                                .align(Alignment.BottomStart)
+                                                .padding(8.dp)
                                         )
                                     }
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(
-                                                Brush.verticalGradient(
-                                                    listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
-                                                )
-                                            )
-                                    )
-                                    // Badge do Número do Episódio
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopStart)
-                                            .padding(6.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(AccentEmerald)
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(text = "EP ${ep.episodeNum}", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                    // Título
-                                    Text(
-                                        text = ep.title,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextPrimary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier
-                                            .align(Alignment.BottomStart)
-                                            .padding(8.dp)
-                                    )
                                 }
                             }
                         }
@@ -370,5 +353,3 @@ fun SeriesDetailScreen(
         }
     }
 }
-}
-

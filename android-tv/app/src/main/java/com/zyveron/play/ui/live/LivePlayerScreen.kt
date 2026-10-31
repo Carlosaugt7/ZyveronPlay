@@ -8,10 +8,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -49,13 +52,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
-import androidx.tv.material3.Border
-import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import com.zyveron.play.data.local.ChannelEntity
 import com.zyveron.play.player.PlaybackState
 import com.zyveron.play.player.ZyveronPlayerManager
+import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentRose
 import com.zyveron.play.ui.theme.AccentSky
@@ -64,6 +65,7 @@ import com.zyveron.play.ui.theme.BgSurfaceDark
 import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
+import com.zyveron.play.util.UrlHelper
 import kotlinx.coroutines.delay
 
 @OptIn(UnstableApi::class)
@@ -100,25 +102,25 @@ fun LivePlayerScreen(
         }
     }
 
-    // Toca o canal selecionado
-    LaunchedEffect(currentChannelIndex, serverDns) {
-        val ch = channels.getOrNull(currentChannelIndex)
-        if (ch != null) {
-            val streamUrl = ch.directSourceUrl ?: if (serverDns.isNotBlank()) {
-                "$serverDns/live/$username/$password/${ch.streamId}.ts"
-            } else ""
-
-            if (streamUrl.isNotBlank()) {
-                playerManager.playStream(streamUrl, ch.name)
-            }
+    // Reprodução ao mudar canal
+    LaunchedEffect(currentChannelIndex) {
+        if (channels.isNotEmpty() && currentChannelIndex in channels.indices) {
+            val ch = channels[currentChannelIndex]
+            val streamUrl = UrlHelper.buildLiveStreamUrl(
+                serverDns = serverDns,
+                username = username,
+                password = password,
+                streamId = ch.streamId
+            )
+            playerManager.playStream(streamUrl, ch.name)
             showOsd = true
         }
     }
 
-    // Auto-oculta o OSD após 4 segundos sem interação
+    // Auto-ocultar OSD após 5 segundos
     LaunchedEffect(showOsd) {
         if (showOsd) {
-            delay(4000)
+            delay(5000)
             showOsd = false
         }
     }
@@ -128,6 +130,12 @@ fun LivePlayerScreen(
             .fillMaxSize()
             .background(Color.Black)
             .focusable()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                showOsd = !showOsd
+            }
             // Captura eventos de controle remoto prioritários (BACK, Zapping)
             .onPreviewKeyEvent { keyEvent ->
                 if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
@@ -250,12 +258,12 @@ fun LivePlayerScreen(
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(AccentEmerald)
+                                .background(Color(0xFFF59E0B))
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Recuperando sinal (${state.attempt}/${state.maxAttempts})...",
-                            color = AccentSky,
+                            text = "Reconectando (${state.attempt}/${state.maxAttempts})...",
+                            color = Color(0xFFF59E0B),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -303,92 +311,73 @@ fun LivePlayerScreen(
 
                         Spacer(modifier = Modifier.height(24.dp))
 
-                        // Ações D-Pad no Erro: Tentar Novamente, Trocar Canal, Sair
+                        // Ações Universais (Touch + D-Pad): Tentar Novamente, Trocar Canal, Sair
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Button(
+                            TvTouchCard(
                                 onClick = { playerManager.retryCurrentStream() },
-                                colors = ButtonDefaults.colors(
-                                    containerColor = AccentEmerald,
-                                    focusedContainerColor = Color.White,
-                                    contentColor = Color.Black,
-                                    focusedContentColor = Color.Black
-                                ),
-                                shape = ButtonDefaults.shape(shape = RoundedCornerShape(10.dp))
-                            ) {
+                                containerColor = AccentEmerald,
+                                focusedContainerColor = Color.White,
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                            ) { isFocused ->
                                 Text(
                                     text = "🔄 Tentar Novamente",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    color = Color.Black
                                 )
                             }
 
-                            Button(
+                            TvTouchCard(
                                 onClick = { showChannelList = true },
-                                colors = ButtonDefaults.colors(
-                                    containerColor = BgSurfaceDark,
-                                    focusedContainerColor = AccentSky,
-                                    contentColor = TextPrimary,
-                                    focusedContentColor = Color.Black
-                                ),
-                                border = ButtonDefaults.border(
-                                    border = Border(border = BorderStroke(1.dp, BorderDark)),
-                                    focusedBorder = Border(border = BorderStroke(2.dp, Color.White))
-                                ),
-                                shape = ButtonDefaults.shape(shape = RoundedCornerShape(10.dp))
-                            ) {
+                                containerColor = BgSurfaceDark,
+                                focusedContainerColor = AccentSky,
+                                border = BorderStroke(1.dp, BorderDark),
+                                focusedBorder = BorderStroke(2.dp, Color.White),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                            ) { isFocused ->
                                 Text(
                                     text = "📺 Trocar Canal",
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 12.sp,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    color = if (isFocused) Color.Black else TextPrimary
                                 )
                             }
 
-                            Button(
+                            TvTouchCard(
                                 onClick = {
                                     playerManager.stop()
                                     onBack()
                                 },
-                                colors = ButtonDefaults.colors(
-                                    containerColor = BgSurfaceDark,
-                                    focusedContainerColor = AccentRose,
-                                    contentColor = TextSecondary,
-                                    focusedContentColor = Color.White
-                                ),
-                                border = ButtonDefaults.border(
-                                    border = Border(border = BorderStroke(1.dp, BorderDark)),
-                                    focusedBorder = Border(border = BorderStroke(2.dp, Color.White))
-                                ),
-                                shape = ButtonDefaults.shape(shape = RoundedCornerShape(10.dp))
-                            ) {
+                                containerColor = BgSurfaceDark,
+                                focusedContainerColor = AccentRose,
+                                border = BorderStroke(1.dp, BorderDark),
+                                focusedBorder = BorderStroke(2.dp, Color.White),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                            ) { isFocused ->
                                 Text(
                                     text = "✕ Sair",
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 12.sp,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    color = if (isFocused) Color.White else TextSecondary
                                 )
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Dica: Pressione BACK no controle para sair • ◄ Lista de Canais",
-                            color = TextSecondary.copy(alpha = 0.7f),
-                            fontSize = 11.sp
-                        )
                     }
                 }
             }
+
             else -> {}
         }
 
-        // 3. OSD Inferior de Zapping Rápido
+        // 3. OSD Inferior (Informações do Canal e Botões Touch / D-Pad)
         AnimatedVisibility(
-            visible = showOsd && !showChannelList,
+            visible = showOsd,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter)
@@ -401,67 +390,115 @@ fun LivePlayerScreen(
                             listOf(Color.Transparent, Color.Black.copy(alpha = 0.95f))
                         )
                     )
-                    .padding(32.dp)
+                    .padding(24.dp)
             ) {
                 if (currentChannel != null) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = currentChannel.num.toString().padStart(3, '0'),
-                                    color = AccentEmerald,
-                                    fontSize = 28.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Text(
-                                    text = currentChannel.name,
-                                    color = TextPrimary,
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = currentChannel.num.toString().padStart(3, '0'),
+                                        color = AccentEmerald,
+                                        fontSize = 28.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Text(
+                                        text = currentChannel.name,
+                                        color = TextPrimary,
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "AO VIVO",
+                                        color = AccentEmerald,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(AccentEmerald.copy(alpha = 0.2f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = "Toque na tela ou use ▲ ▼ para trocar canal",
+                                        color = TextSecondary,
+                                        fontSize = 12.sp
+                                    )
+                                }
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "AO VIVO",
-                                    color = AccentEmerald,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(AccentEmerald.copy(alpha = 0.2f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = "▲ ▼ Trocar de Canal  •  ◄ Grade de Canais  •  BACK Sair",
-                                    color = TextSecondary,
-                                    fontSize = 12.sp
-                                )
+
+                            // Botões Touch de Atalho Rápido para Celular e TV
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                TvTouchCard(
+                                    onClick = {
+                                        if (channels.isNotEmpty()) {
+                                            currentChannelIndex = if (currentChannelIndex > 0) currentChannelIndex - 1 else channels.size - 1
+                                            showOsd = true
+                                        }
+                                    },
+                                    containerColor = BgSurfaceDark,
+                                    focusedContainerColor = AccentEmerald,
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) { isFocused ->
+                                    Text(text = "▲ Anterior", fontSize = 11.sp, color = if (isFocused) Color.Black else TextPrimary)
+                                }
+
+                                TvTouchCard(
+                                    onClick = {
+                                        if (channels.isNotEmpty()) {
+                                            currentChannelIndex = (currentChannelIndex + 1) % channels.size
+                                            showOsd = true
+                                        }
+                                    },
+                                    containerColor = BgSurfaceDark,
+                                    focusedContainerColor = AccentEmerald,
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) { isFocused ->
+                                    Text(text = "▼ Próximo", fontSize = 11.sp, color = if (isFocused) Color.Black else TextPrimary)
+                                }
+
+                                TvTouchCard(
+                                    onClick = { showChannelList = true },
+                                    containerColor = BgSurfaceDark,
+                                    focusedContainerColor = AccentSky,
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) { isFocused ->
+                                    Text(text = "📋 Lista", fontSize = 11.sp, color = if (isFocused) Color.Black else AccentSky, fontWeight = FontWeight.Bold)
+                                }
+
+                                TvTouchCard(
+                                    onClick = {
+                                        playerManager.stop()
+                                        onBack()
+                                    },
+                                    containerColor = BgSurfaceDark,
+                                    focusedContainerColor = AccentRose,
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) { isFocused ->
+                                    Text(text = "✕ Voltar", fontSize = 11.sp, color = if (isFocused) Color.White else TextSecondary, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
-
-                        Text(
-                            text = "LIVE",
-                            color = AccentSky,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .border(1.dp, AccentSky.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
                     }
                 }
             }
         }
 
-        // 4. Barra Lateral de Navegação de Canais (Quando pressiona Esquerda ou OK)
+        // 4. Barra Lateral de Navegação de Canais (Quando pressiona Esquerda, OK ou clica em Lista)
         AnimatedVisibility(
             visible = showChannelList,
             enter = fadeIn(),
@@ -495,11 +532,20 @@ fun LivePlayerScreen(
                                 fontSize = 11.sp
                             )
                         }
-                        Text(
-                            text = "BACK Fechar",
-                            color = TextSecondary,
-                            fontSize = 11.sp
-                        )
+                        TvTouchCard(
+                            onClick = { showChannelList = false },
+                            containerColor = BgSurfaceDark,
+                            focusedContainerColor = AccentRose,
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) { isFocused ->
+                            Text(
+                                text = "✕ Fechar",
+                                color = if (isFocused) Color.White else TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -510,42 +556,38 @@ fun LivePlayerScreen(
                     ) {
                         itemsIndexed(channels) { index, ch ->
                             val isSelected = index == currentChannelIndex
-                            Button(
+                            TvTouchCard(
                                 onClick = {
                                     currentChannelIndex = index
                                     showChannelList = false
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.colors(
-                                    containerColor = if (isSelected) AccentEmerald.copy(alpha = 0.2f) else Color.Transparent,
-                                    focusedContainerColor = AccentEmerald,
-                                    contentColor = if (isSelected) AccentEmerald else TextPrimary,
-                                    focusedContentColor = Color.Black
-                                ),
-                                border = ButtonDefaults.border(
-                                    border = Border(border = BorderStroke(1.dp, if (isSelected) AccentEmerald.copy(alpha = 0.4f) else Color.Transparent)),
-                                    focusedBorder = Border(border = BorderStroke(2.dp, Color.White))
-                                ),
-                                shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp))
-                            ) {
+                                containerColor = if (isSelected) AccentEmerald.copy(alpha = 0.2f) else Color.Transparent,
+                                focusedContainerColor = AccentEmerald,
+                                border = BorderStroke(1.dp, if (isSelected) AccentEmerald.copy(alpha = 0.4f) else Color.Transparent),
+                                focusedBorder = BorderStroke(2.dp, Color.White),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                            ) { isFocused ->
                                 Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
+                                    modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
                                         text = ch.num.toString().padStart(3, '0'),
                                         fontFamily = FontFamily.Monospace,
                                         fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isFocused) Color.Black else (if (isSelected) AccentEmerald else TextSecondary)
                                     )
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Text(
                                         text = ch.name,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Medium,
-                                        maxLines = 1
+                                        maxLines = 1,
+                                        color = if (isFocused) Color.Black else (if (isSelected) AccentEmerald else TextPrimary),
+                                        modifier = Modifier.weight(1f)
                                     )
                                 }
                             }
