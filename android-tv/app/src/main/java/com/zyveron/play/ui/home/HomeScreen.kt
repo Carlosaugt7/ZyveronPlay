@@ -56,6 +56,8 @@ import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
 import com.zyveron.play.ui.theme.ZyveronTvBackground
+import com.zyveron.play.util.NetworkStatus
+import com.zyveron.play.util.rememberNetworkStatus
 import kotlinx.coroutines.delay
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -80,6 +82,14 @@ fun HomeScreen(
 
     val featuredVods by repository.getFeaturedVods().collectAsState(initial = emptyList())
     val featuredSeries by repository.getFeaturedSeries().collectAsState(initial = emptyList())
+
+    // Monitoramento Real da Conexão de Rede (Wi-Fi / Ethernet / RSSI)
+    val networkStatus = rememberNetworkStatus()
+    val statusColor = when (networkStatus) {
+        NetworkStatus.EXCELLENT -> AccentEmerald
+        NetworkStatus.MODERATE -> Color(0xFFF59E0B) // Amber
+        NetworkStatus.DISCONNECTED -> AccentRose
+    }
 
     // Relógio e Saudação Dinâmica
     var currentTime by remember { mutableStateOf(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))) }
@@ -226,18 +236,18 @@ fun HomeScreen(
                             }
                         }
 
-                        // Indicador de Sinal Estável
+                        // Indicador de Sinal Real (Dinâmico)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .clip(CircleShape)
-                                    .background(AccentEmerald)
+                                    .background(statusColor)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Sinal Estável",
-                                color = AccentEmerald,
+                                text = networkStatus.label,
+                                color = statusColor,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
