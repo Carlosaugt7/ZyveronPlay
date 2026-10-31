@@ -51,8 +51,6 @@ fun SettingsScreen(
     var selectedTab by remember { mutableStateOf("MY_APP") }
 
     // Preferências de Configuração do Player
-    var goalAlertEnabled by remember { mutableStateOf(true) }
-    var crowdSoundEnabled by remember { mutableStateOf(true) }
     var adaptiveQualityEnabled by remember { mutableStateOf(true) }
     var protocolIsHls by remember { mutableStateOf(false) } // Padrão TS nativo de TV
 
@@ -221,7 +219,7 @@ fun SettingsScreen(
                                         ) {
                                             Column {
                                                 Text(text = "APLICATIVO", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                                Text(text = "Zyveron Play • v1.0.0", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                Text(text = "Zyveron Play • v2.0.0", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                             }
                                             Box(
                                                 modifier = Modifier
@@ -268,22 +266,6 @@ fun SettingsScreen(
 
                             "SETTINGS" -> {
                                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                    // Alerta de Gol
-                                    SettingToggleCard(
-                                        title = "ALERTA DE GOL",
-                                        description = "Comemoração na tela quando sai um gol nos jogos ao vivo (Início e Player).",
-                                        isEnabled = goalAlertEnabled,
-                                        onToggle = { goalAlertEnabled = !goalAlertEnabled }
-                                    )
-
-                                    // Som da Torcida
-                                    SettingToggleCard(
-                                        title = "SOM DA TORCIDA",
-                                        description = "Reproduz áudio comemoração de torcida ao sair gol.",
-                                        isEnabled = crowdSoundEnabled,
-                                        onToggle = { crowdSoundEnabled = !crowdSoundEnabled }
-                                    )
-
                                     // Qualidade Adaptativa
                                     SettingToggleCard(
                                         title = "QUALIDADE ADAPTATIVA (AO VIVO)",
