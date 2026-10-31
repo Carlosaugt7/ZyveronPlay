@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import com.zyveron.play.BuildConfig
 import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.util.SettingsHelper
 import com.zyveron.play.ui.theme.AccentEmerald
@@ -225,7 +226,7 @@ fun SettingsScreen(
                                         ) {
                                             Column {
                                                 Text(text = "APLICATIVO", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                                Text(text = "Zyveron Play • v2.0.0", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                Text(text = "Zyveron Play • v${BuildConfig.VERSION_NAME}", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                             }
                                             Box(
                                                 modifier = Modifier
