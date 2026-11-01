@@ -14,13 +14,13 @@ const INITIAL_SERVERS: ServerDocument[] = [];
 const INITIAL_USERS: UserDocument[] = [
   {
     uid: "usr-admin-master",
-    name: "Super Admin",
-    email: "admin@zyveron.com",
+    name: "Administrador Zyveron",
+    email: "admin@zyveronplay.com",
     role: "superadmin",
     parentId: null,
-    credits: 9999,
+    credits: 99999,
     status: "active",
-    createdAt: new Date().toISOString(),
+    createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: new Date().toISOString(),
   }
 ];
@@ -46,6 +46,70 @@ class LocalStore {
   private logs: CreditLogDocument[] = INITIAL_LOGS;
   private notifications: NotificationDocument[] = INITIAL_NOTIFICATIONS;
   private initialized = false;
+  private listeners: Set<() => void> = new Set();
+  private firestoreListening = false;
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notify() {
+    this.listeners.forEach((fn) => {
+      try { fn(); } catch (_) {}
+    });
+  }
+
+  initFirestoreSync() {
+    this.init();
+    if (typeof window === "undefined" || this.firestoreListening) return;
+    this.firestoreListening = true;
+
+    // 1. Escuta Aparelhos (devices) do Cloud Firestore em tempo real
+    FirestoreSync.subscribeToDevices((firestoreDevices) => {
+      const fsMap = new Map<string, DeviceDocument>();
+      firestoreDevices.forEach(d => {
+        if (d.mac) fsMap.set(d.mac.trim().toUpperCase(), d);
+      });
+
+      // Mescla os locais existentes para garantir que NENHUM dado cadastrado no PC ou celular se perca
+      this.devices.forEach(localDev => {
+        const cleanMac = localDev.mac.trim().toUpperCase();
+        if (!fsMap.has(cleanMac)) {
+          fsMap.set(cleanMac, localDev);
+          FirestoreSync.syncDeviceToFirestore(localDev);
+        }
+      });
+
+      const merged = Array.from(fsMap.values());
+      merged.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
+
+      this.devices = merged;
+      this.save();
+      this.notify();
+    });
+
+    // 2. Escuta Servidores (servers) do Cloud Firestore em tempo real
+    FirestoreSync.subscribeToServers((firestoreServers) => {
+      const fsMap = new Map<string, ServerDocument>();
+      firestoreServers.forEach(s => {
+        if (s.id) fsMap.set(s.id, s);
+      });
+
+      this.servers.forEach(localSrv => {
+        if (!fsMap.has(localSrv.id)) {
+          fsMap.set(localSrv.id, localSrv);
+          FirestoreSync.syncServerToFirestore(localSrv);
+        }
+      });
+
+      this.servers = Array.from(fsMap.values());
+      this.save();
+      this.notify();
+    });
+  }
 
   private init() {
     if (typeof window === "undefined" || this.initialized) return;

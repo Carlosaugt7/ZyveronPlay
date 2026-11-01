@@ -48,6 +48,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadData();
+    const unsubscribe = store.subscribe(() => {
+      loadData();
+    });
+    return () => unsubscribe();
   }, [user]);
 
   const activeDevices = devices.filter((d) => d.status === "active").length;

@@ -128,5 +128,96 @@ export const FirestoreSync = {
     } catch (e) {
       console.error("[Firestore] Erro ao apagar notificação:", e);
     }
+  },
+
+  // --- USUÁRIOS / ADMIN ---
+  async syncUserToFirestore(user: UserDocument) {
+    try {
+      const ref = doc(firestore, "users", user.uid);
+      await setDoc(ref, {
+        uid: user.uid,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        parentId: user.parentId || null,
+        credits: user.credits,
+        status: user.status || "active",
+        createdAt: user.createdAt,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (e) {
+      console.error("[Firestore] Erro ao sincronizar usuário:", e);
+    }
+  },
+
+  // --- CONSULTAS E LISTENERS EM TEMPO REAL ---
+  async fetchAllDevices(): Promise<DeviceDocument[]> {
+    try {
+      const col = collection(firestore, "devices");
+      const snap = await getDocs(col);
+      const list: DeviceDocument[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as DeviceDocument;
+        if (data.mac) list.push(data);
+      });
+      return list;
+    } catch (e) {
+      console.error("[Firestore] Erro ao buscar aparelhos:", e);
+      return [];
+    }
+  },
+
+  async fetchAllServers(): Promise<ServerDocument[]> {
+    try {
+      const col = collection(firestore, "servers");
+      const snap = await getDocs(col);
+      const list: ServerDocument[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as ServerDocument;
+        if (data.id) list.push(data);
+      });
+      return list;
+    } catch (e) {
+      console.error("[Firestore] Erro ao buscar servidores:", e);
+      return [];
+    }
+  },
+
+  subscribeToDevices(callback: (devices: DeviceDocument[]) => void): () => void {
+    try {
+      const col = collection(firestore, "devices");
+      return onSnapshot(col, (snap) => {
+        const list: DeviceDocument[] = [];
+        snap.forEach((d) => {
+          const data = d.data() as DeviceDocument;
+          if (data.mac) list.push(data);
+        });
+        callback(list);
+      }, (err) => {
+        console.warn("[Firestore] Erro na escuta em tempo real de aparelhos:", err);
+      });
+    } catch (e) {
+      console.warn("[Firestore] Falha ao registrar listener de devices:", e);
+      return () => {};
+    }
+  },
+
+  subscribeToServers(callback: (servers: ServerDocument[]) => void): () => void {
+    try {
+      const col = collection(firestore, "servers");
+      return onSnapshot(col, (snap) => {
+        const list: ServerDocument[] = [];
+        snap.forEach((d) => {
+          const data = d.data() as ServerDocument;
+          if (data.id) list.push(data);
+        });
+        callback(list);
+      }, (err) => {
+        console.warn("[Firestore] Erro na escuta em tempo real de servidores:", err);
+      });
+    } catch (e) {
+      console.warn("[Firestore] Falha ao registrar listener de servers:", e);
+      return () => {};
+    }
   }
 };

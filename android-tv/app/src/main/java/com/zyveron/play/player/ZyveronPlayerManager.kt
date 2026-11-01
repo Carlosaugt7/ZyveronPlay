@@ -64,7 +64,7 @@ class ZyveronPlayerManager(private val context: Context) {
     private val maxReconnectAttempts = 3
     private val backoffIntervals = listOf(1500L, 3000L, 6000L) // Decisão 1.A
 
-    private val okHttpClient = NetworkSecurityHelper.createUnsafeOkHttpClient(connectTimeoutSec = 12, readTimeoutSec = 20)
+    private val okHttpClient = NetworkSecurityHelper.createUnsafeOkHttpClient(connectTimeoutSec = 15, readTimeoutSec = 35)
 
     fun getPlayer(): ExoPlayer {
         return exoPlayer ?: createPlayer().also { exoPlayer = it }
@@ -164,6 +164,8 @@ class ZyveronPlayerManager(private val context: Context) {
 
         if (targetUrl.contains(".m3u8", ignoreCase = true)) {
             builder.setMimeType(MimeTypes.APPLICATION_M3U8)
+        } else if (targetUrl.contains(".ts", ignoreCase = true)) {
+            builder.setMimeType(MimeTypes.VIDEO_MP2T)
         }
         return builder.build()
     }
@@ -187,16 +189,14 @@ class ZyveronPlayerManager(private val context: Context) {
             if (!candidates.contains(noExt)) candidates.add(noExt)
         }
 
-        // 2. Fallback de protocolo (HTTPS <-> HTTP) apenas se a porta não for exclusiva
+        // 2. Fallback resiliente de protocolo (HTTPS <-> HTTP)
         val schemeVariants = mutableListOf<String>()
         for (c in candidates) {
-            val uri = Uri.parse(c)
-            val port = uri.port
-            val scheme = uri.scheme?.lowercase() ?: ""
-            if (scheme == "http" && port != 80 && port != 8080) {
+            val scheme = Uri.parse(c).scheme?.lowercase() ?: ""
+            if (scheme == "http") {
                 val httpsUrl = c.replaceFirst("http://", "https://", ignoreCase = true)
                 schemeVariants.add(httpsUrl)
-            } else if (scheme == "https" && port != 443 && port != 8443) {
+            } else if (scheme == "https") {
                 val httpUrl = c.replaceFirst("https://", "http://", ignoreCase = true)
                 schemeVariants.add(httpUrl)
             }

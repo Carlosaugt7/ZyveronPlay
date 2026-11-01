@@ -86,6 +86,10 @@ export default function DevicesPage() {
 
   useEffect(() => {
     loadData();
+    const unsubscribe = store.subscribe(() => {
+      loadData();
+    });
+    return () => unsubscribe();
   }, [user]);
 
   // Formata MAC automaticamente: 00:1A:79:...

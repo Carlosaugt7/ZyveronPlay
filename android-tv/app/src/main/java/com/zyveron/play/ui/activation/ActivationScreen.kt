@@ -167,16 +167,19 @@ fun ActivationScreen(
                                         text = "ENDEREÇO MAC (VIRTUAL)",
                                         color = TextSecondary,
                                         fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = mac,
                                         color = TextPrimary,
-                                        fontSize = 13.sp,
+                                        fontSize = 12.sp,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
-                                        letterSpacing = 0.5.sp
+                                        letterSpacing = 0.5.sp,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                                 Box(
@@ -215,16 +218,19 @@ fun ActivationScreen(
                                         text = "DEVICE KEY (CHAVE)",
                                         color = TextSecondary,
                                         fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = deviceKey,
                                         color = AccentEmerald,
-                                        fontSize = 17.sp,
+                                        fontSize = 16.sp,
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
-                                        letterSpacing = 2.sp
+                                        letterSpacing = 1.5.sp,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                                 Box(

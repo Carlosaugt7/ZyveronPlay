@@ -47,7 +47,7 @@ object NetworkSecurityHelper {
 
     fun createUnsafeOkHttpClient(
         connectTimeoutSec: Long = 15,
-        readTimeoutSec: Long = 25
+        readTimeoutSec: Long = 35
     ): OkHttpClient {
         return OkHttpClient.Builder()
             .connectTimeout(connectTimeoutSec, TimeUnit.SECONDS)
@@ -63,7 +63,7 @@ object NetworkSecurityHelper {
                     ConnectionSpec.CLEARTEXT
                 )
             )
-            .protocols(listOf(Protocol.HTTP_2, Protocol.HTTP_1_1))
+            .protocols(listOf(Protocol.HTTP_1_1))
             .followRedirects(true)
             .followSslRedirects(true)
             .retryOnConnectionFailure(true)

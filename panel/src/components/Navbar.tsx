@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Radio, RefreshCw, Bell, Search, ShieldCheck } from "lucide-react";
+import { Radio, RefreshCw, Bell, Search, ShieldCheck, LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 interface NavbarProps {
@@ -11,7 +11,7 @@ interface NavbarProps {
 }
 
 export function Navbar({ title, subtitle, onRefresh }: NavbarProps) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [time, setTime] = useState<string>("");
 
   useEffect(() => {
@@ -61,6 +61,15 @@ export function Navbar({ title, subtitle, onRefresh }: NavbarProps) {
             <RefreshCw className="w-4 h-4" />
           </button>
         )}
+
+        {/* Logout Button */}
+        <button
+          onClick={logout}
+          className="p-2 text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+          title="Sair do Painel"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
       </div>
     </header>
   );

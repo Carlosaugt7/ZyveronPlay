@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
-import { Sidebar } from "@/components/Sidebar";
+import { AppShell } from "@/components/AppShell";
 
 export const metadata: Metadata = {
   title: "Zyveron Play - Painel de Controle",
@@ -23,12 +23,9 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className="bg-[#090d12] text-zinc-100 antialiased min-h-screen">
         <AuthProvider>
-          <div className="flex min-h-screen">
-            <Sidebar />
-            <div className="flex-1 ml-64 flex flex-col min-h-screen bg-[#090d12]">
-              {children}
-            </div>
-          </div>
+          <AppShell>
+            {children}
+          </AppShell>
         </AuthProvider>
       </body>
     </html>

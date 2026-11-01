@@ -48,6 +48,10 @@ export default function ServersPage() {
 
   useEffect(() => {
     loadData();
+    const unsubscribe = store.subscribe(() => {
+      loadData();
+    });
+    return () => unsubscribe();
   }, []);
 
   const handleAddServer = (e: React.FormEvent) => {

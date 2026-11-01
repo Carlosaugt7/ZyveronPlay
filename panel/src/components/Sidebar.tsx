@@ -15,12 +15,13 @@ import {
   Shield,
   Coins,
   ChevronRight,
-  ArrowRightLeft
+  ArrowRightLeft,
+  LogOut
 } from "lucide-react";
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user, switchRole } = useAuth();
+  const { user, switchRole, logout } = useAuth();
 
   const isSuperAdmin = user?.role === "superadmin";
 
@@ -146,23 +147,24 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* User Footer Profile */}
-      <div className="p-3 border-t border-zinc-800/80 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-300">
-          {user?.name?.substring(0, 2).toUpperCase() ?? "ZY"}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-zinc-200 truncate">{user?.name}</p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span
-              className={`text-[9px] font-medium px-1.5 py-0.2 rounded border ${
-                user?.role ? roleLabels[user.role].color : ""
-              }`}
-            >
-              {user?.role ? roleLabels[user.role].label : "Usuário"}
-            </span>
+      {/* User Footer Profile & Logout */}
+      <div className="p-3 border-t border-zinc-800/80 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-xs font-bold text-emerald-300 shrink-0">
+            {user?.name?.substring(0, 2).toUpperCase() ?? "AD"}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-zinc-200 truncate">{user?.name}</p>
+            <p className="text-[10px] text-zinc-400 truncate">{user?.email}</p>
           </div>
         </div>
+        <button
+          onClick={logout}
+          title="Sair da conta"
+          className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition shrink-0"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
       </div>
     </aside>
   );
