@@ -581,15 +581,12 @@ fun LiveTvGuideScreen(
                                     val isSelected = index == selectedChannelIndex
                                     TvTouchCard(
                                         onClick = {
-                                            if (selectedChannelIndex == index) {
-                                                // 2º clique no mesmo canal que já está tocando na mini tela -> expande para Tela Cheia!
-                                                onOpenFullScreenPlayer(channel, displayedChannels, selectedCategoryId)
-                                            } else {
-                                                // 1º clique -> Seleciona o canal e começa a transmissão na mini tela!
-                                                selectedChannelIndex = index
-                                            }
+                                            selectedChannelIndex = index
+                                            // 1 clique no canal -> Abre direto em Tela Cheia!
+                                            onOpenFullScreenPlayer(channel, displayedChannels, selectedCategoryId)
                                         },
                                         onLongClick = {
+                                            // Pressionar e segurar OK por 1.5s - 2s -> Favorita/desfavorita sem entrar em tela cheia!
                                             scope.launch { repository.toggleChannelFavorite(channel) }
                                         },
                                         modifier = Modifier

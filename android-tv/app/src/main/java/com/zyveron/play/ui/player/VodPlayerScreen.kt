@@ -200,6 +200,54 @@ fun VodPlayerScreen(
         }
     }
 
+    // Ouvinte nativo global para o controle remoto (avanço/retrocesso e troca de episódios)
+    DisposableEffect(hasNextEpisode, hasPreviousEpisode, showOsd) {
+        com.zyveron.play.MainActivity.onGlobalKeyDownListener = { event ->
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                    seekRelative(-10_000L)
+                    true
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                    seekRelative(+10_000L)
+                    true
+                }
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> {
+                    if (hasNextEpisode && onNextEpisode != null) {
+                        onNextEpisode.invoke()
+                        true
+                    } else {
+                        seekRelative(+30_000L)
+                        true
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
+                    if (hasPreviousEpisode && onPreviousEpisode != null) {
+                        onPreviousEpisode.invoke()
+                        true
+                    } else {
+                        seekRelative(-30_000L)
+                        true
+                    }
+                }
+                KeyEvent.KEYCODE_BACK -> {
+                    if (showOsd) {
+                        showOsd = false
+                        true
+                    } else {
+                        playerManager.stop()
+                        onBack()
+                        true
+                    }
+                }
+                else -> false
+            }
+        }
+        onDispose {
+            com.zyveron.play.MainActivity.onGlobalKeyDownListener = null
+        }
+    }
+
     fun formatDuration(ms: Long): String {
         if (ms <= 0L) return "00:00"
         val totalSecs = ms / 1000

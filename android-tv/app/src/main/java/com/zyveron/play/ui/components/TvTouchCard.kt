@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,11 +29,15 @@ import androidx.compose.ui.unit.dp
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.BgCardDark
 import com.zyveron.play.ui.theme.BorderDark
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Componente universal compatível com SMARTPHONES (Touchscreen) e ANDROID TV (D-Pad Controle Remoto).
  * - No Smartphone/Tablet: responde imediatamente a toques, cliques e toques longos com os dedos.
- * - Na Android TV: ganha foco visual com borda branca e responde a 1 único clique nas teclas D-Pad (OK/Center).
+ * - Na Android TV: clique simples aciona onClick(); pressionar e segurar por 1.5s aciona onLongClick()
+ *   sem disparar o onClick().
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -53,6 +58,10 @@ fun TvTouchCard(
     val currentBg = if (isFocused) focusedContainerColor else containerColor
     val currentBorder = if (isFocused) focusedBorder else border
 
+    val scope = rememberCoroutineScope()
+    var longPressJob by remember { mutableStateOf<Job?>(null) }
+    var isLongPressFired by remember { mutableStateOf(false) }
+
     Box(
         modifier = modifier
             .clip(shape)
@@ -60,13 +69,39 @@ fun TvTouchCard(
             .then(if (currentBorder != null) Modifier.border(currentBorder, shape) else Modifier)
             .onFocusChanged { isFocused = it.isFocused }
             .onKeyEvent { keyEvent ->
-                if (enabled && keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN &&
-                    (keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
-                     keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_ENTER ||
-                     keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
-                    onClick()
-                    true
-                } else false
+                if (!enabled) return@onKeyEvent false
+                val keyCode = keyEvent.nativeKeyEvent.keyCode
+                val isCenter = keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+                               keyCode == KeyEvent.KEYCODE_ENTER ||
+                               keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+
+                if (!isCenter) return@onKeyEvent false
+
+                if (onLongClick != null) {
+                    if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                        if (keyEvent.nativeKeyEvent.repeatCount == 0) {
+                            isLongPressFired = false
+                            longPressJob?.cancel()
+                            longPressJob = scope.launch {
+                                delay(1500) // 1.5s segurando o botão OK para favoritar
+                                isLongPressFired = true
+                                onLongClick.invoke()
+                            }
+                        }
+                        true
+                    } else if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_UP) {
+                        longPressJob?.cancel()
+                        if (!isLongPressFired) {
+                            onClick()
+                        }
+                        true
+                    } else false
+                } else {
+                    if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                        onClick()
+                        true
+                    } else false
+                }
             }
             .combinedClickable(
                 enabled = enabled,

@@ -72,6 +72,8 @@ import com.zyveron.play.ui.theme.BgSurfaceDark
 import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
+import androidx.compose.ui.platform.LocalContext
+import com.zyveron.play.util.SettingsHelper
 import com.zyveron.play.util.UrlHelper
 import kotlinx.coroutines.delay
 
@@ -87,6 +89,7 @@ fun LivePlayerScreen(
     initialChannelIndex: Int = 0,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     var currentChannelIndex by remember { mutableIntStateOf(if (initialChannelIndex in channels.indices) initialChannelIndex else 0) }
     var showOsd by remember { mutableStateOf(true) }
     var showChannelList by remember { mutableStateOf(false) }
@@ -135,6 +138,52 @@ fun LivePlayerScreen(
         }
     }
 
+    // Registra ouvinte nativo global para teclas do controle remoto (Cima/Baixo/Laterais)
+    // Garante 100% de resposta no 1º clique físico mesmo se o Compose perder foco
+    DisposableEffect(channels, currentChannelIndex, showChannelList, showOsd) {
+        com.zyveron.play.MainActivity.onGlobalKeyDownListener = { event ->
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> {
+                    if (!showChannelList && channels.isNotEmpty()) {
+                        currentChannelIndex = if (currentChannelIndex > 0) currentChannelIndex - 1 else channels.size - 1
+                        markInteraction()
+                        true
+                    } else false
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
+                    if (!showChannelList && channels.isNotEmpty()) {
+                        currentChannelIndex = (currentChannelIndex + 1) % channels.size
+                        markInteraction()
+                        true
+                    } else false
+                }
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (!showChannelList) {
+                        showChannelList = true
+                        true
+                    } else false
+                }
+                KeyEvent.KEYCODE_BACK -> {
+                    if (showChannelList) {
+                        showChannelList = false
+                        true
+                    } else if (showOsd) {
+                        showOsd = false
+                        true
+                    } else {
+                        playerManager.stop()
+                        onBack()
+                        true
+                    }
+                }
+                else -> false
+            }
+        }
+        onDispose {
+            com.zyveron.play.MainActivity.onGlobalKeyDownListener = null
+        }
+    }
+
     // Auto-scroll e foco automático com retry do canal ativo na gaveta lateral
     LaunchedEffect(showChannelList) {
         if (showChannelList) {
@@ -168,12 +217,12 @@ fun LivePlayerScreen(
             showOsd = true
             delay(350)
             val ch = channels[currentChannelIndex]
-            val streamUrl = UrlHelper.buildLiveStreamUrl(
-                serverDns = serverDns,
-                username = username,
-                password = password,
-                streamId = ch.streamId
-            )
+            val streamUrl = ch.directSourceUrl?.takeIf { it.isNotBlank() } ?: if (repository != null) {
+                repository.buildLiveStreamUrl(serverDns, username, password, ch.streamId)
+            } else {
+                val prot = SettingsHelper.getLiveProtocol(context)
+                UrlHelper.buildLiveStreamUrl(serverDns, username, password, ch.streamId, prot)
+            }
             playerManager.playStream(streamUrl, ch.name)
         }
     }

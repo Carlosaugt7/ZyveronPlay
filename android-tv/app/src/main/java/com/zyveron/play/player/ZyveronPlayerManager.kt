@@ -17,6 +17,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
+import androidx.media3.common.MimeTypes
+import androidx.media3.extractor.ts.TsExtractor
 import com.zyveron.play.util.NetworkSecurityHelper
 import com.zyveron.play.util.SettingsHelper
 import com.zyveron.play.util.UrlHelper
@@ -85,8 +87,10 @@ class ZyveronPlayerManager(private val context: Context) {
             val extractorsFactory = DefaultExtractorsFactory().apply {
                 setTsExtractorFlags(
                     DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
-                    DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS
+                    DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or
+                    DefaultTsPayloadReaderFactory.FLAG_IGNORE_SPLICE_INFO_STREAM
                 )
+                setTsExtractorMode(TsExtractor.MODE_MULTI_PMT)
             }
 
             // 3. User-Agent e Headers customizados para contornar bloqueios HTTP 403
@@ -153,31 +157,52 @@ class ZyveronPlayerManager(private val context: Context) {
         }
     }
 
+    private fun buildMediaItem(targetUrl: String): MediaItem {
+        val builder = MediaItem.Builder()
+            .setUri(Uri.parse(targetUrl))
+            .setMediaId(targetUrl)
+
+        if (targetUrl.contains(".m3u8", ignoreCase = true)) {
+            builder.setMimeType(MimeTypes.APPLICATION_M3U8)
+        }
+        return builder.build()
+    }
+
     private fun generateStreamCandidates(rawUrl: String): List<String> {
         val candidates = mutableListOf<String>()
         val primary = UrlHelper.normalizeUrl(rawUrl)
-        if (primary.isNotBlank()) candidates.add(primary)
+        if (primary.isBlank()) return candidates
+        candidates.add(primary)
 
-        // 1. Fallback alternando entre HTTPS e HTTP
-        if (primary.startsWith("https://", ignoreCase = true)) {
-            val httpUrl = primary.replaceFirst("https://", "http://", ignoreCase = true)
-            if (!candidates.contains(httpUrl)) candidates.add(httpUrl)
-        } else if (primary.startsWith("http://", ignoreCase = true)) {
-            val httpsUrl = primary.replaceFirst("http://", "https://", ignoreCase = true)
-            if (!candidates.contains(httpsUrl)) candidates.add(httpsUrl)
+        // 1. Alternativas de formato/container no mesmo servidor e porta (.ts <-> .m3u8 e sem extensão)
+        if (primary.contains(".ts", ignoreCase = true)) {
+            val m3u8 = primary.replace(".ts", ".m3u8", ignoreCase = true)
+            if (!candidates.contains(m3u8)) candidates.add(m3u8)
+            val noExt = primary.replace(".ts", "", ignoreCase = true)
+            if (!candidates.contains(noExt)) candidates.add(noExt)
+        } else if (primary.contains(".m3u8", ignoreCase = true)) {
+            val ts = primary.replace(".m3u8", ".ts", ignoreCase = true)
+            if (!candidates.contains(ts)) candidates.add(ts)
+            val noExt = primary.replace(".m3u8", "", ignoreCase = true)
+            if (!candidates.contains(noExt)) candidates.add(noExt)
         }
 
-        // 2. Fallback de extensão de container (.ts <-> .m3u8)
-        val extVariants = mutableListOf<String>()
+        // 2. Fallback de protocolo (HTTPS <-> HTTP) apenas se a porta não for exclusiva
+        val schemeVariants = mutableListOf<String>()
         for (c in candidates) {
-            if (c.endsWith(".ts", ignoreCase = true)) {
-                extVariants.add(c.substringBeforeLast(".ts") + ".m3u8")
-            } else if (c.endsWith(".m3u8", ignoreCase = true)) {
-                extVariants.add(c.substringBeforeLast(".m3u8") + ".ts")
+            val uri = Uri.parse(c)
+            val port = uri.port
+            val scheme = uri.scheme?.lowercase() ?: ""
+            if (scheme == "http" && port != 80 && port != 8080) {
+                val httpsUrl = c.replaceFirst("http://", "https://", ignoreCase = true)
+                schemeVariants.add(httpsUrl)
+            } else if (scheme == "https" && port != 443 && port != 8443) {
+                val httpUrl = c.replaceFirst("https://", "http://", ignoreCase = true)
+                schemeVariants.add(httpUrl)
             }
         }
-        for (v in extVariants) {
-            if (!candidates.contains(v)) candidates.add(v)
+        for (sv in schemeVariants) {
+            if (!candidates.contains(sv)) candidates.add(sv)
         }
 
         return candidates
@@ -185,10 +210,10 @@ class ZyveronPlayerManager(private val context: Context) {
 
     /**
      * Executa a decisão 1.A: Reconexão gradual silenciosa com Exponential Backoff
-     * e rotação inteligente de protocolo/esquema (HTTPS/HTTP e TS/M3U8).
+     * e rotação inteligente de formato e protocolo (TS/M3U8 e HTTPS/HTTP).
      */
     private fun handlePlaybackError(errorMsg: String) {
-        // Tenta primeiro os candidatos alternativos (ex: https -> http, ts -> m3u8)
+        // Tenta primeiro os candidatos alternativos (ex: ts -> m3u8 -> sem extensão)
         if (currentCandidateIndex + 1 < streamCandidates.size) {
             currentCandidateIndex++
             val nextUrl = streamCandidates[currentCandidateIndex]
@@ -196,11 +221,11 @@ class ZyveronPlayerManager(private val context: Context) {
             _playbackState.value = PlaybackState.Buffering
             reconnectJob?.cancel()
             reconnectJob = scope.launch {
-                delay(600)
+                delay(500)
                 try {
                     val player = getPlayer()
                     player.stop()
-                    val mediaItem = MediaItem.fromUri(Uri.parse(nextUrl))
+                    val mediaItem = buildMediaItem(nextUrl)
                     player.setMediaItem(mediaItem)
                     player.prepare()
                     player.playWhenReady = true
@@ -258,10 +283,7 @@ class ZyveronPlayerManager(private val context: Context) {
             val player = getPlayer()
             player.stop()
 
-            val mediaItem = MediaItem.Builder()
-                .setUri(Uri.parse(targetUrl))
-                .setMediaId(targetUrl)
-                .build()
+            val mediaItem = buildMediaItem(targetUrl)
 
             player.setMediaItem(mediaItem)
             player.prepare()
@@ -286,7 +308,7 @@ class ZyveronPlayerManager(private val context: Context) {
             _playbackState.value = PlaybackState.Buffering
             val player = getPlayer()
             player.stop()
-            val mediaItem = MediaItem.fromUri(Uri.parse(url))
+            val mediaItem = buildMediaItem(url)
             player.setMediaItem(mediaItem)
             player.prepare()
             player.playWhenReady = true

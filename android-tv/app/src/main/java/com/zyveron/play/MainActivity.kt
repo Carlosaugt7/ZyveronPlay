@@ -1,6 +1,7 @@
 package com.zyveron.play
 
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -116,6 +117,19 @@ sealed class AppScreen {
 }
 
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        var onGlobalKeyDownListener: ((KeyEvent) -> Boolean)? = null
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            if (onGlobalKeyDownListener?.invoke(event) == true) {
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
 
     private lateinit var deviceManager: FirestoreDeviceManager
     private lateinit var repository: ZyveronRepository

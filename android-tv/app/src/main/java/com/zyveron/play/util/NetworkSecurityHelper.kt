@@ -67,10 +67,16 @@ object NetworkSecurityHelper {
             .followSslRedirects(true)
             .retryOnConnectionFailure(true)
             .addInterceptor { chain ->
-                val request = chain.request().newBuilder()
-                    .header("User-Agent", "IPTVSmartersPro")
+                val original = chain.request()
+                val urlStr = original.url.toString()
+                val userAgent = if (urlStr.contains("player_api.php", ignoreCase = true)) {
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                } else {
+                    "IPTVSmartersPro"
+                }
+                val request = original.newBuilder()
+                    .header("User-Agent", userAgent)
                     .header("Accept", "*/*")
-                    .header("Connection", "keep-alive")
                     .build()
                 chain.proceed(request)
             }
