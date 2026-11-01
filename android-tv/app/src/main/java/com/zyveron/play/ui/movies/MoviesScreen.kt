@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -81,6 +82,7 @@ fun MoviesScreen(
 
     var selectedCategoryId by remember { mutableStateOf(initialCategoryId) }
     var searchQuery by remember { mutableStateOf("") }
+    var isSearchFocusable by remember { mutableStateOf(false) }
 
     val gridState = rememberLazyGridState()
     val categoryFocusRequester = remember { FocusRequester() }
@@ -111,33 +113,40 @@ fun MoviesScreen(
     }
 
     val displayedVods = remember(selectedCategoryId, searchQuery, allVods, favorites, recentVods, releaseVods) {
-        val baseList = when (selectedCategoryId) {
-            "FAV" -> favorites
-            "ALL" -> allVods
-            "RECENT" -> recentVods
-            "RELEASES" -> releaseVods
-            else -> allVods.filter { it.categoryId == selectedCategoryId }
-        }
-        if (searchQuery.isBlank()) {
-            baseList
-        } else {
+        if (searchQuery.isNotBlank()) {
             val q = searchQuery.trim().lowercase()
-            baseList.filter { it.name.lowercase().contains(q) }
+            allVods.filter { it.name.lowercase().contains(q) }
+        } else {
+            when (selectedCategoryId) {
+                "FAV" -> favorites
+                "ALL" -> allVods
+                "RECENT" -> recentVods
+                "RELEASES" -> releaseVods
+                else -> allVods.filter { it.categoryId == selectedCategoryId }
+            }
         }
     }
 
     // Foco inicial garantido: na categoria ou no filme que estava selecionado (NUNCA abre teclado na busca)
     LaunchedEffect(Unit) {
-        delay(150)
+        delay(200)
         try {
             if (initialVodId != null) {
-                itemFocusRequester.requestFocus()
+                for (i in 1..10) {
+                    delay(50)
+                    try {
+                        itemFocusRequester.requestFocus()
+                        break
+                    } catch (_: Exception) {}
+                }
             } else {
                 categoryFocusRequester.requestFocus()
             }
         } catch (_: Exception) {
             try { categoryFocusRequester.requestFocus() } catch (_: Exception) {}
         }
+        delay(150)
+        isSearchFocusable = true
     }
 
     // Posiciona no filme que estava selecionado anteriormente ao voltar da tela de detalhes
@@ -147,11 +156,14 @@ fun MoviesScreen(
             if (idx >= 0) {
                 try {
                     gridState.scrollToItem(idx)
-                    for (i in 1..5) {
-                        delay(50)
-                        itemFocusRequester.requestFocus()
-                    }
                 } catch (_: Exception) {}
+                for (i in 1..15) {
+                    delay(50)
+                    try {
+                        itemFocusRequester.requestFocus()
+                        break
+                    } catch (_: Exception) {}
+                }
             }
         }
     }
@@ -256,7 +268,9 @@ fun MoviesScreen(
                                                 }
                                                 innerTextField()
                                             },
-                                            modifier = Modifier.weight(1f)
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .focusProperties { canFocus = isSearchFocusable }
                                         )
                                         if (searchQuery.isNotEmpty()) {
                                             Text(

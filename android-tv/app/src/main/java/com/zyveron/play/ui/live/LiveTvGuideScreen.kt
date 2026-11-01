@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -96,6 +97,7 @@ fun LiveTvGuideScreen(
     val favorites by repository.getFavorites().collectAsState(initial = emptyList())
 
     var searchQuery by remember { mutableStateOf("") }
+    var isSearchFocusable by remember { mutableStateOf(false) }
     var selectedCategoryId by remember { mutableStateOf(initialCategoryId ?: (if (initialFilterSports) "SPORTS" else "ALL")) }
     var selectedChannelIndex by remember { mutableIntStateOf(0) }
     val channelListState = rememberLazyListState()
@@ -115,23 +117,32 @@ fun LiveTvGuideScreen(
 
     // Foco inicial garantido: no canal anterior ou na categoria "Todos os Canais" (NUNCA abre teclado na busca)
     LaunchedEffect(Unit) {
-        delay(150)
-        var focused = false
+        // Delay maior para garantir que os itens já foram compostos na tela
+        delay(200)
         if (initialChannelId != null) {
-            for (i in 1..8) {
-                delay(50)
-                try {
-                    channelListFocusRequester.requestFocus()
-                    focused = true
-                    break
-                } catch (_: Exception) {}
+            // Voltando da tela cheia: tenta focar diretamente no canal da lista
+            var focused = false
+            repeat(15) {
+                if (!focused) {
+                    delay(60)
+                    try {
+                        channelListFocusRequester.requestFocus()
+                        focused = true
+                    } catch (_: Exception) {}
+                }
             }
-        }
-        if (!focused) {
+            // Fallback: se não conseguiu focar no canal, foca na categoria Todos
+            if (!focused) {
+                try { categoryAllFocusRequester.requestFocus() } catch (_: Exception) {}
+            }
+        } else {
+            // Entrada normal: foca na categoria Todos
             try {
                 categoryAllFocusRequester.requestFocus()
             } catch (_: Exception) {}
         }
+        delay(150)
+        isSearchFocusable = true
     }
 
     // Agrupamento estrito de categorias: Regionais/Abertos -> Temáticos -> 24 Horas -> Internacionais
@@ -162,20 +173,19 @@ fun LiveTvGuideScreen(
         }
     }
 
-    // Determina lista de canais da categoria selecionada + filtro de busca
+    // Determina lista de canais da categoria selecionada + filtro de busca (busca global em TODOS os canais)
     val displayedChannels = remember(selectedCategoryId, searchQuery, allChannels, sportsChannels, favorites, recentChannels) {
-        val baseList = when (selectedCategoryId) {
-            "SPORTS" -> sportsChannels
-            "FAV" -> favorites
-            "ALL" -> allChannels
-            "RECENT" -> recentChannels
-            "SEARCH" -> allChannels
-            else -> allChannels.filter { it.categoryId == selectedCategoryId }
-        }
         if (searchQuery.isNotBlank()) {
-            baseList.filter { it.name.contains(searchQuery, ignoreCase = true) }
+            allChannels.filter { it.name.contains(searchQuery, ignoreCase = true) }
         } else {
-            baseList
+            when (selectedCategoryId) {
+                "SPORTS" -> sportsChannels
+                "FAV" -> favorites
+                "ALL" -> allChannels
+                "RECENT" -> recentChannels
+                "SEARCH" -> allChannels
+                else -> allChannels.filter { it.categoryId == selectedCategoryId }
+            }
         }
     }
 
@@ -189,8 +199,14 @@ fun LiveTvGuideScreen(
                 selectedChannelIndex = idx
                 try {
                     channelListState.scrollToItem(idx)
-                    channelListFocusRequester.requestFocus()
                 } catch (_: Exception) {}
+                for (attempt in 0..15) {
+                    delay(50)
+                    try {
+                        channelListFocusRequester.requestFocus()
+                        break
+                    } catch (_: Exception) {}
+                }
             }
         }
     }
@@ -628,7 +644,9 @@ fun LiveTvGuideScreen(
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
                                                 color = if (isFocused) Color.Black else (if (isSelected) AccentEmerald else TextPrimary),
-                                                modifier = Modifier.weight(1f)
+                                                modifier = Modifier
+                                                 .weight(1f)
+                                                 .focusProperties { canFocus = isSearchFocusable }
                                             )
                                             if (channel.isFavorite) {
                                                 Spacer(modifier = Modifier.width(6.dp))

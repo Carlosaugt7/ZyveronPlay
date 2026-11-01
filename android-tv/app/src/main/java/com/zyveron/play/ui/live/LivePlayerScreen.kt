@@ -235,9 +235,9 @@ fun LivePlayerScreen(
                                 true
                             }
                         }
-                        // Zapping Rápido: Cima/Baixo troca canal e exibe OSD por 2s
+                        // Zapping com UM clique: setas Cima/Baixo trocam canal DIRETAMENTE
                         KeyEvent.KEYCODE_DPAD_UP -> {
-                            if (!showChannelList && playbackState !is PlaybackState.Error) {
+                            if (!showChannelList) {
                                 if (channels.isNotEmpty()) {
                                     currentChannelIndex = if (currentChannelIndex > 0) currentChannelIndex - 1 else channels.size - 1
                                     markInteraction()
@@ -246,7 +246,7 @@ fun LivePlayerScreen(
                             } else false
                         }
                         KeyEvent.KEYCODE_DPAD_DOWN -> {
-                            if (!showChannelList && playbackState !is PlaybackState.Error) {
+                            if (!showChannelList) {
                                 if (channels.isNotEmpty()) {
                                     currentChannelIndex = (currentChannelIndex + 1) % channels.size
                                     markInteraction()
@@ -254,18 +254,21 @@ fun LivePlayerScreen(
                                 true
                             } else false
                         }
-                        KeyEvent.KEYCODE_DPAD_LEFT -> {
-                            if (!showChannelList && playbackState !is PlaybackState.Error) {
+                        KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                            if (!showChannelList) {
                                 showChannelList = true
                                 true
                             } else false
                         }
+                        // OK apenas mostra o OSD (não é necessário para trocar canal)
                         KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
-                            if (!showChannelList && playbackState !is PlaybackState.Error) {
-                                markInteraction()
-                                try {
-                                    osdButtonsFocusRequester.requestFocus()
-                                } catch (_: Exception) {}
+                            if (!showChannelList) {
+                                if (!showOsd) {
+                                    markInteraction()
+                                } else {
+                                    showOsd = false
+                                    try { playerSurfaceFocusRequester.requestFocus() } catch (_: Exception) {}
+                                }
                                 true
                             } else false
                         }
@@ -607,7 +610,20 @@ fun LivePlayerScreen(
                                         if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                                             markInteraction()
                                             when (keyEvent.nativeKeyEvent.keyCode) {
-                                                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_DPAD_UP -> {
+                                                KeyEvent.KEYCODE_DPAD_UP -> {
+                                                    if (channels.isNotEmpty()) {
+                                                        currentChannelIndex = if (currentChannelIndex > 0) currentChannelIndex - 1 else channels.size - 1
+                                                    }
+                                                    true
+                                                }
+                                                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                                    if (channels.isNotEmpty()) {
+                                                        currentChannelIndex = (currentChannelIndex + 1) % channels.size
+                                                    }
+                                                    true
+                                                }
+                                                // BACK fecha OSD sem fechar o player
+                                                KeyEvent.KEYCODE_BACK -> {
                                                     showOsd = false
                                                     try { playerSurfaceFocusRequester.requestFocus() } catch (_: Exception) {}
                                                     true
@@ -627,24 +643,7 @@ fun LivePlayerScreen(
                                         }
                                     },
                                     modifier = Modifier
-                                        .focusRequester(osdButtonsFocusRequester)
-                                        .onKeyEvent { keyEvent ->
-                                            if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
-                                                when (keyEvent.nativeKeyEvent.keyCode) {
-                                                    KeyEvent.KEYCODE_DPAD_UP -> {
-                                                        if (channels.isNotEmpty()) {
-                                                            currentChannelIndex = if (currentChannelIndex > 0) currentChannelIndex - 1 else channels.size - 1
-                                                        }
-                                                        true
-                                                    }
-                                                    KeyEvent.KEYCODE_DPAD_LEFT -> {
-                                                        showChannelList = true
-                                                        true
-                                                    }
-                                                    else -> false
-                                                }
-                                            } else false
-                                        },
+                                        .focusRequester(osdButtonsFocusRequester),
                                     containerColor = BgSurfaceDark,
                                     focusedContainerColor = AccentEmerald,
                                     shape = RoundedCornerShape(8.dp),
@@ -665,16 +664,6 @@ fun LivePlayerScreen(
                                             showOsd = true
                                         }
                                     },
-                                    modifier = Modifier
-                                        .onKeyEvent { keyEvent ->
-                                            if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN &&
-                                                keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                                                if (channels.isNotEmpty()) {
-                                                    currentChannelIndex = (currentChannelIndex + 1) % channels.size
-                                                }
-                                                true
-                                            } else false
-                                        },
                                     containerColor = BgSurfaceDark,
                                     focusedContainerColor = AccentEmerald,
                                     shape = RoundedCornerShape(8.dp),

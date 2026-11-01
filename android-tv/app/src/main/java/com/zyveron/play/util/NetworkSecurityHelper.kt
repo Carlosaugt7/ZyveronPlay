@@ -1,6 +1,7 @@
 package com.zyveron.play.util
 
 import android.annotation.SuppressLint
+import okhttp3.ConnectionSpec
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import java.security.SecureRandom
@@ -46,7 +47,16 @@ object NetworkSecurityHelper {
             .readTimeout(readTimeoutSec, TimeUnit.SECONDS)
             .sslSocketFactory(unsafeSslSocketFactory, unsafeTrustManager)
             .hostnameVerifier(unsafeHostnameVerifier)
-            .protocols(listOf(Protocol.HTTP_1_1, Protocol.HTTP_2))
+            .connectionSpecs(
+                listOf(
+                    ConnectionSpec.MODERN_TLS,
+                    ConnectionSpec.COMPATIBLE_TLS,
+                    ConnectionSpec.CLEARTEXT
+                )
+            )
+            .protocols(listOf(Protocol.HTTP_1_1))
+            .followRedirects(true)
+            .followSslRedirects(true)
             .retryOnConnectionFailure(true)
             .addInterceptor { chain ->
                 val request = chain.request().newBuilder()

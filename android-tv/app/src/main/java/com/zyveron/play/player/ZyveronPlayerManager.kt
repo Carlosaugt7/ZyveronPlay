@@ -9,6 +9,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -90,7 +91,9 @@ class ZyveronPlayerManager(private val context: Context) {
             val httpDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
                 .setUserAgent("ZyveronPlayTV/1.0 (Linux; Android TV; Media3 ExoPlayer)")
 
-            val mediaSourceFactory = DefaultMediaSourceFactory(httpDataSourceFactory, extractorsFactory)
+            val defaultDataSourceFactory = DefaultDataSource.Factory(context.applicationContext, httpDataSourceFactory)
+
+            val mediaSourceFactory = DefaultMediaSourceFactory(defaultDataSourceFactory, extractorsFactory)
 
             val isAdaptive = SettingsHelper.isAdaptiveQualityEnabled(context.applicationContext)
             val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context.applicationContext).apply {
