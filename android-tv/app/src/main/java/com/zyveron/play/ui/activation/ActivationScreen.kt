@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -52,6 +55,7 @@ fun ActivationScreen(
     onExit: () -> Unit
 ) {
     var isChecking by remember { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
 
     LaunchedEffect(isChecking) {
         if (isChecking) {
@@ -69,164 +73,179 @@ fun ActivationScreen(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(24.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            // Logo / Cabeçalho
+            // Logo / Cabeçalho compacto
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(AccentEmerald.copy(alpha = 0.15f))
-                        .border(1.dp, AccentEmerald.copy(alpha = 0.4f), RoundedCornerShape(10.dp)),
+                        .border(1.dp, AccentEmerald.copy(alpha = 0.4f), RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "▶",
                         color = AccentEmerald,
-                        fontSize = 18.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = "Zyveron ",
                     color = TextPrimary,
-                    fontSize = 28.sp,
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "Play",
                     color = AccentEmerald,
-                    fontSize = 28.sp,
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Card Principal de Ativação
             Box(
                 modifier = Modifier
-                    .width(560.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .widthIn(max = 580.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
                     .background(BgCardDark)
-                    .border(1.dp, BorderDark, RoundedCornerShape(20.dp))
-                    .padding(32.dp)
+                    .border(1.dp, BorderDark, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 20.dp, vertical = 14.dp)
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text = "Aparelho Não Ativado",
                         color = TextPrimary,
-                        fontSize = 20.sp,
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Para liberar o acesso a canais, filmes e séries, cadastre este dispositivo no Painel Administrativo usando as credenciais abaixo:",
                         color = TextSecondary,
-                        fontSize = 13.sp,
+                        fontSize = 11.sp,
                         textAlign = TextAlign.Center,
-                        lineHeight = 18.sp
+                        lineHeight = 15.sp
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    // Credenciais (MAC + PIN)
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(BgSurfaceDark)
-                            .border(1.dp, BorderDark, RoundedCornerShape(14.dp))
-                            .padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    // Credenciais (MAC + KEY LADO A LADO PARA VISIBILIDADE IMEDIATA EM SMARTPHONES E TVS)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // Linha do MAC Address
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        // Card do Endereço MAC
+                        Box(
+                            modifier = Modifier
+                                .weight(1.15f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(BgSurfaceDark)
+                                .border(1.dp, BorderDark, RoundedCornerShape(10.dp))
+                                .padding(horizontal = 12.dp, vertical = 10.dp)
                         ) {
-                            Column {
-                                Text(
-                                    text = "ENDEREÇO MAC (VIRTUAL)",
-                                    color = TextSecondary,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = mac,
-                                    color = TextPrimary,
-                                    fontSize = 18.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(AccentSky.copy(alpha = 0.15f))
-                                    .border(1.dp, AccentSky.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "MAC",
-                                    color = AccentSky,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "ENDEREÇO MAC (VIRTUAL)",
+                                        color = TextSecondary,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = mac,
+                                        color = TextPrimary,
+                                        fontSize = 13.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(5.dp))
+                                        .background(AccentSky.copy(alpha = 0.15f))
+                                        .border(1.dp, AccentSky.copy(alpha = 0.3f), RoundedCornerShape(5.dp))
+                                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = "MAC",
+                                        color = AccentSky,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
 
-                        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(BorderDark))
-
-                        // Linha do DEVICE KEY (PIN de 6 dígitos)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        // Card da Chave Device Key / PIN
+                        Box(
+                            modifier = Modifier
+                                .weight(0.95f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(BgSurfaceDark)
+                                .border(1.dp, AccentEmerald.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                                .padding(horizontal = 12.dp, vertical = 10.dp)
                         ) {
-                            Column {
-                                Text(
-                                    text = "DEVICE KEY (CHAVE PIN)",
-                                    color = TextSecondary,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = deviceKey,
-                                    color = AccentEmerald,
-                                    fontSize = 22.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 3.sp
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(AccentEmerald.copy(alpha = 0.15f))
-                                    .border(1.dp, AccentEmerald.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "PIN",
-                                    color = AccentEmerald,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "DEVICE KEY (CHAVE)",
+                                        color = TextSecondary,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = deviceKey,
+                                        color = AccentEmerald,
+                                        fontSize = 17.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 2.sp
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(5.dp))
+                                        .background(AccentEmerald.copy(alpha = 0.15f))
+                                        .border(1.dp, AccentEmerald.copy(alpha = 0.3f), RoundedCornerShape(5.dp))
+                                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = "KEY",
+                                        color = AccentEmerald,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     // Indicador de escuta em tempo real
                     Row(
@@ -235,24 +254,24 @@ fun ActivationScreen(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(8.dp)
+                                .size(7.dp)
                                 .clip(CircleShape)
                                 .background(if (isChecking) AccentSky else AccentEmerald)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (isChecking) "Verificando liberação no Firebase..." else "Aguardando ativação no painel web (Sincronização em tempo real)...",
                             color = TextSecondary,
-                            fontSize = 11.sp
+                            fontSize = 10.sp
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // Botões Universais Touch + D-Pad
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Botão Recarregar / Verificar Ativação
@@ -266,13 +285,13 @@ fun ActivationScreen(
                             focusedContainerColor = Color.White,
                             border = BorderStroke(1.dp, BorderDark),
                             focusedBorder = BorderStroke(2.dp, AccentEmerald),
-                            shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(vertical = 10.dp)
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(vertical = 8.dp)
                         ) { isFocused ->
                             Text(
                                 text = "🔄 Recarregar / Entrar",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 color = Color.Black
                             )
                         }
@@ -280,18 +299,18 @@ fun ActivationScreen(
                         // Botão Sair do Aplicativo
                         TvTouchCard(
                             onClick = onExit,
-                            modifier = Modifier.weight(0.7f),
+                            modifier = Modifier.weight(0.6f),
                             containerColor = BgSurfaceDark,
                             focusedContainerColor = Color(0xFFEF4444),
                             border = BorderStroke(1.dp, BorderDark),
                             focusedBorder = BorderStroke(2.dp, Color.White),
-                            shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(vertical = 10.dp)
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(vertical = 8.dp)
                         ) { isFocused ->
                             Text(
                                 text = "✕ Sair",
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 color = if (isFocused) Color.White else TextPrimary
                             )
                         }

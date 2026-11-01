@@ -10,10 +10,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -47,6 +51,7 @@ fun BlockedOrExpiredScreen(
     onExit: () -> Unit = {}
 ) {
     val accentColor = if (isExpired) AccentAmber else AccentRose
+    val scrollState = rememberScrollState()
 
     Box(
         modifier = Modifier
@@ -56,87 +61,91 @@ fun BlockedOrExpiredScreen(
     ) {
         Box(
             modifier = Modifier
-                .width(580.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .widthIn(max = 580.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .verticalScroll(scrollState)
+                .clip(RoundedCornerShape(16.dp))
                 .background(BgCardDark)
-                .border(1.dp, accentColor.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
-                .padding(36.dp)
+                .border(1.dp, accentColor.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                .padding(horizontal = 24.dp, vertical = 18.dp)
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
                         .background(accentColor.copy(alpha = 0.15f))
-                        .border(1.dp, accentColor.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
+                        .border(1.dp, accentColor.copy(alpha = 0.4f), RoundedCornerShape(10.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = if (isExpired) "⏳" else "⛔",
-                        fontSize = 22.sp
+                        fontSize = 18.sp
                     )
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
                     text = title,
                     color = accentColor,
-                    fontSize = 20.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
                     text = message,
                     color = TextSecondary,
-                    fontSize = 13.sp,
-                    textAlign = TextAlign.Center
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 16.sp
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .background(BgSurfaceDark)
-                        .border(1.dp, BorderDark, RoundedCornerShape(10.dp))
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                        .border(1.dp, BorderDark, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = "SEU MAC: ",
                         color = TextSecondary,
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = mac,
                         color = TextPrimary,
-                        fontSize = 15.sp,
+                        fontSize = 14.sp,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                Spacer(modifier = Modifier.height(28.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TvTouchCard(
                         onClick = onRetry,
                         containerColor = accentColor,
                         focusedContainerColor = Color.White,
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                     ) { isFocused ->
                         Text(
                             text = "🔄 Verificar Novamente",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             color = Color.Black
                         )
                     }
@@ -147,13 +156,13 @@ fun BlockedOrExpiredScreen(
                         focusedContainerColor = Color.White,
                         border = BorderStroke(1.dp, BorderDark),
                         focusedBorder = BorderStroke(2.dp, Color.White),
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                     ) { isFocused ->
                         Text(
                             text = "✕ Fechar App",
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             color = if (isFocused) Color.Black else TextSecondary
                         )
                     }
