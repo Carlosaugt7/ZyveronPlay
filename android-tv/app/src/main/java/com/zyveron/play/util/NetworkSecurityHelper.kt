@@ -54,15 +54,16 @@ object NetworkSecurityHelper {
             .readTimeout(readTimeoutSec, TimeUnit.SECONDS)
             .sslSocketFactory(unsafeSslSocketFactory, unsafeTrustManager)
             .hostnameVerifier(unsafeHostnameVerifier)
+            .connectionPool(okhttp3.ConnectionPool(8, 5, TimeUnit.MINUTES))
             .connectionSpecs(
                 listOf(
-                    permissiveTlsSpec,
                     ConnectionSpec.MODERN_TLS,
                     ConnectionSpec.COMPATIBLE_TLS,
+                    permissiveTlsSpec,
                     ConnectionSpec.CLEARTEXT
                 )
             )
-            .protocols(listOf(Protocol.HTTP_1_1))
+            .protocols(listOf(Protocol.HTTP_2, Protocol.HTTP_1_1))
             .followRedirects(true)
             .followSslRedirects(true)
             .retryOnConnectionFailure(true)

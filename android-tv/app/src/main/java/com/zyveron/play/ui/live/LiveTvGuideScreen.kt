@@ -303,6 +303,24 @@ fun LiveTvGuideScreen(
                     }
                 }
 
+                // Ação para selecionar categoria e mover foco automaticamente para o 1º canal
+                val onSelectCategory: (String) -> Unit = { catId ->
+                    selectedCategoryId = catId
+                    selectedChannelIndex = 0
+                    scope.launch {
+                        try {
+                            channelListState.scrollToItem(0)
+                        } catch (_: Exception) {}
+                        for (attempt in 0..15) {
+                            delay(40)
+                            try {
+                                channelListFocusRequester.requestFocus()
+                                break
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+
                 // Grade de 3 Colunas: Categorias | Canais | Mini Player & EPG
                 Row(
                     modifier = Modifier
@@ -384,10 +402,7 @@ fun LiveTvGuideScreen(
                                     title = "★ Favoritos",
                                     count = favorites.size,
                                     isSelected = selectedCategoryId == "FAV",
-                                    onClick = {
-                                        selectedCategoryId = "FAV"
-                                        selectedChannelIndex = 0
-                                    }
+                                    onClick = { onSelectCategory("FAV") }
                                 )
                             }
 
@@ -398,10 +413,7 @@ fun LiveTvGuideScreen(
                                     count = allChannels.size,
                                     isSelected = selectedCategoryId == "ALL",
                                     modifier = Modifier.focusRequester(categoryAllFocusRequester),
-                                    onClick = {
-                                        selectedCategoryId = "ALL"
-                                        selectedChannelIndex = 0
-                                    }
+                                    onClick = { onSelectCategory("ALL") }
                                 )
                             }
 
@@ -411,10 +423,7 @@ fun LiveTvGuideScreen(
                                     title = "⏱️ Recém Adicionados",
                                     count = recentChannels.size,
                                     isSelected = selectedCategoryId == "RECENT",
-                                    onClick = {
-                                        selectedCategoryId = "RECENT"
-                                        selectedChannelIndex = 0
-                                    }
+                                    onClick = { onSelectCategory("RECENT") }
                                 )
                             }
 
@@ -424,10 +433,7 @@ fun LiveTvGuideScreen(
                                     title = "⚽ Guia de Jogos / Esportes",
                                     count = sportsChannels.size,
                                     isSelected = selectedCategoryId == "SPORTS",
-                                    onClick = {
-                                        selectedCategoryId = "SPORTS"
-                                        selectedChannelIndex = 0
-                                    }
+                                    onClick = { onSelectCategory("SPORTS") }
                                 )
                             }
 
@@ -454,10 +460,7 @@ fun LiveTvGuideScreen(
                                         title = cat.categoryName,
                                         count = channelCountByCat[cat.categoryId] ?: 0,
                                         isSelected = selectedCategoryId == cat.categoryId,
-                                        onClick = {
-                                            selectedCategoryId = cat.categoryId
-                                            selectedChannelIndex = 0
-                                        }
+                                        onClick = { onSelectCategory(cat.categoryId) }
                                     )
                                 }
                             }
@@ -485,10 +488,7 @@ fun LiveTvGuideScreen(
                                         title = cat.categoryName,
                                         count = channelCountByCat[cat.categoryId] ?: 0,
                                         isSelected = selectedCategoryId == cat.categoryId,
-                                        onClick = {
-                                            selectedCategoryId = cat.categoryId
-                                            selectedChannelIndex = 0
-                                        }
+                                        onClick = { onSelectCategory(cat.categoryId) }
                                     )
                                 }
                             }
@@ -516,10 +516,7 @@ fun LiveTvGuideScreen(
                                         title = cat.categoryName,
                                         count = channelCountByCat[cat.categoryId] ?: 0,
                                         isSelected = selectedCategoryId == cat.categoryId,
-                                        onClick = {
-                                            selectedCategoryId = cat.categoryId
-                                            selectedChannelIndex = 0
-                                        }
+                                        onClick = { onSelectCategory(cat.categoryId) }
                                     )
                                 }
                             }
@@ -547,10 +544,7 @@ fun LiveTvGuideScreen(
                                         title = cat.categoryName,
                                         count = channelCountByCat[cat.categoryId] ?: 0,
                                         isSelected = selectedCategoryId == cat.categoryId,
-                                        onClick = {
-                                            selectedCategoryId = cat.categoryId
-                                            selectedChannelIndex = 0
-                                        }
+                                        onClick = { onSelectCategory(cat.categoryId) }
                                     )
                                 }
                             }
@@ -581,9 +575,13 @@ fun LiveTvGuideScreen(
                                     val isSelected = index == selectedChannelIndex
                                     TvTouchCard(
                                         onClick = {
-                                            selectedChannelIndex = index
-                                            // 1 clique no canal -> Abre direto em Tela Cheia!
-                                            onOpenFullScreenPlayer(channel, displayedChannels, selectedCategoryId)
+                                            if (selectedChannelIndex != index) {
+                                                // Primeiro clique: seleciona o canal e exibe na prévia do mini-player
+                                                selectedChannelIndex = index
+                                            } else {
+                                                // Segundo clique no canal ativo na prévia: entra em tela cheia
+                                                onOpenFullScreenPlayer(channel, displayedChannels, selectedCategoryId)
+                                            }
                                         },
                                         onLongClick = {
                                             // Pressionar e segurar OK por 1.5s - 2s -> Favorita/desfavorita sem entrar em tela cheia!
