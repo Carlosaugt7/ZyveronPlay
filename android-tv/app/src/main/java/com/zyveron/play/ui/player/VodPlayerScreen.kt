@@ -228,7 +228,7 @@ fun VodPlayerScreen(
                     try { playPauseFocusRequester.requestFocus() } catch (_: Exception) {}
                 }
             }
-            .onKeyEvent { keyEvent ->
+            .onPreviewKeyEvent { keyEvent ->
                 if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                     markInteraction()
                     when (keyEvent.nativeKeyEvent.keyCode) {
@@ -242,15 +242,35 @@ fun VodPlayerScreen(
                                 true
                             }
                         }
-                        // Seta Esquerda do controle remoto -> Retrocede 10s
+                        // Seta Esquerda do controle remoto -> Retrocede 10s no primeiro clique
                         KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
                             seekRelative(-10_000L)
                             true
                         }
-                        // Seta Direita do controle remoto -> Avança 10s
+                        // Seta Direita do controle remoto -> Avança 10s no primeiro clique
                         KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
                             seekRelative(+10_000L)
                             true
+                        }
+                        // Seta Cima -> Próximo Episódio ou avança 30s
+                        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> {
+                            if (hasNextEpisode && onNextEpisode != null) {
+                                onNextEpisode.invoke()
+                                true
+                            } else {
+                                seekRelative(+30_000L)
+                                true
+                            }
+                        }
+                        // Seta Baixo -> Episódio Anterior ou volta 30s
+                        KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
+                            if (hasPreviousEpisode && onPreviousEpisode != null) {
+                                onPreviousEpisode.invoke()
+                                true
+                            } else {
+                                seekRelative(-30_000L)
+                                true
+                            }
                         }
                         // Botão Centro / OK -> Alterna Play / Pause ou Próximo Episódio
                         KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
@@ -265,20 +285,20 @@ fun VodPlayerScreen(
                                 true
                             }
                         }
-                        else -> {
-                            false
-                        }
+                        else -> false
                     }
                 } else false
             }
     ) {
-        // Player Surface (Media3 / ExoPlayer)
+        // Player Surface (Media3 / ExoPlayer) - nunca rouba foco do D-Pad
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     player = playerManager.getPlayer()
                     useController = false
                     keepScreenOn = true
+                    isFocusable = false
+                    isFocusableInTouchMode = false
                 }
             },
             modifier = Modifier.fillMaxSize()

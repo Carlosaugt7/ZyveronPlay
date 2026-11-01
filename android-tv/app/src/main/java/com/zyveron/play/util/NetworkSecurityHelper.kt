@@ -38,6 +38,13 @@ object NetworkSecurityHelper {
 
     val unsafeHostnameVerifier = HostnameVerifier { _, _ -> true }
 
+    private val permissiveTlsSpec by lazy {
+        ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
+            .allEnabledTlsVersions()
+            .allEnabledCipherSuites()
+            .build()
+    }
+
     fun createUnsafeOkHttpClient(
         connectTimeoutSec: Long = 15,
         readTimeoutSec: Long = 25
@@ -49,6 +56,7 @@ object NetworkSecurityHelper {
             .hostnameVerifier(unsafeHostnameVerifier)
             .connectionSpecs(
                 listOf(
+                    permissiveTlsSpec,
                     ConnectionSpec.MODERN_TLS,
                     ConnectionSpec.COMPATIBLE_TLS,
                     ConnectionSpec.CLEARTEXT
@@ -60,7 +68,9 @@ object NetworkSecurityHelper {
             .retryOnConnectionFailure(true)
             .addInterceptor { chain ->
                 val request = chain.request().newBuilder()
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                    .header("User-Agent", "IPTVSmartersPro")
+                    .header("Accept", "*/*")
+                    .header("Connection", "keep-alive")
                     .build()
                 chain.proceed(request)
             }

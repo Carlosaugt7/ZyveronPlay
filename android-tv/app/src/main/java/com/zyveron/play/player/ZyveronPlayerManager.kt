@@ -56,6 +56,8 @@ class ZyveronPlayerManager(private val context: Context) {
 
     private var currentStreamUrl: String? = null
     private var currentStreamTitle: String = ""
+    private var streamCandidates: List<String> = emptyList()
+    private var currentCandidateIndex: Int = 0
     private var reconnectAttempts = 0
     private val maxReconnectAttempts = 3
     private val backoffIntervals = listOf(1500L, 3000L, 6000L) // Decisão 1.A
@@ -89,7 +91,7 @@ class ZyveronPlayerManager(private val context: Context) {
 
             // 3. User-Agent e Headers customizados para contornar bloqueios HTTP 403
             val httpDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
-                .setUserAgent("ZyveronPlayTV/1.0 (Linux; Android TV; Media3 ExoPlayer)")
+                .setUserAgent("IPTVSmartersPro")
 
             val defaultDataSourceFactory = DefaultDataSource.Factory(context.applicationContext, httpDataSourceFactory)
 
@@ -145,15 +147,72 @@ class ZyveronPlayerManager(private val context: Context) {
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            Log.w("ZyveronPlayer", "Erro na reprodução (${error.errorCodeName}): ${error.message}")
-            handlePlaybackError(error.localizedMessage ?: "Erro na transmissão")
+            val causeDetail = error.cause?.localizedMessage ?: error.cause?.message ?: error.localizedMessage ?: error.errorCodeName
+            Log.w("ZyveronPlayer", "Erro na reprodução (${error.errorCodeName}): ${error.message} [Causa: $causeDetail]")
+            handlePlaybackError(causeDetail)
         }
+    }
+
+    private fun generateStreamCandidates(rawUrl: String): List<String> {
+        val candidates = mutableListOf<String>()
+        val primary = UrlHelper.normalizeUrl(rawUrl)
+        if (primary.isNotBlank()) candidates.add(primary)
+
+        // 1. Fallback alternando entre HTTPS e HTTP
+        if (primary.startsWith("https://", ignoreCase = true)) {
+            val httpUrl = primary.replaceFirst("https://", "http://", ignoreCase = true)
+            if (!candidates.contains(httpUrl)) candidates.add(httpUrl)
+        } else if (primary.startsWith("http://", ignoreCase = true)) {
+            val httpsUrl = primary.replaceFirst("http://", "https://", ignoreCase = true)
+            if (!candidates.contains(httpsUrl)) candidates.add(httpsUrl)
+        }
+
+        // 2. Fallback de extensão de container (.ts <-> .m3u8)
+        val extVariants = mutableListOf<String>()
+        for (c in candidates) {
+            if (c.endsWith(".ts", ignoreCase = true)) {
+                extVariants.add(c.substringBeforeLast(".ts") + ".m3u8")
+            } else if (c.endsWith(".m3u8", ignoreCase = true)) {
+                extVariants.add(c.substringBeforeLast(".m3u8") + ".ts")
+            }
+        }
+        for (v in extVariants) {
+            if (!candidates.contains(v)) candidates.add(v)
+        }
+
+        return candidates
     }
 
     /**
      * Executa a decisão 1.A: Reconexão gradual silenciosa com Exponential Backoff
+     * e rotação inteligente de protocolo/esquema (HTTPS/HTTP e TS/M3U8).
      */
     private fun handlePlaybackError(errorMsg: String) {
+        // Tenta primeiro os candidatos alternativos (ex: https -> http, ts -> m3u8)
+        if (currentCandidateIndex + 1 < streamCandidates.size) {
+            currentCandidateIndex++
+            val nextUrl = streamCandidates[currentCandidateIndex]
+            Log.w("ZyveronPlayer", "Falha no canal. Tentando rota alternativa ($currentCandidateIndex/${streamCandidates.size}): $nextUrl")
+            _playbackState.value = PlaybackState.Buffering
+            reconnectJob?.cancel()
+            reconnectJob = scope.launch {
+                delay(600)
+                try {
+                    val player = getPlayer()
+                    player.stop()
+                    val mediaItem = MediaItem.fromUri(Uri.parse(nextUrl))
+                    player.setMediaItem(mediaItem)
+                    player.prepare()
+                    player.playWhenReady = true
+                } catch (e: Exception) {
+                    Log.e("ZyveronPlayer", "Erro ao alternar para rota alternativa", e)
+                    handlePlaybackError(e.localizedMessage ?: errorMsg)
+                }
+            }
+            return
+        }
+
+        // Se todos os candidatos falharam, realiza reconexão gradual com Exponential Backoff
         if (reconnectAttempts < maxReconnectAttempts && !currentStreamUrl.isNullOrBlank()) {
             reconnectAttempts++
             val delayMs = backoffIntervals.getOrElse(reconnectAttempts - 1) { 5000L }
@@ -181,8 +240,11 @@ class ZyveronPlayerManager(private val context: Context) {
             currentStreamUrl = url
             currentStreamTitle = title
 
-            val normalizedUrl = UrlHelper.normalizeUrl(url)
-            if (normalizedUrl.isBlank()) {
+            streamCandidates = generateStreamCandidates(url)
+            currentCandidateIndex = 0
+
+            val targetUrl = streamCandidates.getOrElse(0) { UrlHelper.normalizeUrl(url) }
+            if (targetUrl.isBlank()) {
                 Log.w("ZyveronPlayer", "URL vazia ou não configurada para stream.")
                 _playbackState.value = PlaybackState.Error(
                     message = "Servidor ou canal não configurado no painel web.",
@@ -197,14 +259,14 @@ class ZyveronPlayerManager(private val context: Context) {
             player.stop()
 
             val mediaItem = MediaItem.Builder()
-                .setUri(Uri.parse(normalizedUrl))
-                .setMediaId(normalizedUrl)
+                .setUri(Uri.parse(targetUrl))
+                .setMediaId(targetUrl)
                 .build()
 
             player.setMediaItem(mediaItem)
             player.prepare()
             player.playWhenReady = true
-            Log.d("ZyveronPlayer", "Iniciando canal: $title [$normalizedUrl]")
+            Log.d("ZyveronPlayer", "Iniciando canal: $title [$targetUrl] (Candidato 1/${streamCandidates.size})")
         } catch (e: Exception) {
             Log.e("ZyveronPlayer", "Erro ao executar playStream", e)
             _playbackState.value = PlaybackState.Error(
@@ -217,7 +279,9 @@ class ZyveronPlayerManager(private val context: Context) {
     fun retryCurrentStream() {
         try {
             val rawUrl = currentStreamUrl ?: return
-            val url = UrlHelper.normalizeUrl(rawUrl)
+            streamCandidates = generateStreamCandidates(rawUrl)
+            currentCandidateIndex = 0
+            val url = streamCandidates.firstOrNull() ?: UrlHelper.normalizeUrl(rawUrl)
             if (url.isBlank()) return
             _playbackState.value = PlaybackState.Buffering
             val player = getPlayer()

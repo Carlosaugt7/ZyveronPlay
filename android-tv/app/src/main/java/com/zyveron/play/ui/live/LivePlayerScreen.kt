@@ -219,7 +219,7 @@ fun LivePlayerScreen(
                     try { osdButtonsFocusRequester.requestFocus() } catch (_: Exception) {}
                 }
             }
-            .onKeyEvent { keyEvent ->
+            .onPreviewKeyEvent { keyEvent ->
                 if (keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                     when (keyEvent.nativeKeyEvent.keyCode) {
                         KeyEvent.KEYCODE_BACK -> {
@@ -236,7 +236,7 @@ fun LivePlayerScreen(
                             }
                         }
                         // Zapping com UM clique: setas Cima/Baixo trocam canal DIRETAMENTE
-                        KeyEvent.KEYCODE_DPAD_UP -> {
+                        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> {
                             if (!showChannelList) {
                                 if (channels.isNotEmpty()) {
                                     currentChannelIndex = if (currentChannelIndex > 0) currentChannelIndex - 1 else channels.size - 1
@@ -245,7 +245,7 @@ fun LivePlayerScreen(
                                 true
                             } else false
                         }
-                        KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
                             if (!showChannelList) {
                                 if (channels.isNotEmpty()) {
                                     currentChannelIndex = (currentChannelIndex + 1) % channels.size
@@ -272,15 +272,12 @@ fun LivePlayerScreen(
                                 true
                             } else false
                         }
-                        else -> {
-                            markInteraction()
-                            false
-                        }
+                        else -> false
                     }
                 } else false
             }
     ) {
-        // 1. Superfície do Player (Media3 / ExoPlayer)
+        // 1. Superfície do Player (Media3 / ExoPlayer) - nunca rouba foco do D-Pad
         AndroidView(
             factory = { ctx ->
                 try {
@@ -288,6 +285,8 @@ fun LivePlayerScreen(
                         player = playerManager.getPlayer()
                         useController = false
                         keepScreenOn = true
+                        isFocusable = false
+                        isFocusableInTouchMode = false
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("LivePlayerScreen", "Erro ao inicializar PlayerView", e)

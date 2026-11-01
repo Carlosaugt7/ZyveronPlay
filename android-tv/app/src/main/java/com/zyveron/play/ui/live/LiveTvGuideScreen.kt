@@ -690,6 +690,8 @@ fun LiveTvGuideScreen(
                                             player = playerManager.getPlayer()
                                             useController = false
                                             keepScreenOn = true
+                                            isFocusable = false
+                                            isFocusableInTouchMode = false
                                         }
                                     },
                                     modifier = Modifier.fillMaxSize()
