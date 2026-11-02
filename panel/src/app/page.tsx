@@ -36,10 +36,10 @@ export default function DashboardPage() {
   const [quickDnsSuccess, setQuickDnsSuccess] = useState(false);
 
   // Estado para Atualização OTA do APK da TV
-  const [otaVersionCode, setOtaVersionCode] = useState(13);
-  const [otaVersionName, setOtaVersionName] = useState("2.8.3");
+  const [otaVersionCode, setOtaVersionCode] = useState(14);
+  const [otaVersionName, setOtaVersionName] = useState("2.8.4");
   const [otaApkUrl, setOtaApkUrl] = useState("https://github.com/Carlosaugt7/ZyveronPlay/raw/main/zyveron-play-tv.apk");
-  const [otaNotes, setOtaNotes] = useState("Atualização de estabilidade, resolução de DNS e novo sistema de atualização OTA in-app.");
+  const [otaNotes, setOtaNotes] = useState("Correção definitiva de conexão de servidores, cache offline resiliente e estabilidade total.");
   const [otaSavedSuccess, setOtaSavedSuccess] = useState(false);
 
   const loadData = () => {
@@ -78,8 +78,8 @@ export default function DashboardPage() {
     loadData();
     FirestoreSync.fetchAppUpdate().then((info) => {
       if (info) {
-        setOtaVersionCode(info.versionCode || 13);
-        setOtaVersionName(info.versionName || "2.8.3");
+        setOtaVersionCode(info.versionCode || 14);
+        setOtaVersionName(info.versionName || "2.8.4");
         setOtaApkUrl(info.apkUrl || "https://github.com/Carlosaugt7/ZyveronPlay/raw/main/zyveron-play-tv.apk");
         setOtaNotes(info.releaseNotes || "");
       }
@@ -387,7 +387,7 @@ export default function DashboardPage() {
                   type="text"
                   value={otaVersionName}
                   onChange={(e) => setOtaVersionName(e.target.value)}
-                  placeholder="2.8.3"
+                  placeholder="2.8.4"
                   className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
                   required
                 />

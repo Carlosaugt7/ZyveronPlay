@@ -90,7 +90,6 @@ class FirestoreDeviceManager(private val context: Context) {
     private var deviceListener: ListenerRegistration? = null
     private var serverListener: ListenerRegistration? = null
     private var notificationsListener: ListenerRegistration? = null
-    private var heartbeatJob: Job? = null
 
     private var currentServerId: String = ""
     private var currentServerId2: String = ""
@@ -112,7 +111,10 @@ class FirestoreDeviceManager(private val context: Context) {
     fun startListening() {
         Log.d("FirestoreDeviceManager", "Iniciando monitoramento para MAC: $virtualMac")
         
-        // 1. Escuta mudanças em tempo real no documento do Aparelho (MAC)
+        // 1. Carrega imediatamente dados em cache local para inicialização instantânea e offline resiliente
+        loadCachedActiveState()
+
+        // 2. Escuta mudanças em tempo real no documento do Aparelho (MAC)
         deviceListener = firestore.collection("devices").document(virtualMac)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -122,6 +124,7 @@ class FirestoreDeviceManager(private val context: Context) {
 
                 if (snapshot == null || !snapshot.exists()) {
                     // Aparelho ainda não cadastrado no painel web
+                    clearCachedActiveState()
                     _authState.value = DeviceAuthState.Unregistered(virtualMac, deviceKey)
                     return@addSnapshotListener
                 }
@@ -129,9 +132,6 @@ class FirestoreDeviceManager(private val context: Context) {
                 latestSnapshot = snapshot
                 processSnapshot(snapshot)
             }
-
-        // 2. Inicia heartbeat de presença online (resiliente, não quebra nenhum código)
-        startHeartbeat()
 
         // 3. Escuta notificações e avisos em tempo real para exibir na TV
         listenToBroadcastMessages()
@@ -227,17 +227,11 @@ class FirestoreDeviceManager(private val context: Context) {
             )
         }
 
-        if (playlists.isEmpty()) {
-            playlists.add(
-                PlaylistAccount(
-                    listIndex = 1,
-                    serverName = "Servidor 1",
-                    serverDns = effectiveDns1,
-                    username = username,
-                    password = password,
-                    expirationDate = expDateStr
-                )
-            )
+        if (playlists.isEmpty() || (effectiveDns1.isBlank() && effectiveDns2.isBlank())) {
+            Log.w("FirestoreDeviceManager", "Aparelho $virtualMac sem dados completos de ativação. Exibindo tela de ativação.")
+            clearCachedActiveState()
+            _authState.value = DeviceAuthState.Unregistered(virtualMac, deviceKey)
+            return
         }
 
         val safeIndex = if (selectedPlaylistIndex in playlists.indices) selectedPlaylistIndex else 0
@@ -251,6 +245,19 @@ class FirestoreDeviceManager(private val context: Context) {
 
         val targetServerId = if (safeIndex == 0) serverId else serverId2
 
+        val activeState = DeviceAuthState.Active(
+            mac = virtualMac,
+            serverName = activeAccount.serverName,
+            serverDns = activeAccount.serverDns,
+            fallbackDns = emptyList(),
+            username = activeAccount.username,
+            password = activeAccount.password,
+            expirationDate = activeAccount.expirationDate,
+            playlists = playlists,
+            activePlaylistIndex = safeIndex
+        )
+        saveCachedActiveState(activeState)
+
         // Se já temos um estado ativo idêntico para a mesma playlist, não gera emissão espúria
         val current = _authState.value
         val shouldEmitDirect = current !is DeviceAuthState.Active ||
@@ -259,17 +266,7 @@ class FirestoreDeviceManager(private val context: Context) {
                 current.serverDns != activeAccount.serverDns
 
         if (shouldEmitDirect) {
-            _authState.value = DeviceAuthState.Active(
-                mac = virtualMac,
-                serverName = activeAccount.serverName,
-                serverDns = activeAccount.serverDns,
-                fallbackDns = emptyList(),
-                username = activeAccount.username,
-                password = activeAccount.password,
-                expirationDate = activeAccount.expirationDate,
-                playlists = playlists,
-                activePlaylistIndex = safeIndex
-            )
+            _authState.value = activeState
         }
 
         if (targetServerId.isNotEmpty()) {
@@ -312,7 +309,11 @@ class FirestoreDeviceManager(private val context: Context) {
 
                 val activeServerName = snapshot?.getString("name")?.takeIf { it.isNotBlank() } ?: fallbackServerName
                 val rawDns = extractDns(snapshot, "activeDns", "serverDns", "dns", "url", "server_dns", "serverUrl")
-                val activeDns = rawDns.ifBlank { fallbackDnsUrl }
+                if (rawDns.isBlank()) {
+                    // Mantém o DNS atual configurado no aparelho, nunca sobrescreve com vazio
+                    return@addSnapshotListener
+                }
+                val activeDns = rawDns
                 @Suppress("UNCHECKED_CAST")
                 val fallbackDns = (snapshot?.get("fallbackDns") as? List<String>) ?: emptyList()
 
@@ -332,7 +333,7 @@ class FirestoreDeviceManager(private val context: Context) {
                         pl.copy(serverName = activeServerName, serverDns = activeDns)
                     } else pl
                 }
-                _authState.value = DeviceAuthState.Active(
+                val updatedState = DeviceAuthState.Active(
                     mac = virtualMac,
                     serverName = activeServerName,
                     serverDns = activeDns,
@@ -343,6 +344,8 @@ class FirestoreDeviceManager(private val context: Context) {
                     playlists = updatedPlaylists,
                     activePlaylistIndex = activePlaylistIndex
                 )
+                saveCachedActiveState(updatedState)
+                _authState.value = updatedState
             }
     }
 
@@ -418,6 +421,7 @@ class FirestoreDeviceManager(private val context: Context) {
     fun disconnectDevice(onComplete: () -> Unit = {}) {
         try {
             stopListening()
+            clearCachedActiveState()
             _authState.value = DeviceAuthState.Unregistered(virtualMac, deviceKey)
             onComplete()
         } catch (e: Exception) {
@@ -430,7 +434,6 @@ class FirestoreDeviceManager(private val context: Context) {
     }
 
     fun stopListening() {
-        stopHeartbeat()
         deviceListener?.remove()
         serverListener?.remove()
         notificationsListener?.remove()
@@ -438,44 +441,68 @@ class FirestoreDeviceManager(private val context: Context) {
         lastProcessedSignature = null
     }
 
-    private fun startHeartbeat() {
-        heartbeatJob?.cancel()
-        heartbeatJob = scope.launch {
-            while (isActive) {
-                try {
-                    val update = mapOf(
-                        "isOnline" to true,
-                        "lastSeen" to System.currentTimeMillis(),
-                        "lastSeenIso" to SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-                            timeZone = TimeZone.getTimeZone("UTC")
-                        }.format(Date()),
-                        "appVersion" to "2.8.3"
-                    )
-                    firestore.collection("devices").document(virtualMac)
-                        .set(update, SetOptions.merge())
-                } catch (e: Exception) {
-                    Log.w("FirestoreDeviceManager", "Heartbeat silencioso ignorado: ${e.message}")
-                }
-                delay(45_000)
-            }
+    private fun saveCachedActiveState(state: DeviceAuthState.Active) {
+        try {
+            prefs.edit()
+                .putString("cached_server_name", state.serverName)
+                .putString("cached_server_dns", state.serverDns)
+                .putString("cached_username", state.username)
+                .putString("cached_password", state.password)
+                .putString("cached_exp_date", state.expirationDate)
+                .putInt("cached_playlist_idx", state.activePlaylistIndex)
+                .apply()
+        } catch (e: Exception) {
+            Log.e("FirestoreDeviceManager", "Erro ao salvar cache de autenticacao", e)
         }
     }
 
-    private fun stopHeartbeat() {
-        heartbeatJob?.cancel()
-        heartbeatJob = null
-        scope.launch {
-            try {
-                firestore.collection("devices").document(virtualMac)
-                    .set(
-                        mapOf(
-                            "isOnline" to false,
-                            "lastSeen" to System.currentTimeMillis()
-                        ),
-                        SetOptions.merge()
-                    )
-            } catch (_: Exception) {}
+    private fun loadCachedActiveState(): Boolean {
+        try {
+            val serverDns = prefs.getString("cached_server_dns", "") ?: ""
+            val username = prefs.getString("cached_username", "") ?: ""
+            val password = prefs.getString("cached_password", "") ?: ""
+            val serverName = prefs.getString("cached_server_name", "Lista Principal") ?: "Lista Principal"
+            val expDate = prefs.getString("cached_exp_date", "") ?: ""
+            val activeIdx = prefs.getInt("cached_playlist_idx", 0)
+
+            if (serverDns.isNotBlank() && username.isNotBlank()) {
+                val cachedPlaylist = PlaylistAccount(
+                    listIndex = 1,
+                    serverName = serverName,
+                    serverDns = serverDns,
+                    username = username,
+                    password = password,
+                    expirationDate = expDate
+                )
+                _authState.value = DeviceAuthState.Active(
+                    mac = virtualMac,
+                    serverName = serverName,
+                    serverDns = serverDns,
+                    fallbackDns = emptyList(),
+                    username = username,
+                    password = password,
+                    expirationDate = expDate,
+                    playlists = listOf(cachedPlaylist),
+                    activePlaylistIndex = activeIdx
+                )
+                return true
+            }
+        } catch (e: Exception) {
+            Log.e("FirestoreDeviceManager", "Erro ao carregar cache de autenticacao", e)
         }
+        return false
+    }
+
+    private fun clearCachedActiveState() {
+        try {
+            prefs.edit()
+                .remove("cached_server_name")
+                .remove("cached_server_dns")
+                .remove("cached_username")
+                .remove("cached_password")
+                .remove("cached_exp_date")
+                .apply()
+        } catch (_: Exception) {}
     }
 
     private fun isExpired(dateStr: String): Boolean {

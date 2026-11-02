@@ -74,49 +74,16 @@ class LocalStore {
         if (d.mac) fsMap.set(d.mac.trim().toUpperCase(), d);
       });
 
-      // Mescla com os dados locais preservando alterações mais recentes
+      // Mescla em memória com dados locais sem disparar writes em loop no Firestore
       this.devices.forEach(localDev => {
         const cleanMac = localDev.mac.trim().toUpperCase();
-        const remoteDev = fsMap.get(cleanMac);
-        if (!remoteDev) {
+        if (!fsMap.has(cleanMac)) {
           fsMap.set(cleanMac, localDev);
-          FirestoreSync.syncDeviceToFirestore(localDev);
-        } else {
-          // Se a alteração local for mais recente que o snapshot remoto, mantém o local e atualiza o remoto
-          const localTime = new Date(localDev.updatedAt || localDev.createdAt || 0).getTime();
-          const remoteTime = new Date(remoteDev.updatedAt || remoteDev.createdAt || 0).getTime();
-          if (localTime > remoteTime) {
-            fsMap.set(cleanMac, { ...remoteDev, ...localDev });
-            FirestoreSync.syncDeviceToFirestore(localDev);
-          }
         }
       });
 
       const merged = Array.from(fsMap.values());
       merged.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
-
-      // Auto-heal: recupera e corrige aparelhos com Lista 2 ativa cujo serverDns2 esteja em branco
-      merged.forEach(dev => {
-        let changed = false;
-        if (dev.username2 && (!dev.serverDns2 || dev.serverDns2.trim() === "")) {
-          const s2 = this.servers.find(s => s.id === dev.serverId2);
-          const recovered = s2?.activeDns ? normalizeDnsUrl(s2.activeDns) : (dev.serverDns ? normalizeDnsUrl(dev.serverDns) : "");
-          if (recovered) {
-            dev.serverDns2 = recovered;
-            changed = true;
-          }
-        }
-        if (!dev.serverDns && dev.serverId) {
-          const s1 = this.servers.find(s => s.id === dev.serverId);
-          if (s1?.activeDns) {
-            dev.serverDns = normalizeDnsUrl(s1.activeDns);
-            changed = true;
-          }
-        }
-        if (changed) {
-          FirestoreSync.syncDeviceToFirestore(dev);
-        }
-      });
 
       this.devices = merged;
       this.save();
@@ -133,7 +100,6 @@ class LocalStore {
       this.servers.forEach(localSrv => {
         if (!fsMap.has(localSrv.id)) {
           fsMap.set(localSrv.id, localSrv);
-          FirestoreSync.syncServerToFirestore(localSrv);
         }
       });
 
@@ -151,9 +117,8 @@ class LocalStore {
             u.name?.toLowerCase().includes("super admin") ||
             u.name?.toLowerCase().includes("administrador") ||
             u.email?.toLowerCase().includes("admin");
-          if (isSuper && u.role !== "superadmin") {
+          if (isSuper) {
             u.role = "superadmin";
-            FirestoreSync.syncUserToFirestore(u);
           }
           fsMap.set(u.uid, u);
         }
@@ -162,17 +127,13 @@ class LocalStore {
       this.users.forEach(localUser => {
         if (!fsMap.has(localUser.uid)) {
           fsMap.set(localUser.uid, localUser);
-          FirestoreSync.syncUserToFirestore(localUser);
-        } else {
-          const remote = fsMap.get(localUser.uid)!;
-          const localTime = new Date(localUser.updatedAt || localUser.createdAt || 0).getTime();
-          const remoteTime = new Date(remote.updatedAt || remote.createdAt || 0).getTime();
-          if (localTime > remoteTime) {
-            fsMap.set(localUser.uid, { ...remote, ...localUser });
-            FirestoreSync.syncUserToFirestore(localUser);
-          }
         }
       });
+
+      this.users = Array.from(fsMap.values());
+      this.save();
+      this.notify();
+    });
 
       this.users = Array.from(fsMap.values());
       this.save();
