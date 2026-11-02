@@ -44,7 +44,7 @@ export default function ResellersPage() {
   const [editEmailInput, setEditEmailInput] = useState("");
   const [editPasswordInput, setEditPasswordInput] = useState("");
   const [showEditPassword, setShowEditPassword] = useState(false);
-  const [editRoleInput, setEditRoleInput] = useState<"reseller" | "sub_reseller">("reseller");
+  const [editRoleInput, setEditRoleInput] = useState<UserRole>("reseller");
   const [editCreditsInput, setEditCreditsInput] = useState(0);
   const [editStatusInput, setEditStatusInput] = useState<"active" | "blocked">("active");
   const [editErrorMsg, setEditErrorMsg] = useState("");
@@ -105,7 +105,7 @@ export default function ResellersPage() {
     setEditEmailInput(targetUser.email);
     setEditPasswordInput(targetUser.password || "");
     setShowEditPassword(false);
-    setEditRoleInput(targetUser.role === "sub_reseller" ? "sub_reseller" : "reseller");
+    setEditRoleInput(targetUser.role || "reseller");
     setEditCreditsInput(targetUser.credits || 0);
     setEditStatusInput(targetUser.status || "active");
     setEditErrorMsg("");
@@ -456,7 +456,10 @@ export default function ResellersPage() {
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
                     >
                       {user?.role === "superadmin" && (
-                        <option value="reseller">Revenda Master</option>
+                        <>
+                          <option value="superadmin">Super Admin (Acesso Total)</option>
+                          <option value="reseller">Revenda Master</option>
+                        </>
                       )}
                       <option value="sub_reseller">Sub-Revenda</option>
                     </select>
@@ -576,6 +579,7 @@ export default function ResellersPage() {
                       onChange={(e) => setEditRoleInput(e.target.value as any)}
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-sky-500"
                     >
+                      <option value="superadmin">Super Admin (Acesso Total)</option>
                       <option value="reseller">Revenda Master</option>
                       <option value="sub_reseller">Sub-Revenda</option>
                     </select>

@@ -42,3 +42,4 @@
 - [ ] Copiar para `zyveron-play-tv.apk`.
 - [ ] Testar comandos e sincronização.
 - [ ] Commit e Push para `origin/main`.
+

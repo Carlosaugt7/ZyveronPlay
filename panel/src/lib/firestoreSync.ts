@@ -5,6 +5,7 @@ import {
   setDoc, 
   updateDoc, 
   deleteDoc, 
+  getDoc,
   getDocs, 
   onSnapshot 
 } from "firebase/firestore";

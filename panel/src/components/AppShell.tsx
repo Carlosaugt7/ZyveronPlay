@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Sidebar } from "@/components/Sidebar";
 import { LoginView } from "@/components/LoginView";
@@ -9,6 +9,12 @@ import { Menu, Tv } from "lucide-react";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleToggle = () => setIsMobileMenuOpen((prev) => !prev);
+    window.addEventListener("toggle-mobile-sidebar", handleToggle);
+    return () => window.removeEventListener("toggle-mobile-sidebar", handleToggle);
+  }, []);
 
   if (loading) {
     return (

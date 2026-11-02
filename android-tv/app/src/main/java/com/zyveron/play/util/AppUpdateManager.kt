@@ -206,3 +206,4 @@ object AppUpdateManager {
         }
     }
 }
+

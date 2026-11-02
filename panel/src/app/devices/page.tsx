@@ -313,22 +313,6 @@ export default function DevicesPage() {
     }
   };
 
-  const isDeviceOnline = (dev: DeviceDocument): boolean => {
-    if (dev.isOnline === false) return false;
-    if (!dev.lastSeen && !dev.lastSeenIso) return false;
-    const now = Date.now();
-    let lastSeenTime = 0;
-    if (typeof dev.lastSeen === "number") {
-      lastSeenTime = dev.lastSeen;
-    } else if (typeof dev.lastSeen === "string") {
-      lastSeenTime = new Date(dev.lastSeen).getTime();
-    } else if (dev.lastSeenIso) {
-      lastSeenTime = new Date(dev.lastSeenIso).getTime();
-    }
-    if (isNaN(lastSeenTime) || lastSeenTime <= 0) return false;
-    return now - lastSeenTime <= 120_000; // Online nos últimos 2 minutos
-  };
-
   // Filtros
   const filteredDevices = devices.filter((dev) => {
     const matchesSearch =
@@ -425,11 +409,8 @@ export default function DevicesPage() {
                       <tr key={dev.id} className="hover:bg-zinc-900/50 transition">
                         <td className="py-3.5 px-3">
                           <div className="flex items-center gap-2.5">
-                            <div className="relative">
-                              <Tv className={`w-4 h-4 ${isDeviceOnline(dev) ? "text-emerald-400" : "text-zinc-500"}`} />
-                              {isDeviceOnline(dev) && (
-                                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#0c121a] animate-pulse"></span>
-                              )}
+                            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                              <Tv className="w-4 h-4 text-emerald-400" />
                             </div>
                             <div>
                               <p className="font-mono font-bold text-white">{dev.mac}</p>
@@ -495,30 +476,18 @@ export default function DevicesPage() {
                           </p>
                         </td>
                         <td className="py-3.5 px-3">
-                          <div className="flex flex-col gap-1 items-start">
+                          <div className="flex items-center">
                             {dev.status === "blocked" ? (
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
                                 Bloqueado
                               </span>
                             ) : isExpired ? (
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
                                 Vencido
                               </span>
                             ) : (
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                                 Ativo
-                              </span>
-                            )}
-
-                            {isDeviceOnline(dev) ? (
-                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" title="Aparelho ligado e transmitindo agora">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                                Online (Em uso)
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-medium bg-zinc-900 text-zinc-500 border border-zinc-800" title="Aparelho em repouso ou desligado">
-                                <span className="w-1.5 h-1.5 rounded-full bg-zinc-600"></span>
-                                Desligado
                               </span>
                             )}
                           </div>

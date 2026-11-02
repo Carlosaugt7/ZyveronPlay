@@ -146,7 +146,17 @@ class LocalStore {
     FirestoreSync.subscribeToUsers((firestoreUsers) => {
       const fsMap = new Map<string, UserDocument>();
       firestoreUsers.forEach(u => {
-        if (u.uid) fsMap.set(u.uid, u);
+        if (u.uid) {
+          const isSuper =
+            u.name?.toLowerCase().includes("super admin") ||
+            u.name?.toLowerCase().includes("administrador") ||
+            u.email?.toLowerCase().includes("admin");
+          if (isSuper && u.role !== "superadmin") {
+            u.role = "superadmin";
+            FirestoreSync.syncUserToFirestore(u);
+          }
+          fsMap.set(u.uid, u);
+        }
       });
 
       this.users.forEach(localUser => {
@@ -187,7 +197,18 @@ class LocalStore {
       const s = localStorage.getItem("zyveron_servers");
       if (s) this.servers = JSON.parse(s);
       const u = localStorage.getItem("zyveron_users");
-      if (u) this.users = JSON.parse(u);
+      if (u) {
+        this.users = JSON.parse(u);
+        this.users.forEach(usr => {
+          if (
+            usr.name?.toLowerCase().includes("super admin") ||
+            usr.name?.toLowerCase().includes("administrador") ||
+            usr.email?.toLowerCase().includes("admin")
+          ) {
+            usr.role = "superadmin";
+          }
+        });
+      }
       const d = localStorage.getItem("zyveron_devices");
       if (d) this.devices = JSON.parse(d);
       const l = localStorage.getItem("zyveron_logs");
@@ -216,7 +237,16 @@ class LocalStore {
   // --- SERVIDORES & DNS EM MASSA ---
   getServers(userRole?: UserRole, userId?: string): ServerDocument[] {
     this.init();
-    if (!userRole || userRole === "superadmin") {
+    const currentUser = userId ? this.users.find(u => u.uid === userId) : null;
+    const isSuper =
+      !userRole ||
+      userRole === "superadmin" ||
+      currentUser?.role === "superadmin" ||
+      currentUser?.name?.toLowerCase().includes("super admin") ||
+      currentUser?.name?.toLowerCase().includes("administrador") ||
+      currentUser?.email?.toLowerCase().includes("admin");
+
+    if (isSuper) {
       return [...this.servers];
     }
     // Isolamento estrito: Revenda e Sub-revenda gerenciam apenas os servidores cadastrados por elas
@@ -335,7 +365,15 @@ class LocalStore {
   // --- APARELHOS (MACS) & ATIVAÇÃO COM CRÉDITOS ---
   getDevices(userRole: UserRole, userId: string): DeviceDocument[] {
     this.init();
-    if (userRole === "superadmin") {
+    const currentUser = this.users.find(u => u.uid === userId);
+    const isSuper =
+      userRole === "superadmin" ||
+      currentUser?.role === "superadmin" ||
+      currentUser?.name?.toLowerCase().includes("super admin") ||
+      currentUser?.name?.toLowerCase().includes("administrador") ||
+      currentUser?.email?.toLowerCase().includes("admin");
+
+    if (isSuper) {
       return [...this.devices];
     }
     // Revenda vê seus dispositivos e os dispositivos de suas sub-revendas
@@ -609,7 +647,15 @@ class LocalStore {
   // --- REVENDAS & CRÉDITOS ---
   getUsers(userRole: UserRole, userId: string): UserDocument[] {
     this.init();
-    if (userRole === "superadmin") {
+    const currentUser = this.users.find(u => u.uid === userId);
+    const isSuper =
+      userRole === "superadmin" ||
+      currentUser?.role === "superadmin" ||
+      currentUser?.name?.toLowerCase().includes("super admin") ||
+      currentUser?.name?.toLowerCase().includes("administrador") ||
+      currentUser?.email?.toLowerCase().includes("admin");
+
+    if (isSuper) {
       return [...this.users];
     }
     // Revenda vê apenas suas sub-revendas
@@ -718,7 +764,7 @@ class LocalStore {
       name?: string;
       email?: string;
       password?: string;
-      role?: "reseller" | "sub_reseller";
+      role?: UserRole;
       credits?: number;
       status?: "active" | "blocked";
     }
