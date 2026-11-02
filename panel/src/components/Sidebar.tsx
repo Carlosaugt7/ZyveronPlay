@@ -34,7 +34,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const navigation = [
     { name: "Visão Geral", href: "/", icon: LayoutDashboard, show: true },
     { name: "Aparelhos (MACs)", href: "/devices", icon: Tv, show: true },
-    { name: "Servidores & DNS", href: "/servers", icon: Server, show: isSuperAdmin },
+    { name: "Servidores & DNS", href: "/servers", icon: Server, show: true },
     { name: "Revendas & Saldo", href: "/resellers", icon: Users, show: true },
     { name: "Mensagens na TV", href: "/messages", icon: MessageSquare, show: true },
     { name: "Auditoria de Créditos", href: "/logs", icon: History, show: true },

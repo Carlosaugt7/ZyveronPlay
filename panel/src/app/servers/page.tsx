@@ -42,7 +42,8 @@ export default function ServersPage() {
   const [targetServerId, setTargetServerId] = useState("");
 
   const loadData = () => {
-    const s = store.getServers();
+    if (!user) return;
+    const s = store.getServers(user.role, user.uid);
     setServers(s);
   };
 
@@ -52,23 +53,40 @@ export default function ServersPage() {
       loadData();
     });
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   const handleAddServer = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nameInput.trim() || !activeDnsInput.trim()) return;
+    if (!nameInput.trim() || !activeDnsInput.trim() || !user) return;
     const fallbacks = fallbackInput
       .split("\n")
       .map((f) => f.trim())
       .filter((f) => f.length > 0);
 
-    store.addServer(nameInput.trim(), activeDnsInput.trim(), fallbacks, notesInput.trim());
+    store.addServer(
+      nameInput.trim(),
+      activeDnsInput.trim(),
+      fallbacks,
+      notesInput.trim(),
+      { uid: user.uid, name: user.name, role: user.role }
+    );
     setIsAddModalOpen(false);
     setNameInput("");
     setActiveDnsInput("");
     setFallbackInput("");
     setNotesInput("");
     loadData();
+  };
+
+  const handleDeleteServer = (srv: ServerDocument) => {
+    if (confirm(`Deseja realmente excluir o servidor "${srv.name}"?`)) {
+      try {
+        store.deleteServer(srv.id);
+        loadData();
+      } catch (err: any) {
+        alert(err.message || "Erro ao excluir servidor.");
+      }
+    }
   };
 
   const handleOpenDnsModal = (srv: ServerDocument) => {
@@ -154,66 +172,100 @@ export default function ServersPage() {
         </div>
 
         {/* Lista de Servidores */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {servers.map((srv) => (
-            <div
-              key={srv.id}
-              className="p-5 rounded-2xl bg-[#0c121a] border border-zinc-800/80 hover:border-zinc-700 transition flex flex-col justify-between space-y-4 shadow-sm"
-            >
-              <div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                      <Server className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-white">{srv.name}</h4>
-                      <p className="text-[10px] text-zinc-300 font-mono">{srv.id}</p>
-                    </div>
-                  </div>
-                  <span className="flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-semibold">
-                    <Radio className="w-2.5 h-2.5" /> Ativo
-                  </span>
-                </div>
-
-                {srv.notes && (
-                  <p className="text-xs text-zinc-300 mt-3">{srv.notes}</p>
-                )}
-
-                {/* DNS Atual */}
-                <div className="mt-4 p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-1.5">
-                  <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
-                    DNS Ativo na Rede
-                  </span>
-                  <p className="text-xs font-mono text-sky-400 break-all select-all font-semibold">
-                    {srv.activeDns}
-                  </p>
-                </div>
-
-                {/* Contingência */}
-                {srv.fallbackDns.length > 0 && (
-                  <div className="mt-2 text-[11px] text-zinc-300">
-                    <span className="text-zinc-400">Contingência:</span> {srv.fallbackDns.join(", ")}
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs text-zinc-300">
-                  <Tv className="w-3.5 h-3.5 text-zinc-300" />
-                  <span>{srv.deviceCount ?? 0} telas conectadas</span>
-                </div>
-
-                <button
-                  onClick={() => handleOpenDnsModal(srv)}
-                  className="px-3 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs font-bold transition flex items-center gap-1.5"
-                >
-                  <Zap className="w-3.5 h-3.5" /> Trocar DNS
-                </button>
-              </div>
+        {servers.length === 0 ? (
+          <div className="p-8 rounded-2xl bg-[#0c121a] border border-zinc-800/80 text-center space-y-3">
+            <div className="w-12 h-12 rounded-xl bg-zinc-800/80 border border-zinc-700 flex items-center justify-center text-zinc-400 mx-auto">
+              <Server className="w-6 h-6" />
             </div>
-          ))}
-        </div>
+            <h4 className="text-sm font-bold text-white">Nenhum Servidor Cadastrado</h4>
+            <p className="text-xs text-zinc-400 max-w-md mx-auto">
+              Você ainda não possui servidores e DNS configurados em sua conta. Cadastre seu servidor para poder ativar aparelhos e gerenciar seus clientes de forma isolada.
+            </p>
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs tracking-tight transition inline-flex items-center gap-1.5 shadow-lg shadow-emerald-950"
+            >
+              <Plus className="w-4 h-4" /> Cadastrar Meu Primeiro Servidor
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {servers.map((srv) => (
+              <div
+                key={srv.id}
+                className="p-5 rounded-2xl bg-[#0c121a] border border-zinc-800/80 hover:border-zinc-700 transition flex flex-col justify-between space-y-4 shadow-sm"
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                        <Server className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white">{srv.name}</h4>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-[10px] text-zinc-400 font-mono">{srv.id}</p>
+                          {user?.role === "superadmin" && (
+                            <span className="text-[9px] bg-zinc-800 text-sky-400 border border-zinc-700 px-1.5 py-0.2 rounded font-medium">
+                              {srv.ownerRole === "superadmin" ? "Admin Master" : `Revenda: ${srv.ownerName || srv.ownerId}`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-semibold">
+                      <Radio className="w-2.5 h-2.5" /> Ativo
+                    </span>
+                  </div>
+
+                  {srv.notes && (
+                    <p className="text-xs text-zinc-300 mt-3">{srv.notes}</p>
+                  )}
+
+                  {/* DNS Atual */}
+                  <div className="mt-4 p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-1.5">
+                    <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
+                      DNS Ativo na Rede
+                    </span>
+                    <p className="text-xs font-mono text-sky-400 break-all select-all font-semibold">
+                      {srv.activeDns}
+                    </p>
+                  </div>
+
+                  {/* Contingência */}
+                  {srv.fallbackDns.length > 0 && (
+                    <div className="mt-2 text-[11px] text-zinc-300">
+                      <span className="text-zinc-400">Contingência:</span> {srv.fallbackDns.join(", ")}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs text-zinc-300">
+                    <Tv className="w-3.5 h-3.5 text-zinc-300" />
+                    <span>{srv.deviceCount ?? 0} telas</span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleOpenDnsModal(srv)}
+                      className="px-3 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs font-bold transition flex items-center gap-1.5"
+                    >
+                      <Zap className="w-3.5 h-3.5" /> Trocar DNS
+                    </button>
+                    <button
+                      onClick={() => handleDeleteServer(srv)}
+                      title="Excluir servidor"
+                      className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-900/40 text-zinc-400 hover:text-rose-400 border border-zinc-700 text-xs transition"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Modal: Troca de DNS em Massa */}
         {isDnsModalOpen && selectedServer && (

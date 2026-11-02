@@ -191,9 +191,13 @@ class LocalStore {
   }
 
   // --- SERVIDORES & DNS EM MASSA ---
-  getServers(): ServerDocument[] {
+  getServers(userRole?: UserRole, userId?: string): ServerDocument[] {
     this.init();
-    return [...this.servers];
+    if (!userRole || userRole === "superadmin") {
+      return [...this.servers];
+    }
+    // Isolamento estrito: Revenda e Sub-revenda gerenciam apenas os servidores cadastrados por elas
+    return this.servers.filter(s => (s.ownerId || "usr-admin-master") === userId);
   }
 
   updateServerDns(serverId: string, newDns: string, fallbacks?: string[]): { server: ServerDocument; updatedDevicesCount: number } {
@@ -234,24 +238,42 @@ class LocalStore {
     return { server: srv, updatedDevicesCount };
   }
 
-  addServer(name: string, activeDns: string, fallbackDns: string[], notes: string = ""): ServerDocument {
+  addServer(
+    name: string,
+    activeDns: string,
+    fallbackDns: string[],
+    notes: string = "",
+    ownerUser?: { uid: string; name: string; role: UserRole }
+  ): ServerDocument {
     this.init();
     const cleanDns = normalizeDnsUrl(activeDns);
     const newServer: ServerDocument = {
       id: "srv-" + Math.random().toString(36).substring(2, 9),
-      name,
+      name: name.trim(),
       activeDns: cleanDns,
       fallbackDns: fallbackDns.map(normalizeDnsUrl),
       status: "active",
-      notes,
+      notes: notes.trim(),
       deviceCount: 0,
+      ownerId: ownerUser?.uid || "usr-admin-master",
+      ownerName: ownerUser?.name || "Administrador",
+      ownerRole: ownerUser?.role || "superadmin",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     this.servers.unshift(newServer);
     this.save();
     FirestoreSync.syncServerToFirestore(newServer);
+    this.notify();
     return newServer;
+  }
+
+  deleteServer(serverId: string): void {
+    this.init();
+    this.servers = this.servers.filter(s => s.id !== serverId);
+    this.save();
+    FirestoreSync.removeServerFromFirestore(serverId);
+    this.notify();
   }
 
   migrateDevicesServer(fromServerId: string, toServerId: string): number {
@@ -784,11 +806,12 @@ class LocalStore {
   }
 
   sendNotification(
-    targetType: "all" | "reseller" | "device",
+    targetType: "all" | "reseller" | "device" | "server",
     targetId: string,
     title: string,
     message: string,
-    hoursDuration: number = 24
+    hoursDuration: number = 24,
+    targetName?: string
   ): NotificationDocument {
     this.init();
     const exp = new Date();
@@ -798,6 +821,7 @@ class LocalStore {
       id: "notif-" + Math.random().toString(36).substring(2, 9),
       targetType,
       targetId,
+      targetName: targetName || "",
       title,
       message,
       active: true,
@@ -808,6 +832,7 @@ class LocalStore {
     this.notifications.unshift(newNotif);
     this.save();
     FirestoreSync.syncNotificationToFirestore(newNotif);
+    this.notify();
     return newNotif;
   }
 

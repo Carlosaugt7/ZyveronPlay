@@ -71,7 +71,7 @@ export default function DevicesPage() {
   const loadData = () => {
     if (!user) return;
     const d = store.getDevices(user.role, user.uid);
-    const s = store.getServers();
+    const s = store.getServers(user.role, user.uid);
     setDevices(d);
     setServers(s);
 
@@ -100,6 +100,10 @@ export default function DevicesPage() {
     e.preventDefault();
     setErrorMsg("");
     if (!user) return;
+    if (servers.length === 0) {
+      setErrorMsg("Você ainda não possui nenhum Servidor cadastrado na sua conta. Acesse o menu 'Servidores & DNS' para cadastrar seu servidor antes de ativar aparelhos.");
+      return;
+    }
     if (macInput.length < 17) {
       setErrorMsg("O MAC deve ter o formato completo (ex: 00:1A:79:A4:8B:20).");
       return;
@@ -610,22 +614,28 @@ export default function DevicesPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-zinc-300 font-medium mb-1">
-                    Servidor / DNS Alvo *
-                  </label>
-                  <select
-                    value={serverIdInput}
-                    onChange={(e) => setServerIdInput(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
-                  >
-                    {servers.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.activeDns})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {servers.length === 0 ? (
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+                    ⚠️ <strong>Nenhum Servidor/DNS cadastrado:</strong> Acesse o menu <strong>Servidores & DNS</strong> para adicionar sua URL Xtream antes de ativar novos aparelhos.
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">
+                      Servidor / DNS Alvo *
+                    </label>
+                    <select
+                      value={serverIdInput}
+                      onChange={(e) => setServerIdInput(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                    >
+                      {servers.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.activeDns})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -868,6 +878,11 @@ export default function DevicesPage() {
                       onChange={(e) => handleEditServerChange(e.target.value)}
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-sky-500"
                     >
+                      {servers.every((s) => s.id !== editServerIdInput) && editingDevice?.serverId && (
+                        <option value={editingDevice.serverId}>
+                          {editingDevice.serverName || "Servidor Atual"} (Atribuído)
+                        </option>
+                      )}
                       {servers.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.name}
@@ -968,6 +983,11 @@ export default function DevicesPage() {
                             onChange={(e) => handleEditServer2Change(e.target.value)}
                             className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
                           >
+                            {servers.every((s) => s.id !== editServerId2Input) && editingDevice?.serverId2 && (
+                              <option value={editingDevice.serverId2}>
+                                {editingDevice.serverName2 || "Servidor Original"} (Atribuído)
+                              </option>
+                            )}
                             {servers.map((s) => (
                               <option key={s.id} value={s.id}>
                                 {s.name}

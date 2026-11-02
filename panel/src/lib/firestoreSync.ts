@@ -34,11 +34,24 @@ export const FirestoreSync = {
         status: server.status || "active",
         notes: server.notes || "",
         deviceCount: server.deviceCount || 0,
+        ownerId: server.ownerId || "usr-admin-master",
+        ownerName: server.ownerName || "",
+        ownerRole: server.ownerRole || "superadmin",
         updatedAt: new Date().toISOString()
       }, { merge: true });
       console.log(`[Firestore] Servidor sincronizado: ${server.id}`);
     } catch (e) {
       console.error("[Firestore] Erro ao sincronizar servidor:", e);
+    }
+  },
+
+  async removeServerFromFirestore(serverId: string) {
+    try {
+      const ref = doc(firestore, "servers", serverId);
+      await deleteDoc(ref);
+      console.log(`[Firestore] Servidor removido: ${serverId}`);
+    } catch (e) {
+      console.error("[Firestore] Erro ao remover servidor:", e);
     }
   },
 
@@ -113,6 +126,7 @@ export const FirestoreSync = {
         id: notif.id,
         targetType: notif.targetType,
         targetId: notif.targetId,
+        targetName: notif.targetName || "",
         title: notif.title,
         message: notif.message,
         active: notif.active,

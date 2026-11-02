@@ -77,6 +77,10 @@ class FirestoreDeviceManager(private val context: Context) {
     private var notificationsListener: ListenerRegistration? = null
     private var heartbeatJob: Job? = null
 
+    private var currentServerId: String = ""
+    private var currentServerId2: String = ""
+    private var currentResellerId: String = ""
+
     val virtualMac: String = DeviceIdentityHelper.getVirtualMac(context)
     val deviceKey: String = DeviceIdentityHelper.getDeviceKey(context)
 
@@ -130,6 +134,10 @@ class FirestoreDeviceManager(private val context: Context) {
         val username2 = snapshot.getString("username2") ?: ""
         val password2 = snapshot.getString("password2") ?: ""
         val expDateStr2 = snapshot.getString("expirationDate2") ?: ""
+
+        currentServerId = serverId
+        currentServerId2 = serverId2
+        currentResellerId = snapshot.getString("resellerId") ?: ""
 
         // Verifica bloqueio administrativo
         if (status == "blocked") {
@@ -259,14 +267,34 @@ class FirestoreDeviceManager(private val context: Context) {
             .addSnapshotListener { snapshots, error ->
                 if (error != null || snapshots == null) return@addSnapshotListener
 
+                var matchingMessage: TvBroadcastMessage? = null
+                val nowIso = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US).format(java.util.Date())
+
                 for (doc in snapshots.documents) {
+                    val expiresAt = doc.getString("expiresAt") ?: ""
+                    // Se o aviso já expirou pelo horário limite, ignora
+                    if (expiresAt.isNotBlank() && expiresAt < nowIso) continue
+
                     val targetType = doc.getString("targetType") ?: "all"
                     val targetId = doc.getString("targetId") ?: "all"
                     val title = doc.getString("title") ?: "Aviso"
                     val message = doc.getString("message") ?: ""
 
-                    if (targetType == "all" || targetId == virtualMac) {
-                        _activeBroadcast.value = TvBroadcastMessage(
+                    // Verifica público-alvo:
+                    // 1. Global (todos os clientes)
+                    // 2. Aparelho específico (MAC)
+                    // 3. Por Servidor (cobre Lista 1 ou Lista 2)
+                    // 4. Por Revenda (resellerId da conta)
+                    val isMatch = when (targetType) {
+                        "all" -> true
+                        "device" -> targetId.equals(virtualMac, ignoreCase = true)
+                        "server" -> targetId.isNotBlank() && (targetId == currentServerId || targetId == currentServerId2)
+                        "reseller" -> targetId.isNotBlank() && targetId == currentResellerId
+                        else -> false
+                    }
+
+                    if (isMatch) {
+                        matchingMessage = TvBroadcastMessage(
                             id = doc.id,
                             title = title,
                             message = message
@@ -274,6 +302,7 @@ class FirestoreDeviceManager(private val context: Context) {
                         break
                     }
                 }
+                _activeBroadcast.value = matchingMessage
             }
     }
 

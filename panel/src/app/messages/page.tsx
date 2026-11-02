@@ -4,13 +4,14 @@ import React, { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { useAuth } from "@/context/AuthContext";
 import { store } from "@/lib/store";
-import { NotificationDocument, DeviceDocument, UserDocument } from "@/types";
+import { NotificationDocument, DeviceDocument, UserDocument, ServerDocument } from "@/types";
 import {
   MessageSquare,
   Send,
   Radio,
   Tv,
   Users,
+  Server,
   Trash2,
   Clock,
   CheckCircle2,
@@ -22,9 +23,10 @@ export default function MessagesPage() {
   const [notifications, setNotifications] = useState<NotificationDocument[]>([]);
   const [devices, setDevices] = useState<DeviceDocument[]>([]);
   const [users, setUsers] = useState<UserDocument[]>([]);
+  const [servers, setServers] = useState<ServerDocument[]>([]);
 
   // Form states
-  const [targetType, setTargetType] = useState<"all" | "reseller" | "device">("all");
+  const [targetType, setTargetType] = useState<"all" | "reseller" | "device" | "server">("all");
   const [targetId, setTargetId] = useState("all");
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
@@ -36,13 +38,19 @@ export default function MessagesPage() {
     const n = store.getNotifications();
     const d = store.getDevices(user.role, user.uid);
     const u = store.getUsers(user.role, user.uid);
+    const s = store.getServers(user.role, user.uid);
     setNotifications(n);
     setDevices(d);
     setUsers(u);
+    setServers(s);
   };
 
   useEffect(() => {
     loadData();
+    const unsubscribe = store.subscribe(() => {
+      loadData();
+    });
+    return () => unsubscribe();
   }, [user]);
 
   const handleSend = (e: React.FormEvent) => {
@@ -50,14 +58,38 @@ export default function MessagesPage() {
     if (!title.trim() || !message.trim()) return;
 
     let finalTargetId = targetId;
-    if (targetType === "all") finalTargetId = "all";
+    let targetName = "";
+
+    if (targetType === "all") {
+      finalTargetId = "all";
+      targetName = "Todos os Aparelhos";
+    } else if (targetType === "server") {
+      const srv = servers.find((s) => s.id === finalTargetId) || servers[0];
+      if (srv) {
+        finalTargetId = srv.id;
+        targetName = srv.name;
+      }
+    } else if (targetType === "reseller") {
+      const res = users.find((u) => u.uid === finalTargetId) || users[0];
+      if (res) {
+        finalTargetId = res.uid;
+        targetName = res.name;
+      }
+    } else if (targetType === "device") {
+      const dev = devices.find((d) => d.mac === finalTargetId) || devices[0];
+      if (dev) {
+        finalTargetId = dev.mac;
+        targetName = dev.customNote ? `${dev.customNote} (${dev.mac})` : dev.mac;
+      }
+    }
 
     store.sendNotification(
       targetType,
       finalTargetId,
       title.trim(),
       message.trim(),
-      hoursDuration
+      hoursDuration,
+      targetName
     );
 
     setTitle("");
@@ -80,7 +112,7 @@ export default function MessagesPage() {
         onRefresh={loadData}
       />
 
-      <main className="p-8 space-y-6 flex-1">
+      <main className="p-4 sm:p-8 space-y-6 flex-1">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Formulário de Envio */}
           <div className="lg:col-span-5 p-6 rounded-2xl bg-[#0c121a] border border-zinc-800/80 shadow-md space-y-4">
@@ -102,15 +134,15 @@ export default function MessagesPage() {
 
             <form onSubmit={handleSend} className="space-y-4 text-xs">
               <div>
-                <label className="block text-zinc-300 font-medium mb-1">Destinatário *</label>
-                <div className="grid grid-cols-3 gap-1.5 mb-2">
+                <label className="block text-zinc-300 font-medium mb-1">Destinatário do Aviso *</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2">
                   <button
                     type="button"
                     onClick={() => {
                       setTargetType("all");
                       setTargetId("all");
                     }}
-                    className={`py-2 px-1 text-center rounded-lg border font-medium transition ${
+                    className={`py-2 px-1 text-center rounded-lg border font-medium transition text-[11px] ${
                       targetType === "all"
                         ? "bg-sky-500/20 text-sky-300 border-sky-500/40"
                         : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
@@ -118,63 +150,113 @@ export default function MessagesPage() {
                   >
                     Global (Todos)
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetType("server");
+                      if (servers.length > 0) setTargetId(servers[0].id);
+                    }}
+                    className={`py-2 px-1 text-center rounded-lg border font-medium transition text-[11px] flex items-center justify-center gap-1 ${
+                      targetType === "server"
+                        ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
+                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
+                    }`}
+                  >
+                    <Server className="w-3 h-3" /> Por Servidor
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => {
                       setTargetType("reseller");
                       if (users.length > 0) setTargetId(users[0].uid);
                     }}
-                    className={`py-2 px-1 text-center rounded-lg border font-medium transition ${
+                    className={`py-2 px-1 text-center rounded-lg border font-medium transition text-[11px] flex items-center justify-center gap-1 ${
                       targetType === "reseller"
-                        ? "bg-sky-500/20 text-sky-300 border-sky-500/40"
+                        ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
                         : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
                     }`}
                   >
-                    Por Revenda
+                    <Users className="w-3 h-3" /> Por Revenda
                   </button>
+
                   <button
                     type="button"
                     onClick={() => {
                       setTargetType("device");
                       if (devices.length > 0) setTargetId(devices[0].mac);
                     }}
-                    className={`py-2 px-1 text-center rounded-lg border font-medium transition ${
+                    className={`py-2 px-1 text-center rounded-lg border font-medium transition text-[11px] flex items-center justify-center gap-1 ${
                       targetType === "device"
-                        ? "bg-sky-500/20 text-sky-300 border-sky-500/40"
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
                         : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
                     }`}
                   >
-                    1 Aparelho (MAC)
+                    <Tv className="w-3 h-3" /> 1 Aparelho
                   </button>
                 </div>
 
                 {/* Seletores dinâmicos de alvo */}
+                {targetType === "server" && (
+                  <div className="mt-2 space-y-1">
+                    <label className="block text-[11px] text-zinc-300 font-medium">Selecione o Servidor Alvo *</label>
+                    {servers.length === 0 ? (
+                      <p className="text-amber-400 text-xs py-1">Nenhum servidor cadastrado na sua conta. Acesse o menu &quot;Servidores &amp; DNS&quot; para cadastrar.</p>
+                    ) : (
+                      <select
+                        value={targetId}
+                        onChange={(e) => setTargetId(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                      >
+                        {servers.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.activeDns})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <p className="text-[10px] text-zinc-400">
+                      Todas as TVs que utilizam este servidor (Lista 1 ou Lista 2) receberão o aviso na tela.
+                    </p>
+                  </div>
+                )}
+
                 {targetType === "reseller" && (
-                  <select
-                    value={targetId}
-                    onChange={(e) => setTargetId(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-sky-500 mt-2"
-                  >
-                    {users.map((u) => (
-                      <option key={u.uid} value={u.uid}>
-                        {u.name} ({u.email})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="mt-2 space-y-1">
+                    <label className="block text-[11px] text-zinc-300 font-medium">Selecione a Revenda Alvo *</label>
+                    <select
+                      value={targetId}
+                      onChange={(e) => setTargetId(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                    >
+                      {users.map((u) => (
+                        <option key={u.uid} value={u.uid}>
+                          {u.name} ({u.email})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-zinc-400">
+                      Todos os clientes ativados por este revendedor receberão o aviso na tela.
+                    </p>
+                  </div>
                 )}
 
                 {targetType === "device" && (
-                  <select
-                    value={targetId}
-                    onChange={(e) => setTargetId(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-sky-500 mt-2"
-                  >
-                    {devices.map((d) => (
-                      <option key={d.mac} value={d.mac}>
-                        {d.mac} - {d.customNote || d.username}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="mt-2 space-y-1">
+                    <label className="block text-[11px] text-zinc-300 font-medium">Selecione o Aparelho Alvo (MAC) *</label>
+                    <select
+                      value={targetId}
+                      onChange={(e) => setTargetId(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500"
+                    >
+                      {devices.map((d) => (
+                        <option key={d.mac} value={d.mac}>
+                          {d.mac} - {d.customNote || d.username}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 )}
               </div>
 
@@ -253,12 +335,24 @@ export default function MessagesPage() {
                   >
                     <div className="space-y-1 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                        <span
+                          className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full border ${
+                            notif.targetType === "all"
+                              ? "bg-sky-500/10 text-sky-400 border-sky-500/20"
+                              : notif.targetType === "server"
+                              ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20"
+                              : notif.targetType === "reseller"
+                              ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                              : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                          }`}
+                        >
                           {notif.targetType === "all"
                             ? "Global"
+                            : notif.targetType === "server"
+                            ? `Servidor: ${notif.targetName || notif.targetId}`
                             : notif.targetType === "reseller"
-                            ? "Revenda"
-                            : "Aparelho"}
+                            ? `Revenda: ${notif.targetName || notif.targetId}`
+                            : `Aparelho: ${notif.targetName || notif.targetId}`}
                         </span>
                         <h4 className="text-xs font-bold text-white">{notif.title}</h4>
                       </div>
@@ -293,4 +387,3 @@ export default function MessagesPage() {
     </>
   );
 }
-

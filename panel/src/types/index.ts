@@ -12,6 +12,9 @@ export interface ServerDocument {
   status: ServerStatus;
   notes?: string;
   deviceCount?: number;
+  ownerId?: string; // UID do usuário que cadastrou (admin ou revenda)
+  ownerName?: string;
+  ownerRole?: UserRole;
   createdAt: string;
   updatedAt: string;
 }
@@ -74,8 +77,9 @@ export interface CreditLogDocument {
 
 export interface NotificationDocument {
   id: string;
-  targetType: "all" | "reseller" | "device";
-  targetId: string; // "all", UID da revenda ou MAC
+  targetType: "all" | "reseller" | "device" | "server";
+  targetId: string; // "all", UID da revenda, MAC ou ID do Servidor
+  targetName?: string;
   title: string;
   message: string;
   active: boolean;

@@ -35,7 +35,7 @@ export default function DashboardPage() {
 
   const loadData = () => {
     if (!user) return;
-    const s = store.getServers();
+    const s = store.getServers(user.role, user.uid);
     const d = store.getDevices(user.role, user.uid);
     const n = store.getNotifications();
     const users = store.getUsers("superadmin", "usr-admin-master");
@@ -133,14 +133,12 @@ export default function DashboardPage() {
               >
                 <Tv className="w-4 h-4" /> Ativar Aparelho (MAC)
               </Link>
-              {user?.role === "superadmin" && (
-                <Link
-                  href="/servers"
-                  className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-xs border border-zinc-700/60 transition flex items-center gap-2"
-                >
-                  <Server className="w-4 h-4 text-sky-400" /> Servidores
-                </Link>
-              )}
+              <Link
+                href="/servers"
+                className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-xs border border-zinc-700/60 transition flex items-center gap-2"
+              >
+                <Server className="w-4 h-4 text-sky-400" /> Servidores & DNS
+              </Link>
             </div>
           </div>
         </div>
@@ -233,7 +231,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Sessão Especial: Troca de DNS em Massa em 1 Clique (Card Rápido) */}
-        {user?.role === "superadmin" && (
+        {servers.length > 0 && (
           <div className="p-6 rounded-2xl bg-[#0f1824] border border-sky-800/40 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800/80 pb-4">
               <div className="flex items-center gap-3">
