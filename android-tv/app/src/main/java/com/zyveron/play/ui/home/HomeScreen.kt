@@ -281,7 +281,7 @@ fun HomeScreen(
                             // TV ao Vivo
                             HomeCategoryCard(
                                 title = "TV ao Vivo",
-                                subtitle = if (liveCount > 0) "$liveCount canais" else "2324 canais",
+                                subtitle = if (liveCount > 0) "$liveCount canais" else if (isSyncing) "Sincronizando..." else "0 canais • Atualizar",
                                 icon = "📡",
                                 glowColor = AccentSky,
                                 modifier = Modifier

@@ -194,8 +194,11 @@ export default function DevicesPage() {
     // Lista 2
     const has2 = !!dev.username2;
     setEditEnableSecondList(has2);
-    setEditServerId2Input(dev.serverId2 || (servers[1]?.id || servers[0]?.id || ""));
-    setEditServerDns2Input(dev.serverDns2 || "");
+    const targetServerId2 = dev.serverId2 || (servers[1]?.id || servers[0]?.id || "");
+    setEditServerId2Input(targetServerId2);
+    const s2Obj = servers.find((s) => s.id === targetServerId2);
+    const resolvedDns2 = dev.serverDns2 || s2Obj?.activeDns || dev.serverDns || "";
+    setEditServerDns2Input(resolvedDns2);
     setEditUsername2Input(dev.username2 || "");
     setEditPassword2Input(dev.password2 || "");
     try {
@@ -272,9 +275,13 @@ export default function DevicesPage() {
 
       let serverName2 = "";
       let targetDate2 = "";
+      let finalServerDns2 = editServerDns2Input.trim();
       if (editEnableSecondList && editUsername2Input.trim()) {
         const s2 = servers.find((s) => s.id === editServerId2Input);
         serverName2 = s2 ? s2.name : (editingDevice.serverName2 || "Servidor 2");
+        if (!finalServerDns2) {
+          finalServerDns2 = (s2 && s2.activeDns) ? s2.activeDns : editServerDnsInput.trim();
+        }
         if (editExpDate2Input) {
           targetDate2 = new Date(`${editExpDate2Input}T23:59:59.000Z`).toISOString();
         }
@@ -292,7 +299,7 @@ export default function DevicesPage() {
         editPasswordInput.trim(),
         editEnableSecondList ? editServerId2Input : "",
         editEnableSecondList ? serverName2 : "",
-        editEnableSecondList ? editServerDns2Input.trim() : "",
+        editEnableSecondList ? finalServerDns2 : "",
         editEnableSecondList ? editUsername2Input.trim() : "",
         editEnableSecondList ? editPassword2Input.trim() : "",
         editEnableSecondList ? targetDate2 : "",
@@ -440,20 +447,34 @@ export default function DevicesPage() {
                           {dev.deviceKey}
                         </td>
                         <td className="py-3.5 px-3 text-zinc-300">
-                          <div className="flex items-center gap-1.5">
-                            <Server className="w-3 h-3 text-sky-400 shrink-0" />
-                            <span className="font-medium text-white">{dev.serverName || "Lista 1"}</span>
-                          </div>
-                          {dev.username2 && (
-                            <div className="flex items-center gap-1.5 mt-1 text-emerald-400">
-                              <Server className="w-3 h-3 text-emerald-400 shrink-0" />
-                              <span className="font-medium text-[11px]">{dev.serverName2 || "Lista 2"}</span>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <Server className="w-3 h-3 text-sky-400 shrink-0" />
+                              <span className="font-medium text-white">{dev.serverName || "Lista 1"}</span>
                             </div>
-                          )}
-                          {dev.serverDns && (
-                            <p className="text-[10px] text-zinc-400 font-mono truncate max-w-[180px] mt-0.5" title={dev.serverDns}>
-                              {dev.serverDns}
-                            </p>
+                            {dev.serverDns ? (
+                              <p className="text-[10px] text-zinc-400 font-mono truncate max-w-[200px] mt-0.5" title={dev.serverDns}>
+                                {dev.serverDns}
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-rose-400 font-medium mt-0.5">⚠️ DNS não configurado</p>
+                            )}
+                          </div>
+
+                          {dev.username2 && (
+                            <div className="mt-2 pt-1.5 border-t border-zinc-800/80">
+                              <div className="flex items-center gap-1.5 text-emerald-400">
+                                <Server className="w-3 h-3 text-emerald-400 shrink-0" />
+                                <span className="font-medium text-[11px]">{dev.serverName2 || "Lista 2"}</span>
+                              </div>
+                              {dev.serverDns2 ? (
+                                <p className="text-[10px] text-emerald-400/80 font-mono truncate max-w-[200px] mt-0.5" title={dev.serverDns2}>
+                                  {dev.serverDns2}
+                                </p>
+                              ) : (
+                                <p className="text-[10px] text-rose-400 font-medium mt-0.5">⚠️ DNS 2 não configurado</p>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="py-3.5 px-3 font-mono text-zinc-300">

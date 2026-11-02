@@ -95,6 +95,29 @@ class LocalStore {
       const merged = Array.from(fsMap.values());
       merged.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
 
+      // Auto-heal: recupera e corrige aparelhos com Lista 2 ativa cujo serverDns2 esteja em branco
+      merged.forEach(dev => {
+        let changed = false;
+        if (dev.username2 && (!dev.serverDns2 || dev.serverDns2.trim() === "")) {
+          const s2 = this.servers.find(s => s.id === dev.serverId2);
+          const recovered = s2?.activeDns ? normalizeDnsUrl(s2.activeDns) : (dev.serverDns ? normalizeDnsUrl(dev.serverDns) : "");
+          if (recovered) {
+            dev.serverDns2 = recovered;
+            changed = true;
+          }
+        }
+        if (!dev.serverDns && dev.serverId) {
+          const s1 = this.servers.find(s => s.id === dev.serverId);
+          if (s1?.activeDns) {
+            dev.serverDns = normalizeDnsUrl(s1.activeDns);
+            changed = true;
+          }
+        }
+        if (changed) {
+          FirestoreSync.syncDeviceToFirestore(dev);
+        }
+      });
+
       this.devices = merged;
       this.save();
       this.notify();
@@ -361,7 +384,7 @@ class LocalStore {
     if (serverId2 && username2) {
       const s2 = this.servers.find(s => s.id === serverId2);
       serverName2 = s2 ? s2.name : "Servidor 2";
-      serverDns2 = s2 ? normalizeDnsUrl(s2.activeDns) : "";
+      serverDns2 = s2 && s2.activeDns ? normalizeDnsUrl(s2.activeDns) : normalizeDnsUrl(serverDns);
       const exp2 = new Date();
       exp2.setDate(exp2.getDate() + (30 * (months2 || months)));
       exp2Str = exp2.toISOString();
@@ -556,7 +579,8 @@ class LocalStore {
       dev.serverName2 = newServerName2;
     }
     if (newServerDns2 !== undefined) {
-      dev.serverDns2 = newServerDns2 ? normalizeDnsUrl(newServerDns2) : "";
+      const clean2 = newServerDns2 ? normalizeDnsUrl(newServerDns2) : "";
+      dev.serverDns2 = clean2 || dev.serverDns2 || dev.serverDns || "";
     }
     if (newUsername2 !== undefined) {
       dev.username2 = newUsername2.trim();

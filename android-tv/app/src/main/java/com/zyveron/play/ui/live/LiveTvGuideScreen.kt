@@ -61,9 +61,11 @@ import com.zyveron.play.data.local.CategoryEntity
 import com.zyveron.play.data.local.ChannelEntity
 import com.zyveron.play.data.model.EpgProgram
 import com.zyveron.play.data.repository.ZyveronRepository
+import com.zyveron.play.player.PlaybackState
 import com.zyveron.play.player.ZyveronPlayerManager
 import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.ui.theme.AccentEmerald
+import com.zyveron.play.ui.theme.AccentRose
 import kotlinx.coroutines.delay
 import com.zyveron.play.ui.theme.AccentSky
 import com.zyveron.play.ui.theme.BgCardDark
@@ -91,6 +93,7 @@ fun LiveTvGuideScreen(
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val playbackState by playerManager.playbackState.collectAsState()
     val categories by repository.getCategories().collectAsState(initial = emptyList())
     val allChannels by repository.getAllChannels().collectAsState(initial = emptyList())
     val sportsChannels by repository.getSportsChannels().collectAsState(initial = emptyList())
@@ -691,6 +694,60 @@ fun LiveTvGuideScreen(
                                     },
                                     modifier = Modifier.fillMaxSize()
                                 )
+
+                                // Feedback de sinal / carregamento / erro
+                                when (val st = playbackState) {
+                                    is PlaybackState.Buffering -> {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(Color.Black.copy(alpha = 0.5f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "⏳ Carregando sinal...",
+                                                color = AccentEmerald,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+                                    is PlaybackState.Error -> {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(Color.Black.copy(alpha = 0.85f))
+                                                .padding(10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "⚠️ Sinal indisponível ou limite de conexões atingido.\n${st.message}",
+                                                color = AccentRose,
+                                                fontSize = 11.sp,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                                lineHeight = 14.sp
+                                            )
+                                        }
+                                    }
+                                    else -> {
+                                        if (serverDns.isBlank()) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .background(Color.Black.copy(alpha = 0.85f))
+                                                    .padding(10.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = "⚠️ DNS do servidor não configurado no painel.",
+                                                    color = AccentRose,
+                                                    fontSize = 11.sp,
+                                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
 
                                 // Botões sobrepostos: Favoritar e Tela Cheia
                                 Row(

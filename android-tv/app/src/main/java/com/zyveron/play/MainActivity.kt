@@ -281,7 +281,8 @@ fun MainContent(
                     }
                     if (cleanDns.isBlank()) {
                         if (isManual) {
-                            android.widget.Toast.makeText(context, "⚠️ Servidor DNS não configurado. Verifique no painel web.", android.widget.Toast.LENGTH_LONG).show()
+                            val listNum = state.activePlaylistIndex + 1
+                            android.widget.Toast.makeText(context, "⚠️ Servidor DNS da Lista $listNum não configurado. Verifique no painel web.", android.widget.Toast.LENGTH_LONG).show()
                         }
                         return
                     }

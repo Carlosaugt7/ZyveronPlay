@@ -137,32 +137,48 @@ class FirestoreDeviceManager(private val context: Context) {
         listenToBroadcastMessages()
     }
 
+    private fun extractDns(snapshot: com.google.firebase.firestore.DocumentSnapshot?, vararg keys: String): String {
+        if (snapshot == null) return ""
+        for (key in keys) {
+            val value = snapshot.getString(key)?.trim()
+            if (!value.isNullOrBlank()) {
+                val normalized = UrlHelper.normalizeUrl(value)
+                if (normalized.isNotBlank()) return normalized
+            }
+        }
+        return ""
+    }
+
     private fun processSnapshot(snapshot: com.google.firebase.firestore.DocumentSnapshot) {
         val status = snapshot.getString("status")?.trim() ?: "active"
         val expDateStr = snapshot.getString("expirationDate")?.trim() ?: ""
         val serverId = snapshot.getString("serverId")?.trim() ?: ""
         val serverName = snapshot.getString("serverName")?.trim() ?: "Servidor 1"
-        val rawServerDns = snapshot.getString("serverDns")?.trim() ?: ""
+        val rawServerDns = extractDns(snapshot, "serverDns", "activeDns", "dns", "url", "server_dns", "serverUrl")
         val username = snapshot.getString("username")?.trim() ?: ""
         val password = snapshot.getString("password")?.trim() ?: ""
 
         // Lista 2
         val serverId2 = snapshot.getString("serverId2")?.trim() ?: ""
         val serverName2 = snapshot.getString("serverName2")?.trim() ?: "Servidor 2"
-        val rawServerDns2 = snapshot.getString("serverDns2")?.trim() ?: ""
+        val rawServerDns2 = extractDns(snapshot, "serverDns2", "activeDns2", "dns2", "url2", "server_dns2", "serverUrl2")
         val username2 = snapshot.getString("username2")?.trim() ?: ""
         val password2 = snapshot.getString("password2")?.trim() ?: ""
         val expDateStr2 = snapshot.getString("expirationDate2")?.trim() ?: ""
+
+        // Fallback cruzado resiliente de DNS: se uma lista não possui DNS configurado explicitamente, herda da outra
+        val effectiveDns1 = rawServerDns.ifBlank { rawServerDns2 }
+        val effectiveDns2 = rawServerDns2.ifBlank { rawServerDns }
 
         val signature = DeviceSnapshotSignature(
             status = status,
             expDate = expDateStr,
             serverId = serverId,
-            serverDns = rawServerDns,
+            serverDns = effectiveDns1,
             username = username,
             password = password,
             serverId2 = serverId2,
-            serverDns2 = rawServerDns2,
+            serverDns2 = effectiveDns2,
             username2 = username2,
             password2 = password2,
             expDate2 = expDateStr2,
@@ -191,7 +207,7 @@ class FirestoreDeviceManager(private val context: Context) {
                 PlaylistAccount(
                     listIndex = 1,
                     serverName = if (serverName.isNotBlank()) serverName else "Lista 1",
-                    serverDns = UrlHelper.normalizeUrl(rawServerDns),
+                    serverDns = effectiveDns1,
                     username = username,
                     password = password,
                     expirationDate = expDateStr
@@ -203,7 +219,7 @@ class FirestoreDeviceManager(private val context: Context) {
                 PlaylistAccount(
                     listIndex = 2,
                     serverName = if (serverName2.isNotBlank()) serverName2 else "Lista 2",
-                    serverDns = UrlHelper.normalizeUrl(rawServerDns2),
+                    serverDns = effectiveDns2,
                     username = username2,
                     password = password2,
                     expirationDate = expDateStr2
@@ -216,7 +232,7 @@ class FirestoreDeviceManager(private val context: Context) {
                 PlaylistAccount(
                     listIndex = 1,
                     serverName = "Servidor 1",
-                    serverDns = UrlHelper.normalizeUrl(rawServerDns),
+                    serverDns = effectiveDns1,
                     username = username,
                     password = password,
                     expirationDate = expDateStr
@@ -239,7 +255,8 @@ class FirestoreDeviceManager(private val context: Context) {
         val current = _authState.value
         val shouldEmitDirect = current !is DeviceAuthState.Active ||
                 current.activePlaylistIndex != safeIndex ||
-                current.username != activeAccount.username
+                current.username != activeAccount.username ||
+                current.serverDns != activeAccount.serverDns
 
         if (shouldEmitDirect) {
             _authState.value = DeviceAuthState.Active(
@@ -279,7 +296,8 @@ class FirestoreDeviceManager(private val context: Context) {
         playlists: List<PlaylistAccount>,
         activePlaylistIndex: Int
     ) {
-        if (listeningServerId == serverId && serverListener != null) {
+        val currentDns = (_authState.value as? DeviceAuthState.Active)?.serverDns ?: ""
+        if (listeningServerId == serverId && serverListener != null && currentDns.isNotBlank()) {
             return
         }
         listeningServerId = serverId
@@ -292,8 +310,9 @@ class FirestoreDeviceManager(private val context: Context) {
                     return@addSnapshotListener
                 }
 
-                val activeServerName = snapshot?.getString("name") ?: fallbackServerName
-                val activeDns = UrlHelper.normalizeUrl(snapshot?.getString("activeDns") ?: fallbackDnsUrl)
+                val activeServerName = snapshot?.getString("name")?.takeIf { it.isNotBlank() } ?: fallbackServerName
+                val rawDns = extractDns(snapshot, "activeDns", "serverDns", "dns", "url", "server_dns", "serverUrl")
+                val activeDns = rawDns.ifBlank { fallbackDnsUrl }
                 @Suppress("UNCHECKED_CAST")
                 val fallbackDns = (snapshot?.get("fallbackDns") as? List<String>) ?: emptyList()
 
@@ -430,7 +449,7 @@ class FirestoreDeviceManager(private val context: Context) {
                         "lastSeenIso" to SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
                             timeZone = TimeZone.getTimeZone("UTC")
                         }.format(Date()),
-                        "appVersion" to "2.8.2"
+                        "appVersion" to "2.8.3"
                     )
                     firestore.collection("devices").document(virtualMac)
                         .set(update, SetOptions.merge())
