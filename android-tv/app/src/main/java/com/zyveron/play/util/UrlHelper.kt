@@ -21,18 +21,24 @@ object UrlHelper {
     fun buildLiveStreamUrl(serverDns: String, username: String, password: String, streamId: Int, protocol: String = "ts"): String {
         val cleanDns = normalizeUrl(serverDns)
         val ext = if (protocol.equals("hls", ignoreCase = true)) "m3u8" else "ts"
-        return if (cleanDns.isNotBlank()) "$cleanDns/live/$username/$password/$streamId.$ext" else ""
+        val cleanUser = username.trim()
+        val cleanPass = password.trim()
+        return if (cleanDns.isNotBlank()) "$cleanDns/live/$cleanUser/$cleanPass/$streamId.$ext" else ""
     }
 
     fun buildVodStreamUrl(serverDns: String, username: String, password: String, streamId: Int, containerExt: String = "mp4"): String {
         val cleanDns = normalizeUrl(serverDns)
         val ext = containerExt.ifBlank { "mp4" }
-        return if (cleanDns.isNotBlank()) "$cleanDns/movie/$username/$password/$streamId.$ext" else ""
+        val cleanUser = username.trim()
+        val cleanPass = password.trim()
+        return if (cleanDns.isNotBlank()) "$cleanDns/movie/$cleanUser/$cleanPass/$streamId.$ext" else ""
     }
 
     fun buildSeriesStreamUrl(serverDns: String, username: String, password: String, episodeId: String, containerExt: String = "mp4"): String {
         val cleanDns = normalizeUrl(serverDns)
         val ext = containerExt.ifBlank { "mp4" }
-        return if (cleanDns.isNotBlank()) "$cleanDns/series/$username/$password/$episodeId.$ext" else ""
+        val cleanUser = username.trim()
+        val cleanPass = password.trim()
+        return if (cleanDns.isNotBlank()) "$cleanDns/series/$cleanUser/$cleanPass/$episodeId.$ext" else ""
     }
 }

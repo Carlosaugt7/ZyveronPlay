@@ -472,12 +472,19 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // 4. RODAPÉ INFERIOR (Botões Pílula no Canto Inferior Direito)
+                // 4. RODAPÉ INFERIOR (Versão à esquerda e Botões Pílula à direita)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Text(
+                        text = "Zyveron Play • v${com.zyveron.play.BuildConfig.VERSION_NAME}",
+                        fontSize = 11.sp,
+                        color = TextSecondary.copy(alpha = 0.6f),
+                        fontWeight = FontWeight.Medium
+                    )
+
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         // Contas
                         FooterPillButton(
@@ -494,9 +501,7 @@ fun HomeScreen(
                         // Recarregar
                         FooterPillButton(
                             text = if (isSyncing) "Atualizando..." else "Recarregar",
-                            onClick = {
-                                if (!isSyncing) onRefreshCatalog()
-                            }
+                            onClick = onRefreshCatalog
                         )
                     }
                 }

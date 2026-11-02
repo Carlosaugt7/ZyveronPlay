@@ -36,7 +36,7 @@ class ZyveronRepository(private val context: Context) {
 
     private val channelDao: ChannelDao = ZyveronDatabase.getInstance(context).channelDao()
     private val prefs = context.getSharedPreferences("zyveron_vod_progress", Context.MODE_PRIVATE)
-    private val client = NetworkSecurityHelper.createUnsafeOkHttpClient(connectTimeoutSec = 15, readTimeoutSec = 30)
+    private val client = NetworkSecurityHelper.createUnsafeOkHttpClient(connectTimeoutSec = 20, readTimeoutSec = 60)
 
     // Cache em memória de EPG com capacidade para 150 canais (evita requisições repetidas no zapping)
     private val epgCache = object : LruCache<Int, Pair<Long, List<EpgProgram>>>(150) {}
@@ -118,14 +118,16 @@ class ZyveronRepository(private val context: Context) {
         }
 
         val cleanDns = UrlHelper.normalizeUrl(serverDns)
+        val encUser = java.net.URLEncoder.encode(username.trim(), "UTF-8")
+        val encPass = java.net.URLEncoder.encode(password.trim(), "UTF-8")
 
         // 1. Tenta endpoint padrão leve de EPG rápido
-        val shortEpgUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_short_epg&stream_id=$streamId&limit=6"
+        val shortEpgUrl = "$cleanDns/player_api.php?username=$encUser&password=$encPass&action=get_short_epg&stream_id=$streamId&limit=6"
         var programs = tryFetchEpg(shortEpgUrl)
 
         // 2. Fallback para tabela simples caso get_short_epg não retorne dados
         if (programs.isEmpty()) {
-            val tableEpgUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_simple_data_table&stream_id=$streamId"
+            val tableEpgUrl = "$cleanDns/player_api.php?username=$encUser&password=$encPass&action=get_simple_data_table&stream_id=$streamId"
             programs = tryFetchEpg(tableEpgUrl)
         }
 
@@ -255,12 +257,15 @@ class ZyveronRepository(private val context: Context) {
         forceClearFirst: Boolean = false
     ): Result<Int> = withContext(Dispatchers.IO) {
         if (!syncMutex.tryLock()) {
-            Log.w("ZyveronRepo", "Sincronização já em execução. Ignorando chamada concorrente.")
+            Log.w("ZyveronRepo", "Sincronização já em execução. Aguardando liberação.")
             return@withContext Result.success(channelDao.getChannelCount())
         }
         try {
             val cleanDns = UrlHelper.normalizeUrl(serverDns)
-            if (cleanDns.isBlank() || username.isBlank()) {
+            val cleanUser = username.trim()
+            val cleanPass = password.trim()
+
+            if (cleanDns.isBlank() || cleanUser.isBlank()) {
                 Log.w("ZyveronRepo", "DNS ou usuário ausente para sincronização.")
                 return@withContext Result.failure(IllegalArgumentException("DNS ou usuário não configurado"))
             }
@@ -275,25 +280,36 @@ class ZyveronRepository(private val context: Context) {
                 _seriesCount.value = 0
             }
 
-            // 1. SINCRONIZA CANAIS AO VIVO
+            // 1. SINCRONIZA CANAIS AO VIVO COM ATUALIZAÇÃO IMEDIATA DA UI
+            var liveError: Throwable? = null
             try {
-                syncLiveStreams(cleanDns, username, password)
-            } catch (e: Exception) {
-                Log.e("ZyveronRepo", "Falha na sincronização de Canais: ${e.message}")
+                syncLiveStreams(cleanDns, cleanUser, cleanPass)
+                val currentLive = channelDao.getChannelCount()
+                _liveCount.value = currentLive
+                Log.d("ZyveronRepo", "Live channels sincronizados: $currentLive canais disponíveis imediatamente na UI.")
+            } catch (t: Throwable) {
+                liveError = t
+                Log.e("ZyveronRepo", "Falha na sincronização de Canais: ${t.message}", t)
             }
 
-            // 2. SINCRONIZA FILMES (VOD)
+            // 2. SINCRONIZA FILMES (VOD) COM ATUALIZAÇÃO IMEDIATA DA UI
             try {
-                syncVodStreams(cleanDns, username, password)
-            } catch (e: Exception) {
-                Log.e("ZyveronRepo", "Falha na sincronização de VODs: ${e.message}")
+                syncVodStreams(cleanDns, cleanUser, cleanPass)
+                val currentVod = channelDao.getVodCount()
+                _vodCount.value = currentVod
+                Log.d("ZyveronRepo", "VODs sincronizados: $currentVod filmes disponíveis imediatamente na UI.")
+            } catch (t: Throwable) {
+                Log.e("ZyveronRepo", "Falha na sincronização de VODs: ${t.message}", t)
             }
 
-            // 3. SINCRONIZA SÉRIES
+            // 3. SINCRONIZA SÉRIES COM ATUALIZAÇÃO IMEDIATA DA UI
             try {
-                syncSeriesStreams(cleanDns, username, password)
-            } catch (e: Exception) {
-                Log.e("ZyveronRepo", "Falha na sincronização de Séries: ${e.message}")
+                syncSeriesStreams(cleanDns, cleanUser, cleanPass)
+                val currentSeries = channelDao.getSeriesCount()
+                _seriesCount.value = currentSeries
+                Log.d("ZyveronRepo", "Séries sincronizadas: $currentSeries séries disponíveis imediatamente na UI.")
+            } catch (t: Throwable) {
+                Log.e("ZyveronRepo", "Falha na sincronização de Séries: ${t.message}", t)
             }
 
             val totalChannels = channelDao.getChannelCount()
@@ -302,22 +318,29 @@ class ZyveronRepository(private val context: Context) {
             _seriesCount.value = channelDao.getSeriesCount()
 
             Log.d("ZyveronRepo", "Sincronização concluída: ${_liveCount.value} canais, ${_vodCount.value} filmes, ${_seriesCount.value} séries.")
-            Result.success(totalChannels)
-        } catch (e: Exception) {
-            Log.e("ZyveronRepo", "Erro na sincronização de catálogo", e)
-            Result.failure(e)
+
+            if (totalChannels == 0 && liveError != null) {
+                Result.failure(liveError)
+            } else {
+                Result.success(totalChannels)
+            }
+        } catch (t: Throwable) {
+            Log.e("ZyveronRepo", "Erro na sincronização de catálogo", t)
+            Result.failure(t)
         } finally {
             syncMutex.unlock()
         }
     }
 
     private suspend fun syncLiveStreams(cleanDns: String, username: String, password: String) {
-        val savedFavoriteIds = try { channelDao.getFavoriteStreamIds() } catch (_: Exception) { emptyList() }
+        val savedFavoriteIds = try { channelDao.getFavoriteStreamIds() } catch (_: Throwable) { emptyList() }
+        val encUser = java.net.URLEncoder.encode(username.trim(), "UTF-8")
+        val encPass = java.net.URLEncoder.encode(password.trim(), "UTF-8")
 
         // Categorias Live
         val parsedCategories = mutableListOf<CategoryEntity>()
         try {
-            val catUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_live_categories"
+            val catUrl = "$cleanDns/player_api.php?username=$encUser&password=$encPass&action=get_live_categories"
             client.newCall(Request.Builder().url(catUrl).build()).execute().use { response ->
                 if (response.isSuccessful) {
                     val bodyStr = response.body?.string().orEmpty().trim()
@@ -340,14 +363,15 @@ class ZyveronRepository(private val context: Context) {
                     }
                 }
             }
-        } catch (e: Exception) {
-            Log.w("ZyveronRepo", "Erro ao buscar categorias de canais: ${e.message}")
+        } catch (t: Throwable) {
+            Log.w("ZyveronRepo", "Erro ao buscar categorias de canais: ${t.message}")
         }
 
         // Streams Live
         val parsedChannels = mutableListOf<ChannelEntity>()
+        var authErrorMsg: String? = null
         try {
-            val liveUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_live_streams"
+            val liveUrl = "$cleanDns/player_api.php?username=$encUser&password=$encPass&action=get_live_streams"
             client.newCall(Request.Builder().url(liveUrl).build()).execute().use { response ->
                 if (response.isSuccessful) {
                     val bodyStr = response.body?.string().orEmpty().trim()
@@ -370,18 +394,36 @@ class ZyveronRepository(private val context: Context) {
                                 )
                             }
                         }
+                    } else if (bodyStr.startsWith("{")) {
+                        try {
+                            val jsonObj = JSONObject(bodyStr)
+                            val userInfo = jsonObj.optJSONObject("user_info")
+                            val auth = userInfo?.optInt("auth", 1) ?: 1
+                            if (auth == 0) {
+                                val status = userInfo?.optString("status") ?: "Desativado"
+                                val msg = userInfo?.optString("message").takeIf { !it.isNullOrBlank() } ?: "Conta ou senha rejeitada pelo servidor ($status)"
+                                authErrorMsg = msg
+                            }
+                        } catch (_: Throwable) {}
                     }
+                } else {
+                    authErrorMsg = "Servidor retornou erro HTTP ${response.code}"
                 }
             }
-        } catch (e: Exception) {
-            Log.w("ZyveronRepo", "Erro ao buscar canais ao vivo: ${e.message}")
+        } catch (t: Throwable) {
+            Log.w("ZyveronRepo", "Erro ao buscar canais ao vivo: ${t.message}")
+            throw t
+        }
+
+        if (authErrorMsg != null) {
+            throw IllegalStateException(authErrorMsg)
         }
 
         // ATUALIZAÇÃO ATÔMICA APENAS SE HOUVER DADOS VÁLIDOS
         if (parsedChannels.isNotEmpty()) {
             channelDao.replaceLiveCatalog(parsedCategories, parsedChannels)
             if (savedFavoriteIds.isNotEmpty()) {
-                try { channelDao.markFavorites(savedFavoriteIds) } catch (_: Exception) {}
+                try { channelDao.markFavorites(savedFavoriteIds) } catch (_: Throwable) {}
             }
             Log.d("ZyveronRepo", "Atualizados ${parsedChannels.size} canais e ${parsedCategories.size} categorias com sucesso.")
         } else {
@@ -390,12 +432,14 @@ class ZyveronRepository(private val context: Context) {
     }
 
     private suspend fun syncVodStreams(cleanDns: String, username: String, password: String) {
-        val savedFavoriteVodIds = try { channelDao.getFavoriteVodIds() } catch (_: Exception) { emptyList() }
+        val savedFavoriteVodIds = try { channelDao.getFavoriteVodIds() } catch (_: Throwable) { emptyList() }
+        val encUser = java.net.URLEncoder.encode(username.trim(), "UTF-8")
+        val encPass = java.net.URLEncoder.encode(password.trim(), "UTF-8")
 
         // Categorias VOD
         val parsedCategories = mutableListOf<CategoryEntity>()
         try {
-            val catUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_vod_categories"
+            val catUrl = "$cleanDns/player_api.php?username=$encUser&password=$encPass&action=get_vod_categories"
             client.newCall(Request.Builder().url(catUrl).build()).execute().use { response ->
                 if (response.isSuccessful) {
                     val bodyStr = response.body?.string().orEmpty().trim()
@@ -418,14 +462,14 @@ class ZyveronRepository(private val context: Context) {
                     }
                 }
             }
-        } catch (e: Exception) {
-            Log.w("ZyveronRepo", "Erro ao buscar categorias de VOD: ${e.message}")
+        } catch (t: Throwable) {
+            Log.w("ZyveronRepo", "Erro ao buscar categorias de VOD: ${t.message}")
         }
 
         // Filmes VOD
         val parsedVods = mutableListOf<VodEntity>()
         try {
-            val vodUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_vod_streams"
+            val vodUrl = "$cleanDns/player_api.php?username=$encUser&password=$encPass&action=get_vod_streams"
             client.newCall(Request.Builder().url(vodUrl).build()).execute().use { response ->
                 if (response.isSuccessful) {
                     val bodyStr = response.body?.string().orEmpty().trim()
@@ -452,15 +496,15 @@ class ZyveronRepository(private val context: Context) {
                     }
                 }
             }
-        } catch (e: Exception) {
-            Log.w("ZyveronRepo", "Erro ao buscar filmes VOD: ${e.message}")
+        } catch (t: Throwable) {
+            Log.w("ZyveronRepo", "Erro ao buscar filmes VOD: ${t.message}")
         }
 
         // ATUALIZAÇÃO ATÔMICA APENAS SE HOUVER DADOS VÁLIDOS
         if (parsedVods.isNotEmpty()) {
             channelDao.replaceVodCatalog(parsedCategories, parsedVods)
             if (savedFavoriteVodIds.isNotEmpty()) {
-                try { channelDao.markVodFavorites(savedFavoriteVodIds) } catch (_: Exception) {}
+                try { channelDao.markVodFavorites(savedFavoriteVodIds) } catch (_: Throwable) {}
             }
             Log.d("ZyveronRepo", "Atualizados ${parsedVods.size} filmes e ${parsedCategories.size} categorias de VOD com sucesso.")
         } else {
@@ -469,12 +513,14 @@ class ZyveronRepository(private val context: Context) {
     }
 
     private suspend fun syncSeriesStreams(cleanDns: String, username: String, password: String) {
-        val savedFavoriteSeriesIds = try { channelDao.getFavoriteSeriesIds() } catch (_: Exception) { emptyList() }
+        val savedFavoriteSeriesIds = try { channelDao.getFavoriteSeriesIds() } catch (_: Throwable) { emptyList() }
+        val encUser = java.net.URLEncoder.encode(username.trim(), "UTF-8")
+        val encPass = java.net.URLEncoder.encode(password.trim(), "UTF-8")
 
         // Categorias Séries
         val parsedCategories = mutableListOf<CategoryEntity>()
         try {
-            val catUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_series_categories"
+            val catUrl = "$cleanDns/player_api.php?username=$encUser&password=$encPass&action=get_series_categories"
             client.newCall(Request.Builder().url(catUrl).build()).execute().use { response ->
                 if (response.isSuccessful) {
                     val bodyStr = response.body?.string().orEmpty().trim()
@@ -497,14 +543,14 @@ class ZyveronRepository(private val context: Context) {
                     }
                 }
             }
-        } catch (e: Exception) {
-            Log.w("ZyveronRepo", "Erro ao buscar categorias de séries: ${e.message}")
+        } catch (t: Throwable) {
+            Log.w("ZyveronRepo", "Erro ao buscar categorias de séries: ${t.message}")
         }
 
         // Séries
         val parsedSeries = mutableListOf<SeriesEntity>()
         try {
-            val seriesUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_series"
+            val seriesUrl = "$cleanDns/player_api.php?username=$encUser&password=$encPass&action=get_series"
             client.newCall(Request.Builder().url(seriesUrl).build()).execute().use { response ->
                 if (response.isSuccessful) {
                     val bodyStr = response.body?.string().orEmpty().trim()
@@ -533,19 +579,19 @@ class ZyveronRepository(private val context: Context) {
                     }
                 }
             }
-        } catch (e: Exception) {
-            Log.w("ZyveronRepo", "Erro ao buscar séries: ${e.message}")
+        } catch (t: Throwable) {
+            Log.w("ZyveronRepo", "Erro ao buscar séries: ${t.message}")
         }
 
         // ATUALIZAÇÃO ATÔMICA APENAS SE HOUVER DADOS VÁLIDOS
         if (parsedSeries.isNotEmpty()) {
             channelDao.replaceSeriesCatalog(parsedCategories, parsedSeries)
             if (savedFavoriteSeriesIds.isNotEmpty()) {
-                try { channelDao.markSeriesFavorites(savedFavoriteSeriesIds) } catch (_: Exception) {}
+                try { channelDao.markSeriesFavorites(savedFavoriteSeriesIds) } catch (_: Throwable) {}
             }
             Log.d("ZyveronRepo", "Atualizadas ${parsedSeries.size} séries e ${parsedCategories.size} categorias de séries com sucesso.")
         } else {
-            Log.w("ZyveronRepo", "Nenhuma série retornada pela API. Mantendo séries anteriores no banco.")
+            Log.w("ZyveronRepo", "Nenhum série retornada pela API. Mantendo séries anteriores no banco.")
         }
     }
 
@@ -560,7 +606,9 @@ class ZyveronRepository(private val context: Context) {
     ): Result<List<SeasonEpisodes>> = withContext(Dispatchers.IO) {
         try {
             val cleanDns = UrlHelper.normalizeUrl(serverDns)
-            val url = "$cleanDns/player_api.php?username=$username&password=$password&action=get_series_info&series_id=$seriesId"
+            val encUser = java.net.URLEncoder.encode(username.trim(), "UTF-8")
+            val encPass = java.net.URLEncoder.encode(password.trim(), "UTF-8")
+            val url = "$cleanDns/player_api.php?username=$encUser&password=$encPass&action=get_series_info&series_id=$seriesId"
             val request = Request.Builder().url(url).build()
 
             client.newCall(request).execute().use { response ->

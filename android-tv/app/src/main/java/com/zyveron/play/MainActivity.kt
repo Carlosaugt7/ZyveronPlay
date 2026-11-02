@@ -1,6 +1,7 @@
 package com.zyveron.play
 
 import android.os.Bundle
+import android.util.Log
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -272,39 +273,65 @@ fun MainContent(
                 var isSyncing by remember { mutableStateOf(false) }
 
                 fun performSync(isManual: Boolean, forceClear: Boolean = false) {
-                    if (isSyncing || cleanDns.isBlank() || state.username.isBlank()) return
+                    if (isSyncing) {
+                        if (isManual) {
+                            android.widget.Toast.makeText(context, "⏳ Atualização já em andamento. Aguarde...", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        return
+                    }
+                    if (cleanDns.isBlank()) {
+                        if (isManual) {
+                            android.widget.Toast.makeText(context, "⚠️ Servidor DNS não configurado. Verifique no painel web.", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                        return
+                    }
+                    if (state.username.isBlank()) {
+                        if (isManual) {
+                            android.widget.Toast.makeText(context, "⚠️ Usuário da conta não configurado. Verifique no painel web.", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                        return
+                    }
+
                     coroutineScope.launch {
                         isSyncing = true
-                        if (isManual) {
-                            android.widget.Toast.makeText(context, "🔄 Atualizando canais, filmes e séries...", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                        val countBefore = repository.getChannelCount()
-                        val result = repository.syncXtreamCatalog(
-                            serverDns = cleanDns,
-                            username = state.username,
-                            password = state.password,
-                            forceClearFirst = forceClear
-                        )
-                        isSyncing = false
+                        try {
+                            if (isManual) {
+                                android.widget.Toast.makeText(context, "🔄 Atualizando canais, filmes e séries...", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                            val countBefore = repository.getChannelCount()
+                            val result = repository.syncXtreamCatalog(
+                                serverDns = cleanDns,
+                                username = state.username,
+                                password = state.password,
+                                forceClearFirst = forceClear
+                            )
 
-                        if (isManual) {
-                            if (result.isSuccess) {
-                                val total = result.getOrDefault(0)
-                                if (total > 0) {
-                                    android.widget.Toast.makeText(context, "✅ Catálogo atualizado com sucesso! ($total canais)", android.widget.Toast.LENGTH_SHORT).show()
-                                } else if (countBefore > 0) {
-                                    android.widget.Toast.makeText(context, "⚠️ Servidor retornou vazio. Mantendo catálogo em cache ($countBefore canais).", android.widget.Toast.LENGTH_LONG).show()
+                            if (isManual) {
+                                if (result.isSuccess) {
+                                    val total = result.getOrDefault(0)
+                                    if (total > 0) {
+                                        android.widget.Toast.makeText(context, "✅ Catálogo atualizado com sucesso! ($total canais)", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else if (countBefore > 0) {
+                                        android.widget.Toast.makeText(context, "⚠️ Servidor retornou vazio. Mantendo catálogo em cache ($countBefore canais).", android.widget.Toast.LENGTH_LONG).show()
+                                    } else {
+                                        android.widget.Toast.makeText(context, "⚠️ Nenhum canal encontrado no servidor.", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
                                 } else {
-                                    android.widget.Toast.makeText(context, "⚠️ Nenhum canal encontrado no servidor.", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            } else {
-                                val err = result.exceptionOrNull()?.message ?: "Erro de conexão"
-                                if (countBefore > 0) {
-                                    android.widget.Toast.makeText(context, "⚠️ Falha ao atualizar: $err. Mantendo canais em cache ($countBefore canais).", android.widget.Toast.LENGTH_LONG).show()
-                                } else {
-                                    android.widget.Toast.makeText(context, "⚠️ Falha ao atualizar: $err", android.widget.Toast.LENGTH_LONG).show()
+                                    val err = result.exceptionOrNull()?.message ?: "Erro de conexão"
+                                    if (countBefore > 0) {
+                                        android.widget.Toast.makeText(context, "⚠️ Falha ao atualizar: $err. Mantendo canais em cache ($countBefore canais).", android.widget.Toast.LENGTH_LONG).show()
+                                    } else {
+                                        android.widget.Toast.makeText(context, "⚠️ Falha ao atualizar: $err", android.widget.Toast.LENGTH_LONG).show()
+                                    }
                                 }
                             }
+                        } catch (t: Throwable) {
+                            Log.e("MainActivity", "Erro crítico durante sincronização", t)
+                            if (isManual) {
+                                android.widget.Toast.makeText(context, "⚠️ Erro: ${t.message ?: "Falha na sincronização"}", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        } finally {
+                            isSyncing = false
                         }
                     }
                 }
@@ -314,7 +341,7 @@ fun MainContent(
                     if (cleanDns.isNotBlank() && state.username.isNotBlank()) {
                         val currentCount = repository.getChannelCount()
                         if (currentCount == 0 && !isSyncing) {
-                            performSync(isManual = true, forceClear = false)
+                            performSync(isManual = false, forceClear = false)
                         }
                     }
                 }

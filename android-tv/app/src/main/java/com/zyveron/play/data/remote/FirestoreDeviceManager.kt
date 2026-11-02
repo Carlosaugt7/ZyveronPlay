@@ -138,21 +138,21 @@ class FirestoreDeviceManager(private val context: Context) {
     }
 
     private fun processSnapshot(snapshot: com.google.firebase.firestore.DocumentSnapshot) {
-        val status = snapshot.getString("status") ?: "active"
-        val expDateStr = snapshot.getString("expirationDate") ?: ""
-        val serverId = snapshot.getString("serverId") ?: ""
-        val serverName = snapshot.getString("serverName") ?: "Servidor 1"
-        val rawServerDns = snapshot.getString("serverDns") ?: ""
-        val username = snapshot.getString("username") ?: ""
-        val password = snapshot.getString("password") ?: ""
+        val status = snapshot.getString("status")?.trim() ?: "active"
+        val expDateStr = snapshot.getString("expirationDate")?.trim() ?: ""
+        val serverId = snapshot.getString("serverId")?.trim() ?: ""
+        val serverName = snapshot.getString("serverName")?.trim() ?: "Servidor 1"
+        val rawServerDns = snapshot.getString("serverDns")?.trim() ?: ""
+        val username = snapshot.getString("username")?.trim() ?: ""
+        val password = snapshot.getString("password")?.trim() ?: ""
 
         // Lista 2
-        val serverId2 = snapshot.getString("serverId2") ?: ""
-        val serverName2 = snapshot.getString("serverName2") ?: "Servidor 2"
-        val rawServerDns2 = snapshot.getString("serverDns2") ?: ""
-        val username2 = snapshot.getString("username2") ?: ""
-        val password2 = snapshot.getString("password2") ?: ""
-        val expDateStr2 = snapshot.getString("expirationDate2") ?: ""
+        val serverId2 = snapshot.getString("serverId2")?.trim() ?: ""
+        val serverName2 = snapshot.getString("serverName2")?.trim() ?: "Servidor 2"
+        val rawServerDns2 = snapshot.getString("serverDns2")?.trim() ?: ""
+        val username2 = snapshot.getString("username2")?.trim() ?: ""
+        val password2 = snapshot.getString("password2")?.trim() ?: ""
+        val expDateStr2 = snapshot.getString("expirationDate2")?.trim() ?: ""
 
         val signature = DeviceSnapshotSignature(
             status = status,
@@ -308,6 +308,11 @@ class FirestoreDeviceManager(private val context: Context) {
                 }
 
                 Log.d("FirestoreDeviceManager", "Servidor atualizado: $activeServerName [$activeDns]")
+                val updatedPlaylists = playlists.mapIndexed { idx, pl ->
+                    if (idx == activePlaylistIndex) {
+                        pl.copy(serverName = activeServerName, serverDns = activeDns)
+                    } else pl
+                }
                 _authState.value = DeviceAuthState.Active(
                     mac = virtualMac,
                     serverName = activeServerName,
@@ -316,7 +321,7 @@ class FirestoreDeviceManager(private val context: Context) {
                     username = username,
                     password = password,
                     expirationDate = expDate,
-                    playlists = playlists,
+                    playlists = updatedPlaylists,
                     activePlaylistIndex = activePlaylistIndex
                 )
             }
@@ -425,7 +430,7 @@ class FirestoreDeviceManager(private val context: Context) {
                         "lastSeenIso" to SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
                             timeZone = TimeZone.getTimeZone("UTC")
                         }.format(Date()),
-                        "appVersion" to "2.8.1"
+                        "appVersion" to "2.8.2"
                     )
                     firestore.collection("devices").document(virtualMac)
                         .set(update, SetOptions.merge())

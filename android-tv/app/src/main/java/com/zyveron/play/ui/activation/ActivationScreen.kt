@@ -111,6 +111,13 @@ fun ActivationScreen(
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
                 )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "v${com.zyveron.play.BuildConfig.VERSION_NAME}",
+                    color = TextSecondary.copy(alpha = 0.6f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
