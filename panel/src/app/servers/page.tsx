@@ -82,12 +82,12 @@ export default function ServersPage() {
     e.preventDefault();
     if (!selectedServer || !newDnsInput.trim()) return;
     try {
-      store.updateServerDns(selectedServer.id, newDnsInput.trim());
-      setDnsSuccessMsg(`DNS do servidor "${selectedServer.name}" atualizado com sucesso! Todas as telas conectadas já estão apontando para o novo link.`);
+      const result = store.updateServerDns(selectedServer.id, newDnsInput.trim());
+      setDnsSuccessMsg(`DNS do servidor "${selectedServer.name}" atualizado com sucesso! ${result.updatedDevicesCount} aparelho(s) atualizado(s) e sincronizado(s) com o novo DNS.`);
       loadData();
       setTimeout(() => {
         setIsDnsModalOpen(false);
-      }, 2500);
+      }, 2000);
     } catch (err: any) {
       alert(err.message || "Erro ao atualizar DNS");
     }

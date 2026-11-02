@@ -1,12 +1,14 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Sidebar } from "@/components/Sidebar";
 import { LoginView } from "@/components/LoginView";
+import { Menu, Tv } from "lucide-react";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   if (loading) {
     return (
@@ -27,11 +29,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#090d12]">
-      <Sidebar />
-      <div className="flex-1 ml-64 flex flex-col min-h-screen bg-[#090d12]">
+    <div className="flex min-h-screen bg-[#090d12] overflow-x-hidden">
+      {/* Mobile Top Bar */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-[#0c121a]/95 backdrop-blur-md border-b border-zinc-800/80 px-4 flex items-center justify-between z-30">
+        <button
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="p-2 text-zinc-300 hover:text-white hover:bg-zinc-800 rounded-lg transition"
+          aria-label="Abrir Menu de Navegação"
+        >
+          <Menu className="w-5 h-5 text-emerald-400" />
+        </button>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <Tv className="w-4 h-4" />
+          </div>
+          <span className="font-bold text-sm text-white">
+            Zyveron <span className="text-emerald-400">Play</span>
+          </span>
+        </div>
+        <div className="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-[10px] font-bold text-emerald-300">
+          {user?.name?.substring(0, 2).toUpperCase() ?? "AD"}
+        </div>
+      </div>
+
+      <Sidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
+
+      <div className="flex-1 md:ml-64 flex flex-col min-h-screen bg-[#090d12] w-full min-w-0 pt-14 md:pt-0">
         {children}
       </div>
     </div>
   );
 }
+

@@ -61,6 +61,10 @@ export const FirestoreSync = {
         expirationDate: device.expirationDate,
         status: device.status,
         customNote: device.customNote || "",
+        ...(device.isOnline !== undefined ? { isOnline: device.isOnline } : {}),
+        ...(device.lastSeen !== undefined && device.lastSeen !== null ? { lastSeen: device.lastSeen } : {}),
+        ...(device.lastSeenIso ? { lastSeenIso: device.lastSeenIso } : {}),
+        ...(device.appVersion ? { appVersion: device.appVersion } : {}),
         // Lista 2 (Opcional)
         serverId2: device.serverId2 || "",
         serverName2: device.serverName2 || "",

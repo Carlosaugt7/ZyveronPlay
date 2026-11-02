@@ -4,14 +4,18 @@ import android.content.Context
 import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.SetOptions
 import com.zyveron.play.util.DeviceIdentityHelper
 import com.zyveron.play.util.UrlHelper
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -71,6 +75,7 @@ class FirestoreDeviceManager(private val context: Context) {
     private var deviceListener: ListenerRegistration? = null
     private var serverListener: ListenerRegistration? = null
     private var notificationsListener: ListenerRegistration? = null
+    private var heartbeatJob: Job? = null
 
     val virtualMac: String = DeviceIdentityHelper.getVirtualMac(context)
     val deviceKey: String = DeviceIdentityHelper.getDeviceKey(context)
@@ -101,6 +106,9 @@ class FirestoreDeviceManager(private val context: Context) {
                 latestSnapshot = snapshot
                 processSnapshot(snapshot)
             }
+
+        // 2. Inicia heartbeat de presença online (resiliente, não quebra nenhum código)
+        startHeartbeat()
 
         // 3. Escuta notificações e avisos em tempo real para exibir na TV
         listenToBroadcastMessages()
@@ -307,9 +315,50 @@ class FirestoreDeviceManager(private val context: Context) {
     }
 
     fun stopListening() {
+        stopHeartbeat()
         deviceListener?.remove()
         serverListener?.remove()
         notificationsListener?.remove()
+    }
+
+    private fun startHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = scope.launch {
+            while (isActive) {
+                try {
+                    val update = mapOf(
+                        "isOnline" to true,
+                        "lastSeen" to System.currentTimeMillis(),
+                        "lastSeenIso" to SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+                            timeZone = TimeZone.getTimeZone("UTC")
+                        }.format(Date()),
+                        "appVersion" to "2.8.0"
+                    )
+                    firestore.collection("devices").document(virtualMac)
+                        .set(update, SetOptions.merge())
+                } catch (e: Exception) {
+                    Log.w("FirestoreDeviceManager", "Heartbeat silencioso ignorado: ${e.message}")
+                }
+                delay(45_000)
+            }
+        }
+    }
+
+    private fun stopHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = null
+        scope.launch {
+            try {
+                firestore.collection("devices").document(virtualMac)
+                    .set(
+                        mapOf(
+                            "isOnline" to false,
+                            "lastSeen" to System.currentTimeMillis()
+                        ),
+                        SetOptions.merge()
+                    )
+            } catch (_: Exception) {}
+        }
     }
 
     private fun isExpired(dateStr: String): Boolean {

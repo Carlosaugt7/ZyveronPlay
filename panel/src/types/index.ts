@@ -42,7 +42,10 @@ export interface DeviceDocument {
   expirationDate: string; // ISO string ou data formatada
   status: DeviceStatus;
   customNote?: string;
-  lastSeen?: string | null;
+  isOnline?: boolean;
+  lastSeen?: string | number | null;
+  lastSeenIso?: string | null;
+  appVersion?: string;
   createdAt: string;
   updatedAt: string;
 

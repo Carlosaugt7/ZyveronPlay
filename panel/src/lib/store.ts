@@ -74,12 +74,21 @@ class LocalStore {
         if (d.mac) fsMap.set(d.mac.trim().toUpperCase(), d);
       });
 
-      // Mescla os locais existentes para garantir que NENHUM dado cadastrado no PC ou celular se perca
+      // Mescla com os dados locais preservando alterações mais recentes
       this.devices.forEach(localDev => {
         const cleanMac = localDev.mac.trim().toUpperCase();
-        if (!fsMap.has(cleanMac)) {
+        const remoteDev = fsMap.get(cleanMac);
+        if (!remoteDev) {
           fsMap.set(cleanMac, localDev);
           FirestoreSync.syncDeviceToFirestore(localDev);
+        } else {
+          // Se a alteração local for mais recente que o snapshot remoto, mantém o local e atualiza o remoto
+          const localTime = new Date(localDev.updatedAt || localDev.createdAt || 0).getTime();
+          const remoteTime = new Date(remoteDev.updatedAt || remoteDev.createdAt || 0).getTime();
+          if (localTime > remoteTime) {
+            fsMap.set(cleanMac, { ...remoteDev, ...localDev });
+            FirestoreSync.syncDeviceToFirestore(localDev);
+          }
         }
       });
 
@@ -160,16 +169,42 @@ class LocalStore {
     return [...this.servers];
   }
 
-  updateServerDns(serverId: string, newDns: string, fallbacks?: string[]) {
+  updateServerDns(serverId: string, newDns: string, fallbacks?: string[]): { server: ServerDocument; updatedDevicesCount: number } {
     this.init();
     const srv = this.servers.find(s => s.id === serverId);
     if (!srv) throw new Error("Servidor não encontrado.");
-    srv.activeDns = normalizeDnsUrl(newDns);
+    const cleanDns = normalizeDnsUrl(newDns);
+    srv.activeDns = cleanDns;
     if (fallbacks) srv.fallbackDns = fallbacks.map(normalizeDnsUrl);
     srv.updatedAt = new Date().toISOString();
     this.save();
     FirestoreSync.syncServerToFirestore(srv);
-    return srv;
+
+    // Atualiza em massa a DNS em TODOS os aparelhos vinculados a este servidor
+    let updatedDevicesCount = 0;
+    this.devices.forEach(dev => {
+      let changed = false;
+      if (dev.serverId === serverId) {
+        dev.serverDns = cleanDns;
+        changed = true;
+      }
+      if (dev.serverId2 === serverId) {
+        dev.serverDns2 = cleanDns;
+        changed = true;
+      }
+      if (changed) {
+        dev.updatedAt = new Date().toISOString();
+        FirestoreSync.syncDeviceToFirestore(dev);
+        updatedDevicesCount++;
+      }
+    });
+
+    if (updatedDevicesCount > 0) {
+      this.save();
+      this.notify();
+    }
+
+    return { server: srv, updatedDevicesCount };
   }
 
   addServer(name: string, activeDns: string, fallbackDns: string[], notes: string = ""): ServerDocument {
@@ -198,14 +233,30 @@ class LocalStore {
     if (!targetServer) throw new Error("Servidor destino não existe.");
     let count = 0;
     this.devices.forEach(dev => {
+      let changed = false;
       if (dev.serverId === fromServerId) {
         dev.serverId = toServerId;
         dev.serverName = targetServer.name;
+        dev.serverDns = targetServer.activeDns;
         dev.updatedAt = new Date().toISOString();
+        changed = true;
+      }
+      if (dev.serverId2 === fromServerId) {
+        dev.serverId2 = toServerId;
+        dev.serverName2 = targetServer.name;
+        dev.serverDns2 = targetServer.activeDns;
+        dev.updatedAt = new Date().toISOString();
+        changed = true;
+      }
+      if (changed) {
+        FirestoreSync.syncDeviceToFirestore(dev);
         count++;
       }
     });
-    this.save();
+    if (count > 0) {
+      this.save();
+      this.notify();
+    }
     return count;
   }
 
@@ -400,19 +451,20 @@ class LocalStore {
     newServerDns2?: string,
     newUsername2?: string,
     newPassword2?: string,
-    newExpirationDate2?: string
+    newExpirationDate2?: string,
+    newCustomNote?: string
   ): DeviceDocument {
     this.init();
     const cleanOldMac = oldMac.trim().toUpperCase();
     const cleanNewMac = newMac.trim().toUpperCase();
-    const devIndex = this.devices.findIndex(d => d.mac === cleanOldMac);
-    if (devIndex === -1) throw new Error("Aparelho não encontrado.");
+    const devIndex = this.devices.findIndex(d => d.mac.trim().toUpperCase() === cleanOldMac);
+    if (devIndex === -1) throw new Error(`Aparelho não encontrado para o MAC ${cleanOldMac}.`);
 
     const dev = { ...this.devices[devIndex] };
 
     // Se o endereço MAC foi alterado, remove o documento antigo do Firestore
     if (cleanNewMac !== cleanOldMac) {
-      const exists = this.devices.some(d => d.mac === cleanNewMac && d.mac !== cleanOldMac);
+      const exists = this.devices.some(d => d.mac.trim().toUpperCase() === cleanNewMac && d.mac.trim().toUpperCase() !== cleanOldMac);
       if (exists) throw new Error(`Já existe outro aparelho cadastrado com o MAC ${cleanNewMac}`);
       FirestoreSync.removeDeviceFromFirestore(cleanOldMac);
     }
@@ -426,6 +478,10 @@ class LocalStore {
     dev.expirationDate = new Date(newExpirationDate).toISOString();
     dev.status = updatedStatus;
     dev.updatedAt = new Date().toISOString();
+
+    if (newCustomNote !== undefined) {
+      dev.customNote = newCustomNote.trim();
+    }
 
     if (newServerId !== undefined && newServerId.trim() !== "") {
       dev.serverId = newServerId;
@@ -466,6 +522,7 @@ class LocalStore {
     this.devices[devIndex] = dev;
     this.save();
     FirestoreSync.syncDeviceToFirestore(dev);
+    this.notify();
     return dev;
   }
 

@@ -58,6 +58,17 @@ export default function DashboardPage() {
   const expiredDevices = devices.filter((d) => d.status === "expired").length;
   const blockedDevices = devices.filter((d) => d.status === "blocked").length;
 
+  const onlineDevices = devices.filter((d) => {
+    if (d.isOnline === false) return false;
+    if (!d.lastSeen && !d.lastSeenIso) return false;
+    const now = Date.now();
+    let time = 0;
+    if (typeof d.lastSeen === "number") time = d.lastSeen;
+    else if (typeof d.lastSeen === "string") time = new Date(d.lastSeen).getTime();
+    else if (d.lastSeenIso) time = new Date(d.lastSeenIso).getTime();
+    return !isNaN(time) && now - time <= 120_000;
+  }).length;
+
   const handleQuickDnsChange = (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickDnsServerId || !newDnsInput.trim()) return;
@@ -126,11 +137,16 @@ export default function DashboardPage() {
               </div>
             </div>
             <p className="text-2xl font-bold text-white mt-3">{devices.length}</p>
-            <div className="flex items-center gap-2 mt-3 text-[11px]">
+            <div className="flex flex-wrap items-center gap-2 mt-3 text-[11px]">
               <span className="text-emerald-400 font-medium flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> {activeDevices} Ativos
               </span>
-              <span className="text-zinc-400">•</span>
+              <span className="text-zinc-500">•</span>
+              <span className="text-emerald-300 font-bold flex items-center gap-1.5 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                {onlineDevices} Em uso agora
+              </span>
+              <span className="text-zinc-500">•</span>
               <span className="text-amber-400 font-medium flex items-center gap-1">
                 <Clock className="w-3 h-3" /> {expiredDevices} Vencidos
               </span>

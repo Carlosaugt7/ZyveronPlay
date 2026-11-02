@@ -52,6 +52,7 @@ export default function DevicesPage() {
   const [editingDevice, setEditingDevice] = useState<DeviceDocument | null>(null);
   const [editMacInput, setEditMacInput] = useState("");
   const [editDeviceKeyInput, setEditDeviceKeyInput] = useState("");
+  const [editNoteInput, setEditNoteInput] = useState("");
   const [editUsernameInput, setEditUsernameInput] = useState("");
   const [editPasswordInput, setEditPasswordInput] = useState("");
   const [editExpDateInput, setEditExpDateInput] = useState("");
@@ -73,11 +74,6 @@ export default function DevicesPage() {
     const s = store.getServers();
     setDevices(d);
     setServers(s);
-
-    // Sincroniza automaticamente todos os aparelhos ativos para o Cloud Firestore
-    d.forEach((device) => {
-      FirestoreSync.syncDeviceToFirestore(device);
-    });
 
     if (s.length > 0 && !serverIdInput) {
       setServerIdInput(s[0].id);
@@ -179,6 +175,7 @@ export default function DevicesPage() {
     setEditingDevice(dev);
     setEditMacInput(dev.mac);
     setEditDeviceKeyInput(dev.deviceKey);
+    setEditNoteInput(dev.customNote || "");
     setEditUsernameInput(dev.username || "");
     setEditPasswordInput(dev.password || "");
     try {
@@ -294,7 +291,8 @@ export default function DevicesPage() {
         editEnableSecondList ? editServerDns2Input.trim() : "",
         editEnableSecondList ? editUsername2Input.trim() : "",
         editEnableSecondList ? editPassword2Input.trim() : "",
-        editEnableSecondList ? targetDate2 : ""
+        editEnableSecondList ? targetDate2 : "",
+        editNoteInput.trim()
       );
       setIsEditModalOpen(false);
       setEditingDevice(null);
@@ -302,6 +300,22 @@ export default function DevicesPage() {
     } catch (err: any) {
       setEditErrorMsg(err.message || "Erro ao salvar alterações.");
     }
+  };
+
+  const isDeviceOnline = (dev: DeviceDocument): boolean => {
+    if (dev.isOnline === false) return false;
+    if (!dev.lastSeen && !dev.lastSeenIso) return false;
+    const now = Date.now();
+    let lastSeenTime = 0;
+    if (typeof dev.lastSeen === "number") {
+      lastSeenTime = dev.lastSeen;
+    } else if (typeof dev.lastSeen === "string") {
+      lastSeenTime = new Date(dev.lastSeen).getTime();
+    } else if (dev.lastSeenIso) {
+      lastSeenTime = new Date(dev.lastSeenIso).getTime();
+    }
+    if (isNaN(lastSeenTime) || lastSeenTime <= 0) return false;
+    return now - lastSeenTime <= 120_000; // Online nos últimos 2 minutos
   };
 
   // Filtros
@@ -399,14 +413,21 @@ export default function DevicesPage() {
                     return (
                       <tr key={dev.id} className="hover:bg-zinc-900/50 transition">
                         <td className="py-3.5 px-3">
-                          <div className="flex items-center gap-2">
-                            <Tv className="w-3.5 h-3.5 text-zinc-300" />
+                          <div className="flex items-center gap-2.5">
+                            <div className="relative">
+                              <Tv className={`w-4 h-4 ${isDeviceOnline(dev) ? "text-emerald-400" : "text-zinc-500"}`} />
+                              {isDeviceOnline(dev) && (
+                                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#0c121a] animate-pulse"></span>
+                              )}
+                            </div>
                             <div>
                               <p className="font-mono font-bold text-white">{dev.mac}</p>
-                              {dev.customNote && (
-                                <p className="text-[10px] text-zinc-400 truncate max-w-[160px]">
+                              {dev.customNote ? (
+                                <p className="text-[11px] text-sky-400 font-medium truncate max-w-[180px]">
                                   {dev.customNote}
                                 </p>
+                              ) : (
+                                <p className="text-[10px] text-zinc-300 italic">Sem identificação</p>
                               )}
                             </div>
                           </div>
@@ -449,19 +470,33 @@ export default function DevicesPage() {
                           </p>
                         </td>
                         <td className="py-3.5 px-3">
-                          {dev.status === "blocked" ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                              Bloqueado
-                            </span>
-                          ) : isExpired ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                              Vencido
-                            </span>
-                          ) : (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                              Ativo
-                            </span>
-                          )}
+                          <div className="flex flex-col gap-1 items-start">
+                            {dev.status === "blocked" ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                Bloqueado
+                              </span>
+                            ) : isExpired ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                Vencido
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                Ativo
+                              </span>
+                            )}
+
+                            {isDeviceOnline(dev) ? (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" title="Aparelho ligado e transmitindo agora">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                                Online (Em uso)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-medium bg-zinc-900 text-zinc-500 border border-zinc-800" title="Aparelho em repouso ou desligado">
+                                <span className="w-1.5 h-1.5 rounded-full bg-zinc-600"></span>
+                                Desligado
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3.5 px-3 text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -803,6 +838,24 @@ export default function DevicesPage() {
                     />
                     <p className="text-[10px] text-zinc-400 mt-1">Código de 6 dígitos da TV</p>
                   </div>
+                </div>
+
+                {/* Identificação / Nota */}
+                <div>
+                  <label className="block text-zinc-300 font-medium mb-1">
+                    Identificação / Nome do Aparelho (Nota)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: TV Sala, Quarto Filhos, Celular João"
+                    value={editNoteInput}
+                    onChange={(e) => setEditNoteInput(e.target.value)}
+                    maxLength={50}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-sky-500"
+                  />
+                  <p className="text-[10px] text-zinc-400 mt-1">
+                    Nome descritivo para você identificar o cliente ou o cômodo da casa
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
