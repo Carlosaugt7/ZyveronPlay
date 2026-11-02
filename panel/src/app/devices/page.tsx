@@ -552,11 +552,11 @@ export default function DevicesPage() {
 
         {/* Modal: Ativar Novo Aparelho */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-lg bg-[#0f1722] border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-5">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+            <div className="w-full max-w-lg bg-[#0f1722] border border-zinc-800 rounded-2xl shadow-2xl my-auto max-h-[92vh] flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4 shrink-0 bg-[#0f1722]">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
                     <Tv className="w-4 h-4" />
                   </div>
                   <div>
@@ -573,12 +573,12 @@ export default function DevicesPage() {
               </div>
 
               {errorMsg && (
-                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-medium">
+                <div className="mx-5 mt-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-medium">
                   {errorMsg}
                 </div>
               )}
 
-              <form onSubmit={handleCreateDevice} className="space-y-4 text-xs">
+              <form onSubmit={handleCreateDevice} className="overflow-y-auto flex-1 p-5 space-y-4 text-xs">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-zinc-300 font-medium mb-1">
@@ -752,7 +752,7 @@ export default function DevicesPage() {
                   )}
                 </div>
 
-                <div className="pt-3 border-t border-zinc-800 flex items-center justify-between">
+                <div className="pt-3 border-t border-zinc-800 flex items-center justify-between shrink-0 bg-[#0f1722]">
                   <div className="flex items-center gap-1.5 text-amber-400 font-medium">
                     <Coins className="w-4 h-4" />
                     <span>Custo: {monthsInput} crédito(s)</span>
@@ -780,11 +780,11 @@ export default function DevicesPage() {
 
         {/* Modal: Editar Aparelho */}
         {isEditModalOpen && editingDevice && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-lg bg-[#0f1722] border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-5">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+            <div className="w-full max-w-lg bg-[#0f1722] border border-zinc-800 rounded-2xl shadow-2xl my-auto max-h-[92vh] flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4 shrink-0 bg-[#0f1722]">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                  <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 shrink-0">
                     <Pencil className="w-4 h-4" />
                   </div>
                   <div>
@@ -801,12 +801,12 @@ export default function DevicesPage() {
               </div>
 
               {editErrorMsg && (
-                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-medium">
+                <div className="mx-5 mt-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-medium">
                   {editErrorMsg}
                 </div>
               )}
 
-              <form onSubmit={handleSaveEdit} className="space-y-4 text-xs">
+              <form onSubmit={handleSaveEdit} className="overflow-y-auto flex-1 p-5 space-y-4 text-xs">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-zinc-300 font-medium mb-1">
@@ -1031,7 +1031,7 @@ export default function DevicesPage() {
                   )}
                 </div>
 
-                <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2">
+                <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2 shrink-0 bg-[#0f1722]">
                   <button
                     type="button"
                     onClick={() => setIsEditModalOpen(false)}

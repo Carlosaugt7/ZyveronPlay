@@ -118,6 +118,33 @@ class LocalStore {
       this.save();
       this.notify();
     });
+
+    // 3. Escuta Usuários e Revendas (users) do Cloud Firestore em tempo real
+    FirestoreSync.subscribeToUsers((firestoreUsers) => {
+      const fsMap = new Map<string, UserDocument>();
+      firestoreUsers.forEach(u => {
+        if (u.uid) fsMap.set(u.uid, u);
+      });
+
+      this.users.forEach(localUser => {
+        if (!fsMap.has(localUser.uid)) {
+          fsMap.set(localUser.uid, localUser);
+          FirestoreSync.syncUserToFirestore(localUser);
+        } else {
+          const remote = fsMap.get(localUser.uid)!;
+          const localTime = new Date(localUser.updatedAt || localUser.createdAt || 0).getTime();
+          const remoteTime = new Date(remote.updatedAt || remote.createdAt || 0).getTime();
+          if (localTime > remoteTime) {
+            fsMap.set(localUser.uid, { ...remote, ...localUser });
+            FirestoreSync.syncUserToFirestore(localUser);
+          }
+        }
+      });
+
+      this.users = Array.from(fsMap.values());
+      this.save();
+      this.notify();
+    });
   }
 
   private init() {
@@ -581,9 +608,16 @@ class LocalStore {
     email: string,
     role: "reseller" | "sub_reseller",
     parentId: string,
-    initialCredits: number
+    initialCredits: number,
+    password?: string
   ): UserDocument {
     this.init();
+    const cleanEmail = email.trim().toLowerCase();
+    const existing = this.users.find(u => u.email.toLowerCase() === cleanEmail);
+    if (existing) {
+      throw new Error(`Já existe uma revenda cadastrada com o e-mail "${cleanEmail}".`);
+    }
+
     const parent = this.users.find(u => u.uid === parentId);
     if (!parent) throw new Error("Usuário pai não encontrado.");
 
@@ -593,12 +627,15 @@ class LocalStore {
 
     if (parent.role !== "superadmin" && initialCredits > 0) {
       parent.credits -= initialCredits;
+      parent.updatedAt = new Date().toISOString();
+      FirestoreSync.syncUserToFirestore(parent);
     }
 
     const newUser: UserDocument = {
       uid: "usr-" + Math.random().toString(36).substring(2, 9),
-      name,
-      email,
+      name: name.trim(),
+      email: cleanEmail,
+      password: (password || "").trim(),
       role,
       parentId,
       credits: initialCredits,
@@ -624,7 +661,115 @@ class LocalStore {
     }
 
     this.save();
+    FirestoreSync.syncUserToFirestore(newUser);
+    this.notify();
     return newUser;
+  }
+
+  updateReseller(
+    uid: string,
+    data: {
+      name?: string;
+      email?: string;
+      password?: string;
+      role?: "reseller" | "sub_reseller";
+      credits?: number;
+      status?: "active" | "blocked";
+    }
+  ): UserDocument {
+    this.init();
+    const userIndex = this.users.findIndex(u => u.uid === uid);
+    if (userIndex === -1) throw new Error("Revenda não encontrada.");
+
+    const existing = this.users[userIndex];
+
+    if (data.email && data.email.trim().toLowerCase() !== existing.email.toLowerCase()) {
+      const emailConflict = this.users.some(
+        u => u.uid !== uid && u.email.toLowerCase() === data.email!.trim().toLowerCase()
+      );
+      if (emailConflict) {
+        throw new Error(`Já existe outra conta com o e-mail "${data.email}".`);
+      }
+      existing.email = data.email.trim().toLowerCase();
+    }
+
+    if (data.name !== undefined && data.name.trim()) {
+      existing.name = data.name.trim();
+    }
+
+    if (data.password !== undefined) {
+      existing.password = data.password.trim();
+    }
+
+    if (data.role !== undefined) {
+      existing.role = data.role;
+    }
+
+    if (data.credits !== undefined && !isNaN(data.credits)) {
+      existing.credits = Math.max(0, data.credits);
+    }
+
+    if (data.status !== undefined) {
+      existing.status = data.status;
+    }
+
+    existing.updatedAt = new Date().toISOString();
+    this.users[userIndex] = existing;
+    this.save();
+    FirestoreSync.syncUserToFirestore(existing);
+    this.notify();
+    return existing;
+  }
+
+  toggleResellerStatus(uid: string): UserDocument {
+    this.init();
+    const user = this.users.find(u => u.uid === uid);
+    if (!user) throw new Error("Revenda não encontrada.");
+    user.status = user.status === "active" ? "blocked" : "active";
+    user.updatedAt = new Date().toISOString();
+    this.save();
+    FirestoreSync.syncUserToFirestore(user);
+    this.notify();
+    return user;
+  }
+
+  deleteReseller(uid: string): void {
+    this.init();
+    this.users = this.users.filter(u => u.uid !== uid);
+    this.save();
+    FirestoreSync.deleteUserFromFirestore(uid);
+    this.notify();
+  }
+
+  getResellerStats(uid: string): { activeDevices: number; totalDevices: number; expiredDevices: number; blockedDevices: number } {
+    this.init();
+    const now = new Date();
+    // Identifica aparelhos vinculados a esta revenda diretamente
+    const resellerDevices = this.devices.filter(d => d.resellerId === uid);
+
+    let activeDevices = 0;
+    let expiredDevices = 0;
+    let blockedDevices = 0;
+
+    resellerDevices.forEach(d => {
+      if (d.status === "blocked") {
+        blockedDevices++;
+      } else {
+        const isExpired = new Date(d.expirationDate) < now;
+        if (isExpired || d.status === "expired") {
+          expiredDevices++;
+        } else {
+          activeDevices++;
+        }
+      }
+    });
+
+    return {
+      activeDevices,
+      totalDevices: resellerDevices.length,
+      expiredDevices,
+      blockedDevices
+    };
   }
 
   getCreditLogs(): CreditLogDocument[] {

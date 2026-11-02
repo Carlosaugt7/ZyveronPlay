@@ -20,6 +20,7 @@ export interface UserDocument {
   uid: string;
   name: string;
   email: string;
+  password?: string;
   role: UserRole;
   parentId: string | null;
   credits: number;

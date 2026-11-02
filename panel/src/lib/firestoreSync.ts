@@ -142,6 +142,7 @@ export const FirestoreSync = {
         uid: user.uid,
         name: user.name,
         email: user.email,
+        password: user.password || "",
         role: user.role,
         parentId: user.parentId || null,
         credits: user.credits,
@@ -149,8 +150,19 @@ export const FirestoreSync = {
         createdAt: user.createdAt,
         updatedAt: new Date().toISOString()
       }, { merge: true });
+      console.log(`[Firestore] Usuário sincronizado: ${user.email} (${user.uid})`);
     } catch (e) {
       console.error("[Firestore] Erro ao sincronizar usuário:", e);
+    }
+  },
+
+  async deleteUserFromFirestore(uid: string) {
+    try {
+      const ref = doc(firestore, "users", uid);
+      await deleteDoc(ref);
+      console.log(`[Firestore] Usuário removido do Firestore: ${uid}`);
+    } catch (e) {
+      console.error("[Firestore] Erro ao deletar usuário:", e);
     }
   },
 
@@ -221,6 +233,41 @@ export const FirestoreSync = {
       });
     } catch (e) {
       console.warn("[Firestore] Falha ao registrar listener de servers:", e);
+      return () => {};
+    }
+  },
+
+  async fetchAllUsers(): Promise<UserDocument[]> {
+    try {
+      const col = collection(firestore, "users");
+      const snap = await getDocs(col);
+      const list: UserDocument[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as UserDocument;
+        if (data.uid) list.push(data);
+      });
+      return list;
+    } catch (e) {
+      console.error("[Firestore] Erro ao buscar usuários:", e);
+      return [];
+    }
+  },
+
+  subscribeToUsers(callback: (users: UserDocument[]) => void): () => void {
+    try {
+      const col = collection(firestore, "users");
+      return onSnapshot(col, (snap) => {
+        const list: UserDocument[] = [];
+        snap.forEach((d) => {
+          const data = d.data() as UserDocument;
+          if (data.uid) list.push(data);
+        });
+        callback(list);
+      }, (err) => {
+        console.warn("[Firestore] Erro na escuta em tempo real de usuários:", err);
+      });
+    } catch (e) {
+      console.warn("[Firestore] Falha ao registrar listener de users:", e);
       return () => {};
     }
   }

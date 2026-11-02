@@ -217,11 +217,11 @@ export default function ServersPage() {
 
         {/* Modal: Troca de DNS em Massa */}
         {isDnsModalOpen && selectedServer && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-lg bg-[#0f1722] border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-5">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+            <div className="w-full max-w-lg bg-[#0f1722] border border-zinc-800 rounded-2xl shadow-2xl my-auto max-h-[92vh] flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4 shrink-0 bg-[#0f1722]">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                  <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 shrink-0">
                     <Zap className="w-4 h-4" />
                   </div>
                   <div>
@@ -242,12 +242,14 @@ export default function ServersPage() {
               </div>
 
               {dnsSuccessMsg ? (
-                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                  <span>{dnsSuccessMsg}</span>
+                <div className="p-5">
+                  <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                    <span>{dnsSuccessMsg}</span>
+                  </div>
                 </div>
               ) : (
-                <form onSubmit={handleUpdateDns} className="space-y-4 text-xs">
+                <form onSubmit={handleUpdateDns} className="overflow-y-auto flex-1 p-5 space-y-4 text-xs">
                   <div>
                     <label className="block text-zinc-300 font-medium mb-1">
                       DNS Atual
@@ -278,7 +280,7 @@ export default function ServersPage() {
                     <span className="font-bold">Aviso importante:</span> A alteração tem efeito imediato. Os aparelhos em execução trocarão para o novo stream na próxima requisição ou troca de canal.
                   </div>
 
-                  <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2">
+                  <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2 shrink-0 bg-[#0f1722]">
                     <button
                       type="button"
                       onClick={() => setIsDnsModalOpen(false)}
@@ -301,11 +303,11 @@ export default function ServersPage() {
 
         {/* Modal: Novo Servidor */}
         {isAddModalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-lg bg-[#0f1722] border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-5">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+            <div className="w-full max-w-lg bg-[#0f1722] border border-zinc-800 rounded-2xl shadow-2xl my-auto max-h-[92vh] flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4 shrink-0 bg-[#0f1722]">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
                     <Server className="w-4 h-4" />
                   </div>
                   <div>
@@ -321,7 +323,7 @@ export default function ServersPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleAddServer} className="space-y-4 text-xs">
+              <form onSubmit={handleAddServer} className="overflow-y-auto flex-1 p-5 space-y-4 text-xs">
                 <div>
                   <label className="block text-zinc-300 font-medium mb-1">
                     Nome do Servidor *
@@ -376,7 +378,7 @@ export default function ServersPage() {
                   />
                 </div>
 
-                <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2">
+                <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2 shrink-0 bg-[#0f1722]">
                   <button
                     type="button"
                     onClick={() => setIsAddModalOpen(false)}
@@ -398,11 +400,11 @@ export default function ServersPage() {
 
         {/* Modal: Migrar Telas em Lote */}
         {isMigrateModalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-[#0f1722] border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-5">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+            <div className="w-full max-w-md bg-[#0f1722] border border-zinc-800 rounded-2xl shadow-2xl my-auto max-h-[92vh] flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4 shrink-0 bg-[#0f1722]">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                  <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 shrink-0">
                     <ArrowRightLeft className="w-4 h-4" />
                   </div>
                   <div>
@@ -418,7 +420,7 @@ export default function ServersPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleMigrate} className="space-y-4 text-xs">
+              <form onSubmit={handleMigrate} className="overflow-y-auto flex-1 p-5 space-y-4 text-xs">
                 <div>
                   <label className="block text-zinc-300 font-medium mb-1">
                     Servidor de Origem (Mover de)
@@ -453,7 +455,7 @@ export default function ServersPage() {
                   </select>
                 </div>
 
-                <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2">
+                <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2 shrink-0 bg-[#0f1722]">
                   <button
                     type="button"
                     onClick={() => setIsMigrateModalOpen(false)}

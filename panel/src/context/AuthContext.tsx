@@ -110,6 +110,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const users = store.getUsers("superadmin", "usr-admin-master");
     const found = users.find(u => u.email.toLowerCase() === email);
     if (found) {
+      if (found.status === "blocked") {
+        return { success: false, error: "Esta conta está bloqueada pelo administrador." };
+      }
+      if (found.password && found.password.trim() !== "" && found.password !== password) {
+        return { success: false, error: "Senha incorreta." };
+      }
       setUser(found);
       if (typeof window !== "undefined") {
         localStorage.setItem("zyveron_auth_session", JSON.stringify(found));
@@ -126,6 +132,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const found = users.find(u => u.role === role);
     if (found) {
       setUser(found);
+    } else {
+      // Cria uma identidade simulada para teste de permissão instantâneo
+      const simulated: UserDocument = {
+        uid: `sim-${role}-${Date.now().toString(36)}`,
+        name: role === "superadmin" ? "Administrador Zyveron" : role === "reseller" ? "Revenda Demonstração" : "Sub-Revenda Demonstração",
+        email: `${role}@zyveronplay.com`,
+        role: role,
+        parentId: role === "sub_reseller" ? "usr-admin-master" : null,
+        credits: role === "superadmin" ? 99999 : 50,
+        status: "active",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setUser(simulated);
     }
   };
 

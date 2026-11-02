@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [servers, setServers] = useState<ServerDocument[]>([]);
   const [devices, setDevices] = useState<DeviceDocument[]>([]);
   const [notifications, setNotifications] = useState<NotificationDocument[]>([]);
+  const [resellerStats, setResellerStats] = useState({ active: 0, total: 0, count: 0 });
 
   // Estado para modal rápido de troca de DNS no card de emergência
   const [quickDnsServerId, setQuickDnsServerId] = useState("");
@@ -37,9 +38,27 @@ export default function DashboardPage() {
     const s = store.getServers();
     const d = store.getDevices(user.role, user.uid);
     const n = store.getNotifications();
+    const users = store.getUsers("superadmin", "usr-admin-master");
+
     setServers(s);
     setDevices(d);
     setNotifications(n);
+
+    // Estatísticas de Revendas e Sub-revendas
+    const resellersList = users.filter((u) => u.role === "reseller" || u.role === "sub_reseller");
+    const resellerUids = new Set(resellersList.map((u) => u.uid));
+    const allDevs = store.getDevices("superadmin", "usr-admin-master");
+    const rDevs = allDevs.filter((dev) => resellerUids.has(dev.resellerId));
+    const rActive = rDevs.filter(
+      (dev) => dev.status === "active" && new Date(dev.expirationDate) > new Date()
+    ).length;
+
+    setResellerStats({
+      active: rActive,
+      total: rDevs.length,
+      count: resellersList.length,
+    });
+
     if (s.length > 0 && !quickDnsServerId) {
       setQuickDnsServerId(s[0].id);
       setNewDnsInput(s[0].activeDns);
@@ -126,12 +145,12 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Grade de Métricas */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {/* Total de Aparelhos */}
-          <div className="p-5 rounded-2xl bg-[#0d141e] border border-zinc-800/80 hover:border-zinc-700/80 transition shadow-sm">
+        {/* Grade de Métricas com Cores Suaves Distintas e Sombreamento */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-5">
+          {/* Card 1: Total de Aparelhos (Sky Blue) */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#0c1826] to-[#0a1017] border border-sky-500/20 hover:border-sky-500/40 transition-all duration-300 shadow-lg shadow-sky-950/20 hover:shadow-sky-950/40">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-zinc-300">Total de Aparelhos</span>
+              <span className="text-xs font-medium text-sky-200/80">Total de Aparelhos</span>
               <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
                 <Tv className="w-4 h-4" />
               </div>
@@ -144,19 +163,34 @@ export default function DashboardPage() {
               <span className="text-zinc-500">•</span>
               <span className="text-emerald-300 font-bold flex items-center gap-1.5 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                {onlineDevices} Em uso agora
-              </span>
-              <span className="text-zinc-500">•</span>
-              <span className="text-amber-400 font-medium flex items-center gap-1">
-                <Clock className="w-3 h-3" /> {expiredDevices} Vencidos
+                {onlineDevices} Em uso
               </span>
             </div>
           </div>
 
-          {/* Saldo de Créditos */}
-          <div className="p-5 rounded-2xl bg-[#0d141e] border border-zinc-800/80 hover:border-zinc-700/80 transition shadow-sm">
+          {/* Card 2: Aparelhos de Revendedores (Cyan / Teal) */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#091f24] to-[#0a1017] border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300 shadow-lg shadow-cyan-950/20 hover:shadow-cyan-950/40">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-zinc-300">Saldo Disponível</span>
+              <span className="text-xs font-medium text-cyan-200/80">Aparelhos de Revendas</span>
+              <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                <Users className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="text-2xl font-bold text-white mt-3">{resellerStats.active}</p>
+            <div className="flex items-center justify-between mt-3 text-[11px]">
+              <span className="text-cyan-300 font-medium">
+                {resellerStats.total} aparelhos no total
+              </span>
+              <span className="text-zinc-400 bg-zinc-900/80 px-1.5 py-0.5 rounded border border-zinc-800 text-[10px]">
+                {resellerStats.count} revenda(s)
+              </span>
+            </div>
+          </div>
+
+          {/* Card 3: Saldo de Créditos (Amber / Ouro) */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#1c170a] to-[#0a1017] border border-amber-500/20 hover:border-amber-500/40 transition-all duration-300 shadow-lg shadow-amber-950/20 hover:shadow-amber-950/40">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-amber-200/80">Saldo Disponível</span>
               <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
                 <Coins className="w-4 h-4" />
               </div>
@@ -164,36 +198,36 @@ export default function DashboardPage() {
             <p className="text-2xl font-bold text-amber-400 mt-3">
               {user?.role === "superadmin" ? "Ilimitado" : `${user?.credits ?? 0} un.`}
             </p>
-            <p className="text-[11px] text-zinc-300 mt-3">
-              1 crédito = 30 dias de acesso por tela
+            <p className="text-[11px] text-amber-200/60 mt-3 truncate">
+              1 crédito = 30 dias de tela
             </p>
           </div>
 
-          {/* Servidores Conectados */}
-          <div className="p-5 rounded-2xl bg-[#0d141e] border border-zinc-800/80 hover:border-zinc-700/80 transition shadow-sm">
+          {/* Card 4: Servidores & DNS (Emerald / Verde) */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#0a1c15] to-[#0a1017] border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-300 shadow-lg shadow-emerald-950/20 hover:shadow-emerald-950/40">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-zinc-300">Servidores & DNS</span>
+              <span className="text-xs font-medium text-emerald-200/80">Servidores & DNS</span>
               <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
                 <Server className="w-4 h-4" />
               </div>
             </div>
             <p className="text-2xl font-bold text-white mt-3">{servers.length}</p>
             <p className="text-[11px] text-emerald-400 font-medium flex items-center gap-1 mt-3">
-              <Radio className="w-3 h-3" /> Todos os endpoints saudáveis
+              <Radio className="w-3 h-3" /> Endpoints saudáveis
             </p>
           </div>
 
-          {/* Bloqueados / Inadimplentes */}
-          <div className="p-5 rounded-2xl bg-[#0d141e] border border-zinc-800/80 hover:border-zinc-700/80 transition shadow-sm">
+          {/* Card 5: Aparelhos Bloqueados (Rose / Vermelho Suave) */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#200d11] to-[#0a1017] border border-rose-500/20 hover:border-rose-500/40 transition-all duration-300 shadow-lg shadow-rose-950/20 hover:shadow-rose-950/40">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-zinc-300">Aparelhos Bloqueados</span>
+              <span className="text-xs font-medium text-rose-200/80">Aparelhos Bloqueados</span>
               <div className="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400">
                 <XCircle className="w-4 h-4" />
               </div>
             </div>
             <p className="text-2xl font-bold text-rose-400 mt-3">{blockedDevices}</p>
-            <p className="text-[11px] text-zinc-300 mt-3">
-              Sem sinal de streaming até regularização
+            <p className="text-[11px] text-rose-300/70 mt-3 truncate">
+              {blockedDevices === 0 ? "Nenhum bloqueio" : "Sinal suspenso"}
             </p>
           </div>
         </div>
