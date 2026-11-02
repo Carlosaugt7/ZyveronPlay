@@ -18,8 +18,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,7 +35,11 @@ import androidx.tv.material3.Text
 import com.zyveron.play.BuildConfig
 import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.util.SettingsHelper
+import com.zyveron.play.util.AppUpdateInfo
+import com.zyveron.play.util.AppUpdateManager
+import com.zyveron.play.util.UpdateCheckResult
 import com.zyveron.play.ui.theme.AccentEmerald
+import com.zyveron.play.ui.theme.AccentRose
 import com.zyveron.play.ui.theme.AccentSky
 import com.zyveron.play.ui.theme.BgCardDark
 import com.zyveron.play.ui.theme.BgDeepDark
@@ -42,6 +48,7 @@ import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
 import com.zyveron.play.ui.theme.ZyveronTvBackground
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
@@ -51,7 +58,16 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var selectedTab by remember { mutableStateOf("MY_APP") }
+
+    // Estado da Atualização OTA
+    var checkResult by remember { mutableStateOf<UpdateCheckResult>(UpdateCheckResult.Idle) }
+    var isDownloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableIntStateOf(0) }
+    var downloadError by remember { mutableStateOf<String?>(null) }
+    var showPermissionDialog by remember { mutableStateOf(false) }
+    var pendingUpdateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
 
     // Preferências de Configuração do Player com persistência local
     var adaptiveQualityEnabled by remember {
@@ -210,7 +226,7 @@ fun SettingsScreen(
                                         }
                                     }
 
-                                    // Card Aplicativo
+                                    // Card Aplicativo com Atualização OTA In-App
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -219,22 +235,177 @@ fun SettingsScreen(
                                             .border(1.dp, BorderDark, RoundedCornerShape(12.dp))
                                             .padding(16.dp)
                                     ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column {
-                                                Text(text = "APLICATIVO", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                                Text(text = "Zyveron Play • v${BuildConfig.VERSION_NAME}", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                            }
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(AccentEmerald.copy(alpha = 0.2f))
-                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Text(text = "Versão Mais Recente", color = AccentEmerald, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                Column {
+                                                    Text(text = "APLICATIVO E SISTEMA", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                    Text(text = "Zyveron Play • v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                }
+
+                                                TvTouchCard(
+                                                    onClick = {
+                                                        if (checkResult !is UpdateCheckResult.Checking && !isDownloading) {
+                                                            coroutineScope.launch {
+                                                                checkResult = UpdateCheckResult.Checking
+                                                                checkResult = AppUpdateManager.checkForUpdates()
+                                                            }
+                                                        }
+                                                    },
+                                                    containerColor = AccentEmerald,
+                                                    focusedContainerColor = Color.White,
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                                                ) { isFocused ->
+                                                    Text(
+                                                        text = if (checkResult is UpdateCheckResult.Checking) "⏳ Verificando..." else "🔄 Verificar Atualização",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isFocused) Color.Black else Color.Black
+                                                    )
+                                                }
+                                            }
+
+                                            // Feedback do resultado da verificação
+                                            when (val res = checkResult) {
+                                                is UpdateCheckResult.Checking -> {
+                                                    Text(
+                                                        text = "⏳ Conectando aos servidores do Zyveron Play para consultar a versão mais recente...",
+                                                        color = AccentSky,
+                                                        fontSize = 11.sp
+                                                    )
+                                                }
+                                                is UpdateCheckResult.UpToDate -> {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "✅ O aplicativo já está na versão mais recente (v${res.currentVersion}). Nenhum update necessário.",
+                                                            color = AccentEmerald,
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Medium
+                                                        )
+                                                    }
+                                                }
+                                                is UpdateCheckResult.UpdateAvailable -> {
+                                                    // Banner de Nova Versão Disponível
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .clip(RoundedCornerShape(8.dp))
+                                                            .background(AccentEmerald.copy(alpha = 0.12f))
+                                                            .border(1.dp, AccentEmerald.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                                                            .padding(12.dp)
+                                                    ) {
+                                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                Column(modifier = Modifier.weight(1f)) {
+                                                                    Text(
+                                                                        text = "🚀 Nova Versão Disponível: v${res.info.versionName}",
+                                                                        color = AccentEmerald,
+                                                                        fontSize = 12.sp,
+                                                                        fontWeight = FontWeight.Bold
+                                                                    )
+                                                                    Text(
+                                                                        text = res.info.releaseNotes,
+                                                                        color = TextSecondary,
+                                                                        fontSize = 11.sp
+                                                                    )
+                                                                }
+
+                                                                if (!isDownloading) {
+                                                                    TvTouchCard(
+                                                                        onClick = {
+                                                                            if (!AppUpdateManager.hasInstallPermission(context)) {
+                                                                                pendingUpdateInfo = res.info
+                                                                                showPermissionDialog = true
+                                                                            } else {
+                                                                                // Inicia download
+                                                                                isDownloading = true
+                                                                                downloadProgress = 0
+                                                                                downloadError = null
+                                                                                coroutineScope.launch {
+                                                                                    val dlResult = AppUpdateManager.downloadApk(context, res.info.apkUrl) { p ->
+                                                                                        downloadProgress = p
+                                                                                    }
+                                                                                    isDownloading = false
+                                                                                    if (dlResult.isSuccess) {
+                                                                                        val file = dlResult.getOrThrow()
+                                                                                        AppUpdateManager.installApk(context, file)
+                                                                                    } else {
+                                                                                        downloadError = dlResult.exceptionOrNull()?.message ?: "Falha ao baixar atualização"
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        containerColor = AccentSky,
+                                                                        focusedContainerColor = Color.White,
+                                                                        shape = RoundedCornerShape(6.dp),
+                                                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                                                    ) { isFocused ->
+                                                                        Text(
+                                                                            text = "Baixar e Atualizar",
+                                                                            fontSize = 11.sp,
+                                                                            fontWeight = FontWeight.Bold,
+                                                                            color = if (isFocused) Color.Black else Color.Black
+                                                                        )
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            // Barra de Progresso
+                                                            if (isDownloading) {
+                                                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                                    Row(
+                                                                        modifier = Modifier.fillMaxWidth(),
+                                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                                    ) {
+                                                                        Text(text = "📥 Baixando pacote de atualização...", color = TextPrimary, fontSize = 11.sp)
+                                                                        Text(text = "$downloadProgress%", color = AccentEmerald, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                                    }
+                                                                    Box(
+                                                                        modifier = Modifier
+                                                                            .fillMaxWidth()
+                                                                            .height(6.dp)
+                                                                            .clip(RoundedCornerShape(3.dp))
+                                                                            .background(Color.Black.copy(alpha = 0.5f))
+                                                                    ) {
+                                                                        Box(
+                                                                            modifier = Modifier
+                                                                                .fillMaxWidth(downloadProgress / 100f)
+                                                                                .fillMaxHeight()
+                                                                                .background(AccentEmerald)
+                                                                        )
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            if (downloadError != null) {
+                                                                Text(
+                                                                    text = "⚠️ $downloadError",
+                                                                    color = AccentRose,
+                                                                    fontSize = 11.sp
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                is UpdateCheckResult.Error -> {
+                                                    Text(
+                                                        text = "⚠️ ${res.message}",
+                                                        color = AccentRose,
+                                                        fontSize = 11.sp
+                                                    )
+                                                }
+                                                else -> {}
                                             }
                                         }
                                     }
@@ -333,6 +504,82 @@ fun SettingsScreen(
                             else -> {
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     Text(text = "Tema Padrão Cinematic Stealth Dark ativado", color = TextSecondary, fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Diálogo Modal de Permissão de Instalação (Fontes Desconhecidas)
+            if (showPermissionDialog) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.88f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(500.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(BgCardDark)
+                            .border(1.dp, BorderDark, RoundedCornerShape(16.dp))
+                            .padding(24.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Text(
+                                text = "⚙️ Permissão de Atualização Necessária",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AccentSky
+                            )
+                            Text(
+                                text = "Para atualizar o Zyveron Play diretamente pela TV sem precisar do Downloader, o Android precisa da permissão 'Instalar fontes desconhecidas'.\n\nAo clicar abaixo, você será levado para as configurações. Marque 'Permitir' para o Zyveron Play e volte para concluir a atualização.",
+                                fontSize = 12.sp,
+                                color = TextPrimary,
+                                lineHeight = 18.sp
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                TvTouchCard(
+                                    onClick = {
+                                        AppUpdateManager.openInstallPermissionSettings(context)
+                                        showPermissionDialog = false
+                                    },
+                                    containerColor = AccentEmerald,
+                                    focusedContainerColor = Color.White,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(vertical = 10.dp)
+                                ) { isFocused ->
+                                    Text(
+                                        text = "Abrir Configurações",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isFocused) Color.Black else Color.Black,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                                TvTouchCard(
+                                    onClick = { showPermissionDialog = false },
+                                    containerColor = BgSurfaceDark,
+                                    focusedContainerColor = Color.White,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(vertical = 10.dp)
+                                ) { isFocused ->
+                                    Text(
+                                        text = "Cancelar",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isFocused) Color.Black else TextSecondary,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
                                 }
                             }
                         }

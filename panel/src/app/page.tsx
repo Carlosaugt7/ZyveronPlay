@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { useAuth } from "@/context/AuthContext";
 import { store } from "@/lib/store";
+import { FirestoreSync } from "@/lib/firestoreSync";
 import { ServerDocument, DeviceDocument, NotificationDocument } from "@/types";
 import {
   Tv,
@@ -17,7 +18,8 @@ import {
   ArrowRight,
   Radio,
   Clock,
-  Send
+  Send,
+  Download
 } from "lucide-react";
 import Link from "next/link";
 
@@ -32,6 +34,13 @@ export default function DashboardPage() {
   const [quickDnsServerId, setQuickDnsServerId] = useState("");
   const [newDnsInput, setNewDnsInput] = useState("");
   const [quickDnsSuccess, setQuickDnsSuccess] = useState(false);
+
+  // Estado para Atualização OTA do APK da TV
+  const [otaVersionCode, setOtaVersionCode] = useState(13);
+  const [otaVersionName, setOtaVersionName] = useState("2.8.3");
+  const [otaApkUrl, setOtaApkUrl] = useState("https://github.com/Carlosaugt7/ZyveronPlay/raw/main/zyveron-play-tv.apk");
+  const [otaNotes, setOtaNotes] = useState("Atualização de estabilidade, resolução de DNS e novo sistema de atualização OTA in-app.");
+  const [otaSavedSuccess, setOtaSavedSuccess] = useState(false);
 
   const loadData = () => {
     if (!user) return;
@@ -67,11 +76,32 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadData();
+    FirestoreSync.fetchAppUpdate().then((info) => {
+      if (info) {
+        setOtaVersionCode(info.versionCode || 13);
+        setOtaVersionName(info.versionName || "2.8.3");
+        setOtaApkUrl(info.apkUrl || "https://github.com/Carlosaugt7/ZyveronPlay/raw/main/zyveron-play-tv.apk");
+        setOtaNotes(info.releaseNotes || "");
+      }
+    });
     const unsubscribe = store.subscribe(() => {
       loadData();
     });
     return () => unsubscribe();
   }, [user]);
+
+  const handleSaveOtaUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await FirestoreSync.syncAppUpdate({
+      versionCode: Number(otaVersionCode),
+      versionName: otaVersionName.trim(),
+      apkUrl: otaApkUrl.trim(),
+      releaseNotes: otaNotes.trim(),
+      isMandatory: false,
+    });
+    setOtaSavedSuccess(true);
+    setTimeout(() => setOtaSavedSuccess(false), 4000);
+  };
 
   const activeDevices = devices.filter((d) => d.status === "active").length;
   const expiredDevices = devices.filter((d) => d.status === "expired").length;
@@ -307,6 +337,102 @@ export default function DashboardPage() {
             {quickDnsSuccess && (
               <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4" /> DNS atualizado com sucesso! Todos os aparelhos vinculados já receberam o novo endereço.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Gerenciamento de Atualização OTA In-App (Apenas Administrador Master) */}
+        {user?.role === "superadmin" && (
+          <div className="p-6 rounded-2xl bg-[#0c1420] border border-emerald-800/40 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800/80 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <Download className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    Lançamento de Atualização OTA (Versão da TV)
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">
+                      Atualização Direta no App
+                    </span>
+                  </h3>
+                  <p className="text-xs text-zinc-300">
+                    Defina a versão oficial mais recente. Quando os clientes clicarem em &quot;Verificar Atualização&quot; no menu Ajustes, este APK será baixado e instalado automaticamente.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveOtaUpdate} className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-1">
+              <div className="md:col-span-2">
+                <label className="block text-[11px] font-medium text-zinc-300 mb-1">
+                  Código da Versão (Build)
+                </label>
+                <input
+                  type="number"
+                  value={otaVersionCode}
+                  onChange={(e) => setOtaVersionCode(Number(e.target.value))}
+                  placeholder="13"
+                  className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                  required
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-[11px] font-medium text-zinc-300 mb-1">
+                  Nome da Versão
+                </label>
+                <input
+                  type="text"
+                  value={otaVersionName}
+                  onChange={(e) => setOtaVersionName(e.target.value)}
+                  placeholder="2.8.3"
+                  className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                  required
+                />
+              </div>
+
+              <div className="md:col-span-5">
+                <label className="block text-[11px] font-medium text-zinc-300 mb-1">
+                  Link Direto do APK (.apk)
+                </label>
+                <input
+                  type="url"
+                  value={otaApkUrl}
+                  onChange={(e) => setOtaApkUrl(e.target.value)}
+                  placeholder="https://.../zyveron-play-tv.apk"
+                  className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                  required
+                />
+              </div>
+
+              <div className="md:col-span-3 flex items-end">
+                <button
+                  type="submit"
+                  className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs tracking-tight transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-950"
+                >
+                  <Download className="w-3.5 h-3.5" /> Publicar Versão para TVs
+                </button>
+              </div>
+
+              <div className="md:col-span-12">
+                <label className="block text-[11px] font-medium text-zinc-300 mb-1">
+                  Notas de Atualização (Exibidas na tela da TV)
+                </label>
+                <input
+                  type="text"
+                  value={otaNotes}
+                  onChange={(e) => setOtaNotes(e.target.value)}
+                  placeholder="Ex: Novo player ultra rápido, suporte a lista 2 e melhorias no EPG."
+                  className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            </form>
+
+            {otaSavedSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" /> Versão OTA publicada no Firestore! Aparelhos conectados receberão esta atualização ao checar no menu Ajustes.
               </div>
             )}
           </div>

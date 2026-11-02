@@ -148,6 +148,56 @@ export const FirestoreSync = {
     }
   },
 
+  // --- ATUALIZAÇÕES DO APLICATIVO (OTA) ---
+  async syncAppUpdate(info: { versionCode: number; versionName: string; apkUrl: string; releaseNotes: string; isMandatory?: boolean }) {
+    try {
+      const ref = doc(firestore, "system_config", "app_update");
+      await setDoc(ref, {
+        versionCode: Number(info.versionCode),
+        versionName: info.versionName,
+        apkUrl: info.apkUrl,
+        releaseNotes: info.releaseNotes,
+        isMandatory: info.isMandatory || false,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      console.log(`[Firestore] Configuração de atualização OTA salva: v${info.versionName} (${info.versionCode})`);
+    } catch (e) {
+      console.error("[Firestore] Erro ao sincronizar app_update:", e);
+    }
+  },
+
+  async fetchAppUpdate(): Promise<{ versionCode: number; versionName: string; apkUrl: string; releaseNotes: string; isMandatory?: boolean } | null> {
+    try {
+      const ref = doc(firestore, "system_config", "app_update");
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        return snap.data() as any;
+      }
+      return null;
+    } catch (e) {
+      console.error("[Firestore] Erro ao buscar app_update:", e);
+      return null;
+    }
+  },
+
+  subscribeToAppUpdate(callback: (info: { versionCode: number; versionName: string; apkUrl: string; releaseNotes: string; isMandatory?: boolean } | null) => void): () => void {
+    try {
+      const ref = doc(firestore, "system_config", "app_update");
+      return onSnapshot(ref, (snap) => {
+        if (snap.exists()) {
+          callback(snap.data() as any);
+        } else {
+          callback(null);
+        }
+      }, (err) => {
+        console.warn("[Firestore] Erro na escuta de app_update:", err);
+      });
+    } catch (e) {
+      console.warn("[Firestore] Falha ao registrar listener de app_update:", e);
+      return () => {};
+    }
+  },
+
   // --- USUÁRIOS / ADMIN ---
   async syncUserToFirestore(user: UserDocument) {
     try {
