@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -227,17 +228,36 @@ class ZyveronRepository(private val context: Context) {
     fun buildVodStreamUrl(serverDns: String, username: String, password: String, streamId: Int, containerExt: String = "mp4"): String =
         UrlHelper.buildVodStreamUrl(serverDns, username, password, streamId, containerExt)
 
+    private val syncMutex = Mutex()
+
     fun buildSeriesStreamUrl(serverDns: String, username: String, password: String, episodeId: String, containerExt: String = "mp4"): String =
         UrlHelper.buildSeriesStreamUrl(serverDns, username, password, episodeId, containerExt)
 
     /**
-     * Sincronização completa de Canais, Filmes e Séries (com filtro estrito contra conteúdo adulto)
+     * Limpa completamente o banco de dados e contagens (usado para alternar playlists).
+     */
+    suspend fun clearAllCatalog() = withContext(Dispatchers.IO) {
+        channelDao.clearAllCatalogData()
+        _liveCount.value = 0
+        _vodCount.value = 0
+        _seriesCount.value = 0
+        clearEpgCache()
+        Log.d("ZyveronRepo", "Catálogo local completamente zerado para nova playlist.")
+    }
+
+    /**
+     * Sincronização completa e segura de Canais, Filmes e Séries (com preservação estrita de cache)
      */
     suspend fun syncXtreamCatalog(
         serverDns: String,
         username: String,
-        password: String
+        password: String,
+        forceClearFirst: Boolean = false
     ): Result<Int> = withContext(Dispatchers.IO) {
+        if (!syncMutex.tryLock()) {
+            Log.w("ZyveronRepo", "Sincronização já em execução. Ignorando chamada concorrente.")
+            return@withContext Result.success(channelDao.getChannelCount())
+        }
         try {
             val cleanDns = UrlHelper.normalizeUrl(serverDns)
             if (cleanDns.isBlank() || username.isBlank()) {
@@ -245,24 +265,35 @@ class ZyveronRepository(private val context: Context) {
                 return@withContext Result.failure(IllegalArgumentException("DNS ou usuário não configurado"))
             }
 
-            Log.d("ZyveronRepo", "Iniciando sincronização completa de catálogo em $cleanDns...")
+            Log.d("ZyveronRepo", "Iniciando sincronização de catálogo em $cleanDns (forceClear=$forceClearFirst)...")
             clearEpgCache()
 
+            if (forceClearFirst) {
+                channelDao.clearAllCatalogData()
+                _liveCount.value = 0
+                _vodCount.value = 0
+                _seriesCount.value = 0
+            }
+
             // 1. SINCRONIZA CANAIS AO VIVO
-            syncLiveStreams(cleanDns, username, password)
+            try {
+                syncLiveStreams(cleanDns, username, password)
+            } catch (e: Exception) {
+                Log.e("ZyveronRepo", "Falha na sincronização de Canais: ${e.message}")
+            }
 
             // 2. SINCRONIZA FILMES (VOD)
             try {
                 syncVodStreams(cleanDns, username, password)
             } catch (e: Exception) {
-                Log.w("ZyveronRepo", "Aviso: falha na sincronização de VODs: ${e.message}")
+                Log.e("ZyveronRepo", "Falha na sincronização de VODs: ${e.message}")
             }
 
             // 3. SINCRONIZA SÉRIES
             try {
                 syncSeriesStreams(cleanDns, username, password)
             } catch (e: Exception) {
-                Log.w("ZyveronRepo", "Aviso: falha na sincronização de Séries: ${e.message}")
+                Log.e("ZyveronRepo", "Falha na sincronização de Séries: ${e.message}")
             }
 
             val totalChannels = channelDao.getChannelCount()
@@ -275,6 +306,8 @@ class ZyveronRepository(private val context: Context) {
         } catch (e: Exception) {
             Log.e("ZyveronRepo", "Erro na sincronização de catálogo", e)
             Result.failure(e)
+        } finally {
+            syncMutex.unlock()
         }
     }
 
@@ -282,68 +315,77 @@ class ZyveronRepository(private val context: Context) {
         val savedFavoriteIds = try { channelDao.getFavoriteStreamIds() } catch (_: Exception) { emptyList() }
 
         // Categorias Live
-        val catUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_live_categories"
-        val catRequest = Request.Builder().url(catUrl).build()
-        client.newCall(catRequest).execute().use { response ->
-            if (response.isSuccessful) {
-                val json = JSONArray(response.body?.string() ?: "[]")
-                val list = mutableListOf<CategoryEntity>()
-                for (i in 0 until json.length()) {
-                    val item = json.getJSONObject(i)
-                    val catName = item.optString("category_name", "Geral")
-                    if (ContentSafetyFilter.isSafe(catName)) {
-                        list.add(
-                            CategoryEntity(
-                                categoryId = item.optString("category_id", "$i"),
-                                categoryName = catName,
-                                parentId = item.optInt("parent_id", 0),
-                                type = "live"
-                            )
-                        )
+        val parsedCategories = mutableListOf<CategoryEntity>()
+        try {
+            val catUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_live_categories"
+            client.newCall(Request.Builder().url(catUrl).build()).execute().use { response ->
+                if (response.isSuccessful) {
+                    val bodyStr = response.body?.string().orEmpty().trim()
+                    if (bodyStr.startsWith("[")) {
+                        val json = JSONArray(bodyStr)
+                        for (i in 0 until json.length()) {
+                            val item = json.getJSONObject(i)
+                            val catName = item.optString("category_name", "Geral")
+                            if (ContentSafetyFilter.isSafe(catName)) {
+                                parsedCategories.add(
+                                    CategoryEntity(
+                                        categoryId = item.optString("category_id", "$i"),
+                                        categoryName = catName,
+                                        parentId = item.optInt("parent_id", 0),
+                                        type = "live"
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
-                channelDao.clearCategoriesByType("live")
-                channelDao.insertCategoriesBatch(list)
             }
+        } catch (e: Exception) {
+            Log.w("ZyveronRepo", "Erro ao buscar categorias de canais: ${e.message}")
         }
 
         // Streams Live
-        val liveUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_live_streams"
-        val liveRequest = Request.Builder().url(liveUrl).build()
-        client.newCall(liveRequest).execute().use { response ->
-            if (response.isSuccessful) {
-                val json = JSONArray(response.body?.string() ?: "[]")
-                channelDao.clearChannels()
-                val list = mutableListOf<ChannelEntity>()
-                for (i in 0 until json.length()) {
-                    val item = json.getJSONObject(i)
-                    val name = item.optString("name", "Canal $i")
-                    if (ContentSafetyFilter.isSafe(name)) {
-                        list.add(
-                            ChannelEntity(
-                                streamId = item.optInt("stream_id", i),
-                                num = item.optInt("num", i + 1),
-                                name = name,
-                                streamIcon = item.optString("stream_icon").takeIf { it.isNotEmpty() },
-                                epgChannelId = item.optString("epg_channel_id").takeIf { it.isNotEmpty() },
-                                categoryId = item.optString("category_id", "0"),
-                                isFavorite = false
-                            )
-                        )
+        val parsedChannels = mutableListOf<ChannelEntity>()
+        try {
+            val liveUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_live_streams"
+            client.newCall(Request.Builder().url(liveUrl).build()).execute().use { response ->
+                if (response.isSuccessful) {
+                    val bodyStr = response.body?.string().orEmpty().trim()
+                    if (bodyStr.startsWith("[")) {
+                        val json = JSONArray(bodyStr)
+                        for (i in 0 until json.length()) {
+                            val item = json.getJSONObject(i)
+                            val name = item.optString("name", "Canal $i")
+                            if (ContentSafetyFilter.isSafe(name)) {
+                                parsedChannels.add(
+                                    ChannelEntity(
+                                        streamId = item.optInt("stream_id", i),
+                                        num = item.optInt("num", i + 1),
+                                        name = name,
+                                        streamIcon = item.optString("stream_icon").takeIf { it.isNotEmpty() },
+                                        epgChannelId = item.optString("epg_channel_id").takeIf { it.isNotEmpty() },
+                                        categoryId = item.optString("category_id", "0"),
+                                        isFavorite = false
+                                    )
+                                )
+                            }
+                        }
                     }
-                    if (list.size >= 1500) {
-                        channelDao.insertChannelsBatch(list)
-                        list.clear()
-                    }
-                }
-                if (list.isNotEmpty()) {
-                    channelDao.insertChannelsBatch(list)
                 }
             }
+        } catch (e: Exception) {
+            Log.w("ZyveronRepo", "Erro ao buscar canais ao vivo: ${e.message}")
         }
 
-        if (savedFavoriteIds.isNotEmpty()) {
-            try { channelDao.markFavorites(savedFavoriteIds) } catch (_: Exception) {}
+        // ATUALIZAÇÃO ATÔMICA APENAS SE HOUVER DADOS VÁLIDOS
+        if (parsedChannels.isNotEmpty()) {
+            channelDao.replaceLiveCatalog(parsedCategories, parsedChannels)
+            if (savedFavoriteIds.isNotEmpty()) {
+                try { channelDao.markFavorites(savedFavoriteIds) } catch (_: Exception) {}
+            }
+            Log.d("ZyveronRepo", "Atualizados ${parsedChannels.size} canais e ${parsedCategories.size} categorias com sucesso.")
+        } else {
+            Log.w("ZyveronRepo", "Nenhum canal ao vivo retornado pela API. Mantendo catálogo anterior para evitar lista zerada.")
         }
     }
 
@@ -351,67 +393,78 @@ class ZyveronRepository(private val context: Context) {
         val savedFavoriteVodIds = try { channelDao.getFavoriteVodIds() } catch (_: Exception) { emptyList() }
 
         // Categorias VOD
-        val catUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_vod_categories"
-        client.newCall(Request.Builder().url(catUrl).build()).execute().use { response ->
-            if (response.isSuccessful) {
-                val json = JSONArray(response.body?.string() ?: "[]")
-                val list = mutableListOf<CategoryEntity>()
-                for (i in 0 until json.length()) {
-                    val item = json.getJSONObject(i)
-                    val catName = item.optString("category_name", "Filmes")
-                    if (ContentSafetyFilter.isSafe(catName)) {
-                        list.add(
-                            CategoryEntity(
-                                categoryId = item.optString("category_id", "$i"),
-                                categoryName = catName,
-                                parentId = item.optInt("parent_id", 0),
-                                type = "vod"
-                            )
-                        )
+        val parsedCategories = mutableListOf<CategoryEntity>()
+        try {
+            val catUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_vod_categories"
+            client.newCall(Request.Builder().url(catUrl).build()).execute().use { response ->
+                if (response.isSuccessful) {
+                    val bodyStr = response.body?.string().orEmpty().trim()
+                    if (bodyStr.startsWith("[")) {
+                        val json = JSONArray(bodyStr)
+                        for (i in 0 until json.length()) {
+                            val item = json.getJSONObject(i)
+                            val catName = item.optString("category_name", "Filmes")
+                            if (ContentSafetyFilter.isSafe(catName)) {
+                                parsedCategories.add(
+                                    CategoryEntity(
+                                        categoryId = item.optString("category_id", "$i"),
+                                        categoryName = catName,
+                                        parentId = item.optInt("parent_id", 0),
+                                        type = "vod"
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
-                channelDao.clearCategoriesByType("vod")
-                channelDao.insertCategoriesBatch(list)
             }
+        } catch (e: Exception) {
+            Log.w("ZyveronRepo", "Erro ao buscar categorias de VOD: ${e.message}")
         }
 
         // Filmes VOD
-        val vodUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_vod_streams"
-        client.newCall(Request.Builder().url(vodUrl).build()).execute().use { response ->
-            if (response.isSuccessful) {
-                val json = JSONArray(response.body?.string() ?: "[]")
-                channelDao.clearVods()
-                val list = mutableListOf<VodEntity>()
-                for (i in 0 until json.length()) {
-                    val item = json.getJSONObject(i)
-                    val name = item.optString("name", "Filme $i")
-                    if (ContentSafetyFilter.isSafe(name)) {
-                        list.add(
-                            VodEntity(
-                                streamId = item.optInt("stream_id", i),
-                                num = item.optInt("num", i + 1),
-                                name = name,
-                                streamIcon = item.optString("stream_icon").takeIf { it.isNotEmpty() },
-                                rating = item.optString("rating").takeIf { it.isNotEmpty() },
-                                year = item.optString("year").takeIf { it.isNotEmpty() },
-                                categoryId = item.optString("category_id", "0"),
-                                containerExtension = item.optString("container_extension", "mp4")
-                            )
-                        )
+        val parsedVods = mutableListOf<VodEntity>()
+        try {
+            val vodUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_vod_streams"
+            client.newCall(Request.Builder().url(vodUrl).build()).execute().use { response ->
+                if (response.isSuccessful) {
+                    val bodyStr = response.body?.string().orEmpty().trim()
+                    if (bodyStr.startsWith("[")) {
+                        val json = JSONArray(bodyStr)
+                        for (i in 0 until json.length()) {
+                            val item = json.getJSONObject(i)
+                            val name = item.optString("name", "Filme $i")
+                            if (ContentSafetyFilter.isSafe(name)) {
+                                parsedVods.add(
+                                    VodEntity(
+                                        streamId = item.optInt("stream_id", i),
+                                        num = item.optInt("num", i + 1),
+                                        name = name,
+                                        streamIcon = item.optString("stream_icon").takeIf { it.isNotEmpty() },
+                                        rating = item.optString("rating").takeIf { it.isNotEmpty() },
+                                        year = item.optString("year").takeIf { it.isNotEmpty() },
+                                        categoryId = item.optString("category_id", "0"),
+                                        containerExtension = item.optString("container_extension", "mp4")
+                                    )
+                                )
+                            }
+                        }
                     }
-                    if (list.size >= 1500) {
-                        channelDao.insertVodsBatch(list)
-                        list.clear()
-                    }
-                }
-                if (list.isNotEmpty()) {
-                    channelDao.insertVodsBatch(list)
                 }
             }
+        } catch (e: Exception) {
+            Log.w("ZyveronRepo", "Erro ao buscar filmes VOD: ${e.message}")
         }
 
-        if (savedFavoriteVodIds.isNotEmpty()) {
-            try { channelDao.markVodFavorites(savedFavoriteVodIds) } catch (_: Exception) {}
+        // ATUALIZAÇÃO ATÔMICA APENAS SE HOUVER DADOS VÁLIDOS
+        if (parsedVods.isNotEmpty()) {
+            channelDao.replaceVodCatalog(parsedCategories, parsedVods)
+            if (savedFavoriteVodIds.isNotEmpty()) {
+                try { channelDao.markVodFavorites(savedFavoriteVodIds) } catch (_: Exception) {}
+            }
+            Log.d("ZyveronRepo", "Atualizados ${parsedVods.size} filmes e ${parsedCategories.size} categorias de VOD com sucesso.")
+        } else {
+            Log.w("ZyveronRepo", "Nenhum filme retornado pela API. Mantendo filmes anteriores no banco.")
         }
     }
 
@@ -419,69 +472,80 @@ class ZyveronRepository(private val context: Context) {
         val savedFavoriteSeriesIds = try { channelDao.getFavoriteSeriesIds() } catch (_: Exception) { emptyList() }
 
         // Categorias Séries
-        val catUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_series_categories"
-        client.newCall(Request.Builder().url(catUrl).build()).execute().use { response ->
-            if (response.isSuccessful) {
-                val json = JSONArray(response.body?.string() ?: "[]")
-                val list = mutableListOf<CategoryEntity>()
-                for (i in 0 until json.length()) {
-                    val item = json.getJSONObject(i)
-                    val catName = item.optString("category_name", "Séries")
-                    if (ContentSafetyFilter.isSafe(catName)) {
-                        list.add(
-                            CategoryEntity(
-                                categoryId = item.optString("category_id", "$i"),
-                                categoryName = catName,
-                                parentId = item.optInt("parent_id", 0),
-                                type = "series"
-                            )
-                        )
+        val parsedCategories = mutableListOf<CategoryEntity>()
+        try {
+            val catUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_series_categories"
+            client.newCall(Request.Builder().url(catUrl).build()).execute().use { response ->
+                if (response.isSuccessful) {
+                    val bodyStr = response.body?.string().orEmpty().trim()
+                    if (bodyStr.startsWith("[")) {
+                        val json = JSONArray(bodyStr)
+                        for (i in 0 until json.length()) {
+                            val item = json.getJSONObject(i)
+                            val catName = item.optString("category_name", "Séries")
+                            if (ContentSafetyFilter.isSafe(catName)) {
+                                parsedCategories.add(
+                                    CategoryEntity(
+                                        categoryId = item.optString("category_id", "$i"),
+                                        categoryName = catName,
+                                        parentId = item.optInt("parent_id", 0),
+                                        type = "series"
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
-                channelDao.clearCategoriesByType("series")
-                channelDao.insertCategoriesBatch(list)
             }
+        } catch (e: Exception) {
+            Log.w("ZyveronRepo", "Erro ao buscar categorias de séries: ${e.message}")
         }
 
         // Séries
-        val seriesUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_series"
-        client.newCall(Request.Builder().url(seriesUrl).build()).execute().use { response ->
-            if (response.isSuccessful) {
-                val json = JSONArray(response.body?.string() ?: "[]")
-                channelDao.clearSeries()
-                val list = mutableListOf<SeriesEntity>()
-                for (i in 0 until json.length()) {
-                    val item = json.getJSONObject(i)
-                    val name = item.optString("name", "Série $i")
-                    if (ContentSafetyFilter.isSafe(name)) {
-                        list.add(
-                            SeriesEntity(
-                                seriesId = item.optInt("series_id", i),
-                                num = item.optInt("num", i + 1),
-                                name = name,
-                                cover = item.optString("cover").takeIf { it.isNotEmpty() },
-                                plot = item.optString("plot").takeIf { it.isNotEmpty() },
-                                cast = item.optString("cast").takeIf { it.isNotEmpty() },
-                                rating = item.optString("rating").takeIf { it.isNotEmpty() },
-                                year = item.optString("year").takeIf { it.isNotEmpty() },
-                                genre = item.optString("genre").takeIf { it.isNotEmpty() },
-                                categoryId = item.optString("category_id", "0")
-                            )
-                        )
+        val parsedSeries = mutableListOf<SeriesEntity>()
+        try {
+            val seriesUrl = "$cleanDns/player_api.php?username=$username&password=$password&action=get_series"
+            client.newCall(Request.Builder().url(seriesUrl).build()).execute().use { response ->
+                if (response.isSuccessful) {
+                    val bodyStr = response.body?.string().orEmpty().trim()
+                    if (bodyStr.startsWith("[")) {
+                        val json = JSONArray(bodyStr)
+                        for (i in 0 until json.length()) {
+                            val item = json.getJSONObject(i)
+                            val name = item.optString("name", "Série $i")
+                            if (ContentSafetyFilter.isSafe(name)) {
+                                parsedSeries.add(
+                                    SeriesEntity(
+                                        seriesId = item.optInt("series_id", i),
+                                        num = item.optInt("num", i + 1),
+                                        name = name,
+                                        cover = item.optString("cover").takeIf { it.isNotEmpty() },
+                                        plot = item.optString("plot").takeIf { it.isNotEmpty() },
+                                        cast = item.optString("cast").takeIf { it.isNotEmpty() },
+                                        rating = item.optString("rating").takeIf { it.isNotEmpty() },
+                                        year = item.optString("year").takeIf { it.isNotEmpty() },
+                                        genre = item.optString("genre").takeIf { it.isNotEmpty() },
+                                        categoryId = item.optString("category_id", "0")
+                                    )
+                                )
+                            }
+                        }
                     }
-                    if (list.size >= 1500) {
-                        channelDao.insertSeriesBatch(list)
-                        list.clear()
-                    }
-                }
-                if (list.isNotEmpty()) {
-                    channelDao.insertSeriesBatch(list)
                 }
             }
+        } catch (e: Exception) {
+            Log.w("ZyveronRepo", "Erro ao buscar séries: ${e.message}")
         }
 
-        if (savedFavoriteSeriesIds.isNotEmpty()) {
-            try { channelDao.markSeriesFavorites(savedFavoriteSeriesIds) } catch (_: Exception) {}
+        // ATUALIZAÇÃO ATÔMICA APENAS SE HOUVER DADOS VÁLIDOS
+        if (parsedSeries.isNotEmpty()) {
+            channelDao.replaceSeriesCatalog(parsedCategories, parsedSeries)
+            if (savedFavoriteSeriesIds.isNotEmpty()) {
+                try { channelDao.markSeriesFavorites(savedFavoriteSeriesIds) } catch (_: Exception) {}
+            }
+            Log.d("ZyveronRepo", "Atualizadas ${parsedSeries.size} séries e ${parsedCategories.size} categorias de séries com sucesso.")
+        } else {
+            Log.w("ZyveronRepo", "Nenhuma série retornada pela API. Mantendo séries anteriores no banco.")
         }
     }
 

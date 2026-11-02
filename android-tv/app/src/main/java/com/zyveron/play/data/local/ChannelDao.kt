@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -133,4 +134,52 @@ interface ChannelDao {
 
     @Query("DELETE FROM series")
     suspend fun clearSeries()
+
+    // --- ATOMIC REPLACEMENT OPERATIONS (TRANSACTIONS) ---
+
+    @Transaction
+    suspend fun replaceLiveCatalog(categories: List<CategoryEntity>, channels: List<ChannelEntity>) {
+        if (categories.isNotEmpty()) {
+            clearCategoriesByType("live")
+            categories.chunked(1000).forEach { insertCategoriesBatch(it) }
+        }
+        if (channels.isNotEmpty()) {
+            clearChannels()
+            channels.chunked(1000).forEach { insertChannelsBatch(it) }
+        }
+    }
+
+    @Transaction
+    suspend fun replaceVodCatalog(categories: List<CategoryEntity>, vods: List<VodEntity>) {
+        if (categories.isNotEmpty()) {
+            clearCategoriesByType("vod")
+            categories.chunked(1000).forEach { insertCategoriesBatch(it) }
+        }
+        if (vods.isNotEmpty()) {
+            clearVods()
+            vods.chunked(1000).forEach { insertVodsBatch(it) }
+        }
+    }
+
+    @Transaction
+    suspend fun replaceSeriesCatalog(categories: List<CategoryEntity>, series: List<SeriesEntity>) {
+        if (categories.isNotEmpty()) {
+            clearCategoriesByType("series")
+            categories.chunked(1000).forEach { insertCategoriesBatch(it) }
+        }
+        if (series.isNotEmpty()) {
+            clearSeries()
+            series.chunked(1000).forEach { insertSeriesBatch(it) }
+        }
+    }
+
+    @Transaction
+    suspend fun clearAllCatalogData() {
+        clearCategoriesByType("live")
+        clearCategoriesByType("vod")
+        clearCategoriesByType("series")
+        clearChannels()
+        clearVods()
+        clearSeries()
+    }
 }

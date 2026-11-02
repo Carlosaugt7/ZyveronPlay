@@ -27,7 +27,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -262,36 +264,57 @@ fun MainContent(
 
             is DeviceAuthState.Active -> {
                 val context = androidx.compose.ui.platform.LocalContext.current
+                val coroutineScope = rememberCoroutineScope()
                 val cleanDns = remember(state.serverDns) {
                     UrlHelper.normalizeUrl(state.serverDns)
                 }
 
-                var syncRetryTrigger by remember { mutableIntStateOf(0) }
                 var isSyncing by remember { mutableStateOf(false) }
 
-                // Sincroniza apenas no primeiro acesso (banco vazio) ou quando o usuário clica em "Recarregar"
-                // Evita sobrecarregar a CPU e memória do Mi Stick na inicialização
-                LaunchedEffect(cleanDns, state.username, syncRetryTrigger) {
-                    if (cleanDns.isNotBlank() && state.username.isNotBlank()) {
-                        val currentCount = repository.getChannelCount()
-                        val shouldSync = currentCount == 0 || syncRetryTrigger > 0
+                fun performSync(isManual: Boolean, forceClear: Boolean = false) {
+                    if (isSyncing || cleanDns.isBlank() || state.username.isBlank()) return
+                    coroutineScope.launch {
+                        isSyncing = true
+                        if (isManual) {
+                            android.widget.Toast.makeText(context, "🔄 Atualizando canais, filmes e séries...", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        val countBefore = repository.getChannelCount()
+                        val result = repository.syncXtreamCatalog(
+                            serverDns = cleanDns,
+                            username = state.username,
+                            password = state.password,
+                            forceClearFirst = forceClear
+                        )
+                        isSyncing = false
 
-                        if (shouldSync) {
-                            isSyncing = true
-                            val result = repository.syncXtreamCatalog(
-                                serverDns = cleanDns,
-                                username = state.username,
-                                password = state.password
-                            )
-                            isSyncing = false
-                            if (syncRetryTrigger > 0) {
-                                if (result.isSuccess) {
-                                    val total = result.getOrDefault(0)
+                        if (isManual) {
+                            if (result.isSuccess) {
+                                val total = result.getOrDefault(0)
+                                if (total > 0) {
                                     android.widget.Toast.makeText(context, "✅ Catálogo atualizado com sucesso! ($total canais)", android.widget.Toast.LENGTH_SHORT).show()
+                                } else if (countBefore > 0) {
+                                    android.widget.Toast.makeText(context, "⚠️ Servidor retornou vazio. Mantendo catálogo em cache ($countBefore canais).", android.widget.Toast.LENGTH_LONG).show()
                                 } else {
-                                    android.widget.Toast.makeText(context, "⚠️ Falha ao atualizar: ${result.exceptionOrNull()?.message}", android.widget.Toast.LENGTH_LONG).show()
+                                    android.widget.Toast.makeText(context, "⚠️ Nenhum canal encontrado no servidor.", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                val err = result.exceptionOrNull()?.message ?: "Erro de conexão"
+                                if (countBefore > 0) {
+                                    android.widget.Toast.makeText(context, "⚠️ Falha ao atualizar: $err. Mantendo canais em cache ($countBefore canais).", android.widget.Toast.LENGTH_LONG).show()
+                                } else {
+                                    android.widget.Toast.makeText(context, "⚠️ Falha ao atualizar: $err", android.widget.Toast.LENGTH_LONG).show()
                                 }
                             }
+                        }
+                    }
+                }
+
+                // Sincroniza automaticamente apenas quando o banco estiver vazio para a lista atual
+                LaunchedEffect(cleanDns, state.username, state.activePlaylistIndex) {
+                    if (cleanDns.isNotBlank() && state.username.isNotBlank()) {
+                        val currentCount = repository.getChannelCount()
+                        if (currentCount == 0 && !isSyncing) {
+                            performSync(isManual = true, forceClear = false)
                         }
                     }
                 }
@@ -307,8 +330,7 @@ fun MainContent(
                             onNavigateAccounts = { currentScreen = AppScreen.Accounts },
                             onNavigateSettings = { currentScreen = AppScreen.Settings },
                             onRefreshCatalog = {
-                                android.widget.Toast.makeText(context, "🔄 Atualizando canais, filmes e séries...", android.widget.Toast.LENGTH_SHORT).show()
-                                syncRetryTrigger++
+                                performSync(isManual = true, forceClear = false)
                             },
                             onPlayVod = { vod -> currentScreen = AppScreen.MovieDetail(vod) },
                             onSelectSeries = { series -> currentScreen = AppScreen.SeriesDetail(series) },
@@ -470,8 +492,13 @@ fun MainContent(
                             playlists = state.playlists,
                             activePlaylistIndex = state.activePlaylistIndex,
                             onSelectPlaylist = { idx ->
-                                deviceManager.switchPlaylist(idx)
-                                syncRetryTrigger++
+                                if (idx != state.activePlaylistIndex) {
+                                    coroutineScope.launch {
+                                        android.widget.Toast.makeText(context, "🔄 Alternando para Lista ${idx + 1}...", android.widget.Toast.LENGTH_SHORT).show()
+                                        repository.clearAllCatalog()
+                                        deviceManager.switchPlaylist(idx)
+                                    }
+                                }
                             },
                             onDisconnect = {
                                 deviceManager.disconnectDevice {

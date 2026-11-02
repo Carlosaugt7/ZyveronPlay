@@ -31,6 +31,21 @@ data class PlaylistAccount(
     val expirationDate: String
 )
 
+data class DeviceSnapshotSignature(
+    val status: String,
+    val expDate: String,
+    val serverId: String,
+    val serverDns: String,
+    val username: String,
+    val password: String,
+    val serverId2: String,
+    val serverDns2: String,
+    val username2: String,
+    val password2: String,
+    val expDate2: String,
+    val selectedPlaylistIndex: Int
+)
+
 sealed class DeviceAuthState {
     object Loading : DeviceAuthState()
     data class Unregistered(val mac: String, val deviceKey: String) : DeviceAuthState()
@@ -80,6 +95,8 @@ class FirestoreDeviceManager(private val context: Context) {
     private var currentServerId: String = ""
     private var currentServerId2: String = ""
     private var currentResellerId: String = ""
+    private var lastProcessedSignature: DeviceSnapshotSignature? = null
+    private var listeningServerId: String = ""
 
     val virtualMac: String = DeviceIdentityHelper.getVirtualMac(context)
     val deviceKey: String = DeviceIdentityHelper.getDeviceKey(context)
@@ -87,6 +104,8 @@ class FirestoreDeviceManager(private val context: Context) {
     fun switchPlaylist(index: Int) {
         selectedPlaylistIndex = index
         prefs.edit().putInt("selected_playlist_idx", index).apply()
+        // Força reprocessamento da lista selecionada resetando a assinatura
+        lastProcessedSignature = null
         latestSnapshot?.let { processSnapshot(it) }
     }
 
@@ -134,6 +153,27 @@ class FirestoreDeviceManager(private val context: Context) {
         val username2 = snapshot.getString("username2") ?: ""
         val password2 = snapshot.getString("password2") ?: ""
         val expDateStr2 = snapshot.getString("expirationDate2") ?: ""
+
+        val signature = DeviceSnapshotSignature(
+            status = status,
+            expDate = expDateStr,
+            serverId = serverId,
+            serverDns = rawServerDns,
+            username = username,
+            password = password,
+            serverId2 = serverId2,
+            serverDns2 = rawServerDns2,
+            username2 = username2,
+            password2 = password2,
+            expDate2 = expDateStr2,
+            selectedPlaylistIndex = selectedPlaylistIndex
+        )
+
+        // Se nenhum dado relevante de autenticação/servidor mudou (apenas heartbeat de lastSeen), não reprocessa
+        if (signature == lastProcessedSignature && _authState.value is DeviceAuthState.Active) {
+            return
+        }
+        lastProcessedSignature = signature
 
         currentServerId = serverId
         currentServerId2 = serverId2
@@ -193,20 +233,28 @@ class FirestoreDeviceManager(private val context: Context) {
             return
         }
 
-        // 2. Libera o acesso imediatamente com a lista ativa
-        _authState.value = DeviceAuthState.Active(
-            mac = virtualMac,
-            serverName = activeAccount.serverName,
-            serverDns = activeAccount.serverDns,
-            fallbackDns = emptyList(),
-            username = activeAccount.username,
-            password = activeAccount.password,
-            expirationDate = activeAccount.expirationDate,
-            playlists = playlists,
-            activePlaylistIndex = safeIndex
-        )
-
         val targetServerId = if (safeIndex == 0) serverId else serverId2
+
+        // Se já temos um estado ativo idêntico para a mesma playlist, não gera emissão espúria
+        val current = _authState.value
+        val shouldEmitDirect = current !is DeviceAuthState.Active ||
+                current.activePlaylistIndex != safeIndex ||
+                current.username != activeAccount.username
+
+        if (shouldEmitDirect) {
+            _authState.value = DeviceAuthState.Active(
+                mac = virtualMac,
+                serverName = activeAccount.serverName,
+                serverDns = activeAccount.serverDns,
+                fallbackDns = emptyList(),
+                username = activeAccount.username,
+                password = activeAccount.password,
+                expirationDate = activeAccount.expirationDate,
+                playlists = playlists,
+                activePlaylistIndex = safeIndex
+            )
+        }
+
         if (targetServerId.isNotEmpty()) {
             listenToServer(
                 targetServerId,
@@ -231,6 +279,10 @@ class FirestoreDeviceManager(private val context: Context) {
         playlists: List<PlaylistAccount>,
         activePlaylistIndex: Int
     ) {
+        if (listeningServerId == serverId && serverListener != null) {
+            return
+        }
+        listeningServerId = serverId
         serverListener?.remove()
 
         serverListener = firestore.collection("servers").document(serverId)
@@ -244,6 +296,16 @@ class FirestoreDeviceManager(private val context: Context) {
                 val activeDns = UrlHelper.normalizeUrl(snapshot?.getString("activeDns") ?: fallbackDnsUrl)
                 @Suppress("UNCHECKED_CAST")
                 val fallbackDns = (snapshot?.get("fallbackDns") as? List<String>) ?: emptyList()
+
+                val current = _authState.value
+                if (current is DeviceAuthState.Active &&
+                    current.serverDns == activeDns &&
+                    current.serverName == activeServerName &&
+                    current.username == username &&
+                    current.activePlaylistIndex == activePlaylistIndex
+                ) {
+                    return@addSnapshotListener
+                }
 
                 Log.d("FirestoreDeviceManager", "Servidor atualizado: $activeServerName [$activeDns]")
                 _authState.value = DeviceAuthState.Active(
@@ -348,6 +410,8 @@ class FirestoreDeviceManager(private val context: Context) {
         deviceListener?.remove()
         serverListener?.remove()
         notificationsListener?.remove()
+        listeningServerId = ""
+        lastProcessedSignature = null
     }
 
     private fun startHeartbeat() {
@@ -361,7 +425,7 @@ class FirestoreDeviceManager(private val context: Context) {
                         "lastSeenIso" to SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
                             timeZone = TimeZone.getTimeZone("UTC")
                         }.format(Date()),
-                        "appVersion" to "2.8.0"
+                        "appVersion" to "2.8.1"
                     )
                     firestore.collection("devices").document(virtualMac)
                         .set(update, SetOptions.merge())
