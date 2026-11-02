@@ -134,11 +134,6 @@ class LocalStore {
       this.save();
       this.notify();
     });
-
-      this.users = Array.from(fsMap.values());
-      this.save();
-      this.notify();
-    });
   }
 
   private init() {
