@@ -18,23 +18,21 @@ body {
   -webkit-user-select: none;
 }
 
-/* Modo Controle Remoto: Esconde o ponteiro do mouse da TV LG/Samsung */
+/* Modo Controle Remoto: Oculta o ponteiro do mouse na Smart TV (LG webOS / Samsung Tizen) */
 body.tv-remote-mode,
 body.tv-remote-mode * {
   cursor: none !important;
 }
 
-/* Indicador de Foco Luminoso para Smart TVs */
-*:focus,
-*:focus-visible {
-  outline: 3px solid #10b981 !important;
-  outline-offset: 2px !important;
+/* Indicador de Foco Luminoso para Navegação por Teclas do Controle */
+*:focus {
+  outline: none !important;
 }
 
 /* Scrollbar invisível ou ultra-fina para TVs */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -49,4 +47,3 @@ body.tv-remote-mode * {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #10b981;
 }
-

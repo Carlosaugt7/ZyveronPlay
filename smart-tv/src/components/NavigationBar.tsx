@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tv, Film, Clapperboard, Settings, Power } from 'lucide-react';
+import { Tv, Film, Clapperboard, Settings } from 'lucide-react';
 
 export type MainSection = 'live' | 'vod' | 'series' | 'settings';
 
@@ -22,11 +22,13 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
   ];
 
   return (
-    <aside className={`w-64 h-full bg-[#121722] border-r border-[#2a3449] flex flex-col justify-between p-5 select-none transition-all ${isFocused ? 'ring-2 ring-emerald-500/50' : ''}`}>
+    <aside className={`w-64 h-full bg-[#121722] border-r border-[#2a3449] flex flex-col justify-between p-5 select-none transition-all duration-200 ${
+      isFocused ? 'ring-4 ring-emerald-500/60 shadow-2xl shadow-emerald-500/20 bg-[#161d2b]' : ''
+    }`}>
       <div>
         {/* Brand */}
         <div className="flex items-center gap-3 mb-8 px-2">
-          <div className="w-10 h-10 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-center">
+          <div className="w-10 h-10 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-center shadow">
             <Tv className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
@@ -48,8 +50,10 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
               <button
                 key={item.id}
                 onClick={() => onSelectSection(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-medium text-sm transition text-left ${
-                  isSelected
+                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-medium text-sm transition text-left cursor-pointer ${
+                  isSelected && isFocused
+                    ? 'bg-emerald-400 text-black font-extrabold shadow-lg shadow-emerald-400/40 scale-103 ring-4 ring-emerald-300'
+                    : isSelected
                     ? 'bg-emerald-500 text-black font-bold shadow-lg shadow-emerald-500/20'
                     : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
                 }`}
@@ -64,12 +68,11 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
 
       {/* Footer Info */}
       <div className="pt-4 border-t border-slate-800/80 px-2 text-xs text-slate-500">
-        <div>Controle Remoto:</div>
+        <div className="font-semibold text-slate-400">Navegação TV:</div>
         <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-          [▲▼◀▶] Navegar | [OK] Abrir
+          [▲▼◀▶] Mudar • [OK] Selecionar
         </div>
       </div>
     </aside>
   );
 };
-

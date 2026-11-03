@@ -47,12 +47,16 @@ const server = http.createServer(async (req, res) => {
 
     try {
       const targetObj = new URL(target);
+      const clientIp = req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
       const upstreamRes = await fetch(target, {
         method: req.method === 'HEAD' ? 'HEAD' : 'GET',
         headers: {
-          'User-Agent': 'IPTVSmarters/2.2.2.1 (iPad; iOS 13.2; Scale/2.00)',
-          'Host': targetObj.host,
-          'Accept': '*/*'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+          'X-Forwarded-For': String(clientIp || ''),
+          'X-Real-IP': String(clientIp || '')
         }
       });
 

@@ -1,19 +1,25 @@
 import React, { useState } from 'react';
 import { DeviceActivation } from '../types';
+import { useSpatialNav } from '../hooks/useSpatialNav';
 import { Settings, Tv, Key, Globe, Shield, RefreshCw, Trash2, CheckCircle } from 'lucide-react';
 
 interface SettingsViewProps {
   device: DeviceActivation;
+  isFocusedContent?: boolean;
+  onRequestFocusSidebar?: () => void;
   onRefreshData: () => void;
   onResetDevice: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   device,
+  isFocusedContent = true,
+  onRequestFocusSidebar,
   onRefreshData,
   onResetDevice
 }) => {
   const [clearedSuccess, setClearedSuccess] = useState(false);
+  const [focusedBtnIdx, setFocusedBtnIdx] = useState<number>(0);
 
   const handleClearCache = () => {
     try {
@@ -25,8 +31,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     } catch {}
   };
 
+  // D-Pad Navigation
+  useSpatialNav({
+    onUp: () => {
+      setFocusedBtnIdx((prev) => Math.max(0, prev - 1));
+    },
+    onDown: () => {
+      setFocusedBtnIdx((prev) => Math.min(2, prev + 1));
+    },
+    onLeft: () => {
+      onRequestFocusSidebar?.();
+    },
+    onSelect: () => {
+      if (focusedBtnIdx === 0) {
+        onRefreshData();
+      } else if (focusedBtnIdx === 1) {
+        handleClearCache();
+      } else if (focusedBtnIdx === 2) {
+        onResetDevice();
+      }
+    },
+    onBack: () => {
+      onRequestFocusSidebar?.();
+    },
+    disabled: !isFocusedContent
+  }, [focusedBtnIdx, isFocusedContent, onRefreshData, onResetDevice]);
+
   return (
-    <div className="w-full h-full p-8 bg-[#0a0d14] overflow-y-auto select-none">
+    <div className={`w-full h-full p-8 bg-[#0a0d14] overflow-y-auto select-none transition-all ${
+      isFocusedContent ? 'ring-2 ring-emerald-500/20' : ''
+    }`}>
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-3 mb-8">
           <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-center">
@@ -34,7 +68,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white">Ajustes & Informações do Sistema</h1>
-            <p className="text-sm text-slate-400">Configurações técnicas da Smart TV e credenciais ativas</p>
+            <p className="text-sm text-slate-400">Configurações técnicas da Smart TV e identificadores de acesso</p>
           </div>
         </div>
 
@@ -84,41 +118,65 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </h2>
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-[#1b2234]/50 rounded-xl border border-slate-800">
+            <div className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+              isFocusedContent && focusedBtnIdx === 0
+                ? 'bg-emerald-500/20 border-emerald-400 ring-4 ring-emerald-400/40'
+                : 'bg-[#1b2234]/50 border-slate-800'
+            }`}>
               <div>
                 <h3 className="font-semibold text-white">Sincronizar Lista e Canais</h3>
                 <p className="text-xs text-slate-400 mt-0.5">Recarrega canais e categorias do servidor IPTV agora</p>
               </div>
               <button
                 onClick={onRefreshData}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg flex items-center gap-2 text-sm transition"
+                className={`px-4 py-2 font-semibold rounded-lg flex items-center gap-2 text-sm transition cursor-pointer ${
+                  isFocusedContent && focusedBtnIdx === 0
+                    ? 'bg-emerald-400 text-black shadow-lg shadow-emerald-400/40 ring-2 ring-emerald-300'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                }`}
               >
                 <RefreshCw className="w-4 h-4" /> Recarregar
               </button>
             </div>
 
-            <div className="flex items-center justify-between p-4 bg-[#1b2234]/50 rounded-xl border border-slate-800">
+            <div className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+              isFocusedContent && focusedBtnIdx === 1
+                ? 'bg-emerald-500/20 border-emerald-400 ring-4 ring-emerald-400/40'
+                : 'bg-[#1b2234]/50 border-slate-800'
+            }`}>
               <div>
                 <h3 className="font-semibold text-white">Limpar Cache e Histórico</h3>
                 <p className="text-xs text-slate-400 mt-0.5">Limpa lista de favoritos e memória temporária da TV</p>
               </div>
               <button
                 onClick={handleClearCache}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-lg flex items-center gap-2 text-sm transition"
+                className={`px-4 py-2 font-semibold rounded-lg flex items-center gap-2 text-sm transition cursor-pointer ${
+                  isFocusedContent && focusedBtnIdx === 1
+                    ? 'bg-emerald-400 text-black shadow-lg shadow-emerald-400/40 ring-2 ring-emerald-300'
+                    : 'bg-slate-800 hover:bg-slate-700 text-white'
+                }`}
               >
                 {clearedSuccess ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <Trash2 className="w-4 h-4" />}
                 {clearedSuccess ? 'Limpo com Sucesso!' : 'Limpar Cache'}
               </button>
             </div>
 
-            <div className="flex items-center justify-between p-4 bg-[#1b2234]/50 rounded-xl border border-red-900/30">
+            <div className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+              isFocusedContent && focusedBtnIdx === 2
+                ? 'bg-red-500/20 border-red-400 ring-4 ring-red-400/40'
+                : 'bg-[#1b2234]/50 border-red-900/30'
+            }`}>
               <div>
                 <h3 className="font-semibold text-red-400">Desconectar Aparelho</h3>
                 <p className="text-xs text-slate-400 mt-0.5">Gera uma nova identidade ou permite restaurar outro MAC</p>
               </div>
               <button
                 onClick={onResetDevice}
-                className="px-4 py-2 bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/30 font-semibold rounded-lg text-sm transition"
+                className={`px-4 py-2 font-semibold rounded-lg text-sm transition cursor-pointer ${
+                  isFocusedContent && focusedBtnIdx === 2
+                    ? 'bg-red-500 text-white shadow-lg shadow-red-500/40 ring-2 ring-red-300'
+                    : 'bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/30'
+                }`}
               >
                 Desconectar
               </button>
@@ -134,4 +192,3 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     </div>
   );
 };
-

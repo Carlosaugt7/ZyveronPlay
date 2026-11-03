@@ -1,17 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { XtreamClient } from '../lib/xtream';
 import { XtreamCategory, XtreamStream } from '../types';
 import { VirtualList } from '../components/VirtualList';
 import { Player } from '../components/Player';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Star, Tv, Search, Maximize2, Loader2, AlertCircle } from 'lucide-react';
+import { Star, Tv, Maximize2, Loader2, AlertCircle } from 'lucide-react';
 import { getFavorites, toggleFavorite } from '../lib/storage';
 
 interface LiveTvViewProps {
   client: XtreamClient;
+  isFocusedContent?: boolean;
+  onRequestFocusSidebar?: () => void;
 }
 
-export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
+export const LiveTvView: React.FC<LiveTvViewProps> = ({
+  client,
+  isFocusedContent = true,
+  onRequestFocusSidebar
+}) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedCategoryIdx, setSelectedCategoryIdx] = useState<number>(0);
@@ -23,6 +29,9 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
   const [isLoadingChannels, setIsLoadingChannels] = useState<boolean>(true);
   const [favorites, setFavorites] = useState<number[]>([]);
   const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'channels'>('channels');
+
+  const categoriesContainerRef = useRef<HTMLDivElement>(null);
+  const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
 
   // Carrega categorias ao iniciar
   useEffect(() => {
@@ -49,6 +58,16 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
       .catch((err) => console.error("Erro ao carregar canais:", err))
       .finally(() => setIsLoadingChannels(false));
   }, [client, selectedCategory]);
+
+  // Auto-scroll da categoria ativa para mantê-la visível na TV
+  useEffect(() => {
+    if (activeFocusColumn === 'categories' && activeCategoryBtnRef.current) {
+      activeCategoryBtnRef.current.scrollIntoView({
+        block: 'nearest',
+        behavior: 'smooth'
+      });
+    }
+  }, [selectedCategoryIdx, activeFocusColumn]);
 
   // Teclas do Controle Remoto (D-Pad para Smart TV)
   useSpatialNav({
@@ -81,19 +100,25 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
       }
     },
     onLeft: () => {
-      if (!isFullScreen) {
+      if (isFullScreen) return;
+      if (activeFocusColumn === 'channels') {
         setActiveFocusColumn('categories');
+      } else if (activeFocusColumn === 'categories') {
+        // Retorna o foco para o menu lateral
+        onRequestFocusSidebar?.();
       }
     },
     onRight: () => {
-      if (!isFullScreen) {
+      if (isFullScreen) return;
+      if (activeFocusColumn === 'categories') {
         setActiveFocusColumn('channels');
+      } else if (activeFocusColumn === 'channels' && filteredChannels[selectedChannelIdx]) {
+        setCurrentPlayingChannel(filteredChannels[selectedChannelIdx]);
+        setIsFullScreen(true);
       }
     },
     onSelect: () => {
-      if (isFullScreen) {
-        return;
-      }
+      if (isFullScreen) return;
       if (activeFocusColumn === 'categories') {
         if (selectedCategoryIdx === 0) {
           setSelectedCategory('all');
@@ -111,9 +136,20 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
         setIsFullScreen(false);
       } else if (activeFocusColumn === 'channels') {
         setActiveFocusColumn('categories');
+      } else if (activeFocusColumn === 'categories') {
+        onRequestFocusSidebar?.();
       }
-    }
-  }, [isFullScreen, activeFocusColumn, filteredChannels, selectedChannelIdx, selectedCategoryIdx, categories]);
+    },
+    disabled: !isFocusedContent
+  }, [
+    isFullScreen,
+    activeFocusColumn,
+    filteredChannels,
+    selectedChannelIdx,
+    selectedCategoryIdx,
+    categories,
+    isFocusedContent
+  ]);
 
   const handleToggleFav = (channelId: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -122,7 +158,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
   };
 
   return (
-    <div className="w-full h-full flex bg-[#0a0d14] relative overflow-hidden">
+    <div className="w-full h-full flex bg-[#0a0d14] relative overflow-hidden select-none">
       {/* Tela Cheia do Player */}
       {isFullScreen && currentPlayingChannel && (
         <div className="absolute inset-0 z-50 bg-black">
@@ -139,42 +175,54 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
       )}
 
       {/* Coluna 1: Categorias */}
-      <div className={`w-72 h-full bg-[#121722]/60 border-r border-[#2a3449] flex flex-col p-4 select-none ${activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/40' : ''}`}>
+      <div className={`w-72 h-full bg-[#121722]/60 border-r border-[#2a3449] flex flex-col p-4 select-none transition-all ${
+        isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/50 bg-[#161d2b]' : ''
+      }`}>
         <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3 px-2">
           Categorias ({categories.length})
         </h2>
-        <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+        <div ref={categoriesContainerRef} className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
           <button
+            ref={selectedCategoryIdx === 0 ? activeCategoryBtnRef : null}
             onClick={() => {
               setSelectedCategory('all');
               setSelectedCategoryIdx(0);
               setActiveFocusColumn('channels');
             }}
             tabIndex={0}
-            className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-semibold transition ${
+            className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-semibold transition cursor-pointer ${
               selectedCategory === 'all'
                 ? 'bg-emerald-500 text-black shadow'
                 : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
-            } ${activeFocusColumn === 'categories' && selectedCategoryIdx === 0 ? 'ring-4 ring-emerald-300 shadow-lg scale-102 font-extrabold outline-none' : ''}`}
+            } ${
+              isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 0
+                ? 'ring-4 ring-emerald-300 shadow-xl scale-102 font-extrabold outline-none bg-emerald-400 text-black'
+                : ''
+            }`}
           >
             ★ Todos os Canais
           </button>
           {categories.map((cat, catIdx) => {
-            const isCatFocused = activeFocusColumn === 'categories' && selectedCategoryIdx === (catIdx + 1);
+            const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === (catIdx + 1);
             return (
               <button
                 key={cat.category_id}
+                ref={isCatFocused ? activeCategoryBtnRef : null}
                 onClick={() => {
                   setSelectedCategory(cat.category_id);
                   setSelectedCategoryIdx(catIdx + 1);
                   setActiveFocusColumn('channels');
                 }}
                 tabIndex={0}
-                className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium transition truncate ${
+                className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium transition truncate cursor-pointer ${
                   selectedCategory === cat.category_id
                     ? 'bg-emerald-500 text-black font-bold shadow'
                     : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
-                } ${isCatFocused ? 'ring-4 ring-emerald-300 shadow-lg scale-102 font-extrabold outline-none' : ''}`}
+                } ${
+                  isCatFocused
+                    ? 'ring-4 ring-emerald-300 shadow-xl scale-102 font-extrabold outline-none bg-emerald-400 text-black'
+                    : ''
+                }`}
               >
                 {cat.category_name}
               </button>
@@ -184,12 +232,14 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
       </div>
 
       {/* Coluna 2: Lista Virtualizada de Canais */}
-      <div className={`w-96 h-full bg-[#0a0d14] border-r border-[#2a3449] flex flex-col p-4 select-none ${activeFocusColumn === 'channels' ? 'ring-2 ring-emerald-500/40' : ''}`}>
+      <div className={`w-96 h-full bg-[#0a0d14] border-r border-[#2a3449] flex flex-col p-4 select-none transition-all ${
+        isFocusedContent && activeFocusColumn === 'channels' ? 'ring-2 ring-emerald-500/50' : ''
+      }`}>
         <div className="flex items-center justify-between mb-3 px-2">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">
             Canais ({filteredChannels.length})
           </h2>
-          <span className="text-xs text-slate-500 font-mono">[OK] Abrir</span>
+          <span className="text-xs text-slate-500 font-mono">[OK] Assistir</span>
         </div>
 
         {isLoadingChannels ? (
@@ -211,6 +261,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
               selectedIndex={selectedChannelIdx}
               renderItem={(channel, index, isSelected) => {
                 const isFav = favorites.includes(channel.stream_id);
+                const isItemFocused = isSelected && isFocusedContent && activeFocusColumn === 'channels';
+
                 return (
                   <div
                     onClick={() => {
@@ -219,15 +271,15 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
                       setIsFullScreen(true);
                     }}
                     className={`w-full h-[58px] px-3 rounded-xl flex items-center justify-between cursor-pointer transition select-none ${
-                      isSelected && activeFocusColumn === 'channels'
-                        ? 'bg-emerald-500/30 border-3 border-emerald-400 ring-4 ring-emerald-400/40 text-white shadow-xl scale-102 font-bold'
+                      isItemFocused
+                        ? 'bg-emerald-500 text-black font-extrabold shadow-2xl scale-102 ring-4 ring-emerald-300'
                         : isSelected
                         ? 'bg-[#1b2234] border border-emerald-500/50 text-white'
                         : 'bg-[#121722]/80 hover:bg-[#1b2234] text-slate-200 border border-transparent'
                     }`}
                   >
                     <div className="flex items-center gap-3 overflow-hidden">
-                      <span className="font-mono text-xs font-bold text-slate-400 w-8">
+                      <span className={`font-mono text-xs font-bold w-8 ${isItemFocused ? 'text-black' : 'text-slate-400'}`}>
                         {channel.num || index + 1}
                       </span>
                       {channel.stream_icon ? (
@@ -238,7 +290,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
                           onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                         />
                       ) : (
-                        <div className="w-9 h-9 rounded bg-[#1b2234] flex items-center justify-center text-slate-500">
+                        <div className={`w-9 h-9 rounded flex items-center justify-center ${isItemFocused ? 'bg-black/20 text-black' : 'bg-[#1b2234] text-slate-500'}`}>
                           <Tv className="w-4 h-4" />
                         </div>
                       )}
@@ -247,7 +299,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
 
                     <button
                       onClick={(e) => handleToggleFav(channel.stream_id, e)}
-                      className="p-1.5 text-slate-400 hover:text-amber-400 transition"
+                      className={`p-1.5 transition ${isItemFocused ? 'text-black hover:text-slate-900' : 'text-slate-400 hover:text-amber-400'}`}
                     >
                       <Star className={`w-4 h-4 ${isFav ? 'fill-amber-400 text-amber-400' : ''}`} />
                     </button>
@@ -276,9 +328,9 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
                 />
                 <button
                   onClick={() => setIsFullScreen(true)}
-                  className="absolute bottom-4 right-4 p-3 bg-black/70 hover:bg-emerald-500 hover:text-black text-white rounded-xl backdrop-blur-md transition flex items-center gap-2 text-sm font-bold shadow-lg"
+                  className="absolute bottom-4 right-4 p-3 bg-black/70 hover:bg-emerald-500 hover:text-black text-white rounded-xl backdrop-blur-md transition flex items-center gap-2 text-sm font-bold shadow-lg cursor-pointer"
                 >
-                  <Maximize2 className="w-5 h-5" /> Expandir Tela Cheia
+                  <Maximize2 className="w-5 h-5" /> Expandir Tela Cheia [OK]
                 </button>
               </div>
 
@@ -300,7 +352,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
                       {currentPlayingChannel.name}
                     </h3>
                     <p className="text-xs text-slate-400 font-mono mt-0.5">
-                      Stream ID: {currentPlayingChannel.stream_id}
+                      Canal #{currentPlayingChannel.num || selectedChannelIdx + 1} • {currentPlayingChannel.stream_id}
                     </p>
                   </div>
                 </div>
@@ -323,4 +375,3 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
     </div>
   );
 };
-

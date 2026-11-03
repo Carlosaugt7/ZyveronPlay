@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getOrCreateDeviceIdentity, restoreDeviceIdentity } from './lib/storage';
+import { getOrCreateDeviceIdentity } from './lib/storage';
 import { listenDeviceActivation } from './lib/firebase';
 import { DeviceActivation } from './types';
 import { XtreamClient } from './lib/xtream';
@@ -9,7 +9,10 @@ import { LiveTvView } from './views/LiveTvView';
 import { MoviesView } from './views/MoviesView';
 import { SeriesView } from './views/SeriesView';
 import { SettingsView } from './views/SettingsView';
+import { useSpatialNav } from './hooks/useSpatialNav';
 import { Loader2 } from 'lucide-react';
+
+const SECTIONS: MainSection[] = ['live', 'vod', 'series', 'settings'];
 
 export default function App() {
   const [identity, setIdentity] = useState(() => getOrCreateDeviceIdentity());
@@ -17,6 +20,7 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [activeDevice, setActiveDevice] = useState<DeviceActivation | null>(null);
   const [currentSection, setCurrentSection] = useState<MainSection>('live');
+  const [focusZone, setFocusZone] = useState<'sidebar' | 'content'>('content');
 
   // Inicializa a escuta em tempo real no Firestore para este MAC
   useEffect(() => {
@@ -42,13 +46,34 @@ export default function App() {
     };
   }, [identity.mac]);
 
-  // Instância do Cliente Xtream conectada ao DNS e credenciais ativas (estável, sem recriação desnecessária)
+  // Instância do Cliente Xtream conectada ao DNS e credenciais ativas
   const xtreamClient = useMemo(() => {
     if (!activeDevice || !activeDevice.activeDns || !activeDevice.username || !activeDevice.password) {
       return null;
     }
     return new XtreamClient(activeDevice.activeDns, activeDevice.username, activeDevice.password);
   }, [activeDevice?.activeDns, activeDevice?.username, activeDevice?.password]);
+
+  // Navegação D-Pad na Sidebar quando a barra lateral estiver em foco
+  useSpatialNav({
+    onUp: () => {
+      const idx = SECTIONS.indexOf(currentSection);
+      const nextIdx = (idx - 1 + SECTIONS.length) % SECTIONS.length;
+      setCurrentSection(SECTIONS[nextIdx]);
+    },
+    onDown: () => {
+      const idx = SECTIONS.indexOf(currentSection);
+      const nextIdx = (idx + 1) % SECTIONS.length;
+      setCurrentSection(SECTIONS[nextIdx]);
+    },
+    onRight: () => {
+      setFocusZone('content');
+    },
+    onSelect: () => {
+      setFocusZone('content');
+    },
+    disabled: focusZone !== 'sidebar' || activationStatus !== 'active'
+  }, [focusZone, currentSection, activationStatus]);
 
   const handleRefreshActivation = () => {
     setActivationStatus('loading');
@@ -90,16 +115,40 @@ export default function App() {
     <div className="w-screen h-screen flex bg-[#0a0d14] overflow-hidden">
       <NavigationBar
         currentSection={currentSection}
-        onSelectSection={setCurrentSection}
+        onSelectSection={(sec) => {
+          setCurrentSection(sec);
+          setFocusZone('content');
+        }}
+        isFocused={focusZone === 'sidebar'}
       />
 
       <main className="flex-1 h-full overflow-hidden">
-        {currentSection === 'live' && <LiveTvView client={xtreamClient} />}
-        {currentSection === 'vod' && <MoviesView client={xtreamClient} />}
-        {currentSection === 'series' && <SeriesView client={xtreamClient} />}
+        {currentSection === 'live' && (
+          <LiveTvView
+            client={xtreamClient}
+            isFocusedContent={focusZone === 'content'}
+            onRequestFocusSidebar={() => setFocusZone('sidebar')}
+          />
+        )}
+        {currentSection === 'vod' && (
+          <MoviesView
+            client={xtreamClient}
+            isFocusedContent={focusZone === 'content'}
+            onRequestFocusSidebar={() => setFocusZone('sidebar')}
+          />
+        )}
+        {currentSection === 'series' && (
+          <SeriesView
+            client={xtreamClient}
+            isFocusedContent={focusZone === 'content'}
+            onRequestFocusSidebar={() => setFocusZone('sidebar')}
+          />
+        )}
         {currentSection === 'settings' && (
           <SettingsView
             device={activeDevice}
+            isFocusedContent={focusZone === 'content'}
+            onRequestFocusSidebar={() => setFocusZone('sidebar')}
             onRefreshData={handleRefreshActivation}
             onResetDevice={handleResetDevice}
           />
@@ -108,4 +157,3 @@ export default function App() {
     </div>
   );
 }
-
