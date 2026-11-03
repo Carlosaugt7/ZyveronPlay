@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { 
   getFirestore, 
+  initializeFirestore,
   doc, 
   getDoc, 
   onSnapshot, 
@@ -20,7 +21,18 @@ const firebaseConfig = {
 };
 
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-export const firestore = getFirestore(app);
+
+// Configuração otimizada para Smart TVs (LG webOS / Samsung Tizen):
+// Força HTTP Long Polling para evitar que WebSockets travem ou expirem no navegador da TV
+export const firestore = (() => {
+  try {
+    return initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+    });
+  } catch {
+    return getFirestore(app);
+  }
+})();
 
 export type DeviceStatusCallback = (state: {
   status: 'loading' | 'unregistered' | 'active' | 'expired' | 'blocked';

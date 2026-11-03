@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Tv, Key, ShieldCheck, RefreshCw, AlertTriangle, Lock, History } from 'lucide-react';
 import { restoreDeviceIdentity } from '../lib/storage';
+import { useSpatialNav } from '../hooks/useSpatialNav';
 
 interface ActivationScreenProps {
   mac: string;
@@ -23,6 +24,34 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({
   const [inputMac, setInputMac] = useState('');
   const [inputKey, setInputKey] = useState('');
   const [restoreError, setRestoreError] = useState('');
+  const [focusedAction, setFocusedAction] = useState<'refresh' | 'restore'>('refresh');
+
+  const refreshBtnRef = useRef<HTMLButtonElement>(null);
+  const restoreBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Foco inicial automático para garantir que a TV LG ative o modo controle remoto e esconda o ponteiro do mouse
+  useEffect(() => {
+    refreshBtnRef.current?.focus();
+  }, []);
+
+  // Navegação Espacial por Controle Remoto (D-Pad)
+  useSpatialNav({
+    onLeft: () => {
+      setFocusedAction('restore');
+      restoreBtnRef.current?.focus();
+    },
+    onRight: () => {
+      setFocusedAction('refresh');
+      refreshBtnRef.current?.focus();
+    },
+    onSelect: () => {
+      if (focusedAction === 'refresh') {
+        onRefresh();
+      } else {
+        setIsRestoring((prev) => !prev);
+      }
+    }
+  }, [focusedAction, onRefresh]);
 
   const handleRestore = (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,19 +141,31 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({
           </div>
         )}
 
-        {/* Action Buttons */}
+        {/* Action Buttons com Foco Visual de Alto Contraste */}
         <div className="flex items-center justify-between pt-4 border-t border-slate-800">
           <button
+            ref={restoreBtnRef}
             onClick={() => setIsRestoring(!isRestoring)}
-            className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition"
+            tabIndex={0}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer ${
+              focusedAction === 'restore'
+                ? 'bg-slate-800 text-white ring-2 ring-emerald-400 outline-none'
+                : 'text-slate-400 hover:text-white'
+            }`}
           >
             <History className="w-4 h-4 text-emerald-400" />
             {isRestoring ? 'Cancelar Restauração' : 'Restaurar MAC Anterior'}
           </button>
 
           <button
+            ref={refreshBtnRef}
             onClick={onRefresh}
-            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow transition"
+            tabIndex={0}
+            className={`flex items-center gap-2 px-6 py-2.5 font-bold rounded-lg shadow transition cursor-pointer ${
+              focusedAction === 'refresh'
+                ? 'bg-emerald-500 text-black ring-4 ring-emerald-300/60 shadow-lg shadow-emerald-500/30 scale-105 outline-none'
+                : 'bg-emerald-600 text-white hover:bg-emerald-500'
+            }`}
           >
             <RefreshCw className="w-4 h-4" />
             Verificar Agora
@@ -145,7 +186,8 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({
                 placeholder="Ex: 02:4A:BC:11:22:33"
                 value={inputMac}
                 onChange={(e) => setInputMac(e.target.value)}
-                className="bg-[#121722] border border-[#2a3449] rounded-lg px-3 py-2 text-sm font-mono text-white focus:border-emerald-500"
+                tabIndex={0}
+                className="bg-[#121722] border border-[#2a3449] rounded-lg px-3 py-2 text-sm font-mono text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
                 required
               />
               <input
@@ -153,13 +195,15 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({
                 placeholder="Device Key (6 dígitos)"
                 value={inputKey}
                 onChange={(e) => setInputKey(e.target.value)}
-                className="bg-[#121722] border border-[#2a3449] rounded-lg px-3 py-2 text-sm font-mono text-white focus:border-emerald-500"
+                tabIndex={0}
+                className="bg-[#121722] border border-[#2a3449] rounded-lg px-3 py-2 text-sm font-mono text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
                 required
               />
             </div>
             <button
               type="submit"
-              className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-lg text-sm transition"
+              tabIndex={0}
+              className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 focus:ring-4 focus:ring-emerald-300 text-black font-bold rounded-lg text-sm transition"
             >
               Confirmar e Conectar
             </button>

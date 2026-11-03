@@ -26,11 +26,24 @@ export class XtreamClient {
     return `${this.baseDns}/player_api.php?username=${encodeURIComponent(this.user)}&password=${encodeURIComponent(this.pass)}`;
   }
 
-  private async fetchJson<T>(action: string, extraParams: Record<string, string | number> = {}): Promise<T> {
-    let url = `${this.apiUrl}&action=${action}`;
-    for (const [key, value] of Object.entries(extraParams)) {
-      url += `&${key}=${encodeURIComponent(value)}`;
+  /**
+   * Encaminha URLs através do proxy local caso a TV esteja acessando via HTTPS
+   * e o servidor IPTV seja HTTP, eliminando bloqueios de Mixed Content e CORS.
+   */
+  private wrapUrl(url: string): string {
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.startsWith('http://')) {
+      return `/api/proxy?url=${encodeURIComponent(url)}`;
     }
+    return url;
+  }
+
+  private async fetchJson<T>(action: string, extraParams: Record<string, string | number> = {}): Promise<T> {
+    let targetUrl = `${this.apiUrl}&action=${action}`;
+    for (const [key, value] of Object.entries(extraParams)) {
+      targetUrl += `&${key}=${encodeURIComponent(value)}`;
+    }
+
+    const url = this.wrapUrl(targetUrl);
 
     try {
       const response = await fetch(url, {
@@ -66,11 +79,13 @@ export class XtreamClient {
 
   // URLs de reprodução HLS primária e TS de contingência
   buildLiveHlsUrl(streamId: number): string {
-    return `${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.m3u8`;
+    const rawUrl = `${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.m3u8`;
+    return this.wrapUrl(rawUrl);
   }
 
   buildLiveTsUrl(streamId: number): string {
-    return `${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.ts`;
+    const rawUrl = `${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.ts`;
+    return this.wrapUrl(rawUrl);
   }
 
   // --- FILMES (VOD) ---
@@ -88,7 +103,8 @@ export class XtreamClient {
 
   buildVodUrl(streamId: number, extension: string = 'mp4'): string {
     const ext = extension.replace(/^\./, '') || 'mp4';
-    return `${this.baseDns}/movie/${this.user}/${this.pass}/${streamId}.${ext}`;
+    const rawUrl = `${this.baseDns}/movie/${this.user}/${this.pass}/${streamId}.${ext}`;
+    return this.wrapUrl(rawUrl);
   }
 
   // --- SÉRIES ---
@@ -114,7 +130,8 @@ export class XtreamClient {
 
   buildEpisodeUrl(streamId: string | number, extension: string = 'mp4'): string {
     const ext = extension.replace(/^\./, '') || 'mp4';
-    return `${this.baseDns}/series/${this.user}/${this.pass}/${streamId}.${ext}`;
+    const rawUrl = `${this.baseDns}/series/${this.user}/${this.pass}/${streamId}.${ext}`;
+    return this.wrapUrl(rawUrl);
   }
 }
 

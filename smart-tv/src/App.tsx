@@ -21,7 +21,14 @@ export default function App() {
   // Inicializa a escuta em tempo real no Firestore para este MAC
   useEffect(() => {
     setActivationStatus('loading');
+
+    // Timeout de segurança para Smart TVs: se demorar mais que 2.5s, força exibição da tela de ativação
+    const safetyTimeout = setTimeout(() => {
+      setActivationStatus((prev) => (prev === 'loading' ? 'unregistered' : prev));
+    }, 2500);
+
     const unsubscribe = listenDeviceActivation(identity.mac, (state) => {
+      clearTimeout(safetyTimeout);
       setActivationStatus(state.status);
       setStatusMessage(state.message || '');
       if (state.device) {
@@ -29,7 +36,10 @@ export default function App() {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(safetyTimeout);
+      unsubscribe();
+    };
   }, [identity.mac]);
 
   // Instância do Cliente Xtream conectada ao DNS e credenciais ativas
