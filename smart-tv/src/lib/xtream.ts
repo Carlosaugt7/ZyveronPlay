@@ -13,7 +13,7 @@ export class XtreamClient {
   private pass: string;
 
   constructor(dns: string, user: string, pass: string) {
-    let cleanDns = dns.trim().replace(/\/+$/, '');
+    let cleanDns = dns.trim().replace(/\/+$/, '').replace(/:80$/, '');
     
     // Se a aplicação está rodando via HTTPS (ex: https://tvplay.loja-am.top),
     // promovemos automaticamente para HTTPS para permitir chamadas diretas do cliente (IP residencial)

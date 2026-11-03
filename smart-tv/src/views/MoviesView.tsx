@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { XtreamClient } from '../lib/xtream';
 import { XtreamCategory, XtreamVod } from '../types';
 import { Player } from '../components/Player';
@@ -12,6 +12,8 @@ interface MoviesViewProps {
   onFullScreenChange?: (full: boolean) => void;
 }
 
+const BATCH_SIZE = 30; // Limita o DOM a 30 filmes por vez para não estourar a memória da Smart TV LG
+
 export const MoviesView: React.FC<MoviesViewProps> = ({
   client,
   isFocusedContent = true,
@@ -21,18 +23,27 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedCategoryIdx, setSelectedCategoryIdx] = useState<number>(0);
-  const [movies, setMovies] = useState<XtreamVod[]>([]);
+  const [allMovies, setAllMovies] = useState<XtreamVod[]>([]);
+  const [displayedCount, setDisplayedCount] = useState<number>(BATCH_SIZE);
   const [selectedMovieIdx, setSelectedMovieIdx] = useState<number>(0);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoadingCats, setIsLoadingCats] = useState<boolean>(true);
+  const [isLoadingMovies, setIsLoadingMovies] = useState<boolean>(false);
   const [selectedMovie, setSelectedMovie] = useState<XtreamVod | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid'>('grid');
+  const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid'>('categories');
 
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
   const activeMovieBtnRef = useRef<HTMLButtonElement>(null);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+
+  // Filmes atualmente renderizados no DOM (paginação progressiva leve)
+  const displayedMovies = useMemo(() => {
+    return allMovies.slice(0, displayedCount);
+  }, [allMovies, displayedCount]);
 
   // Carrega categorias ao iniciar e seleciona a primeira categoria disponível
   useEffect(() => {
+    setIsLoadingCats(true);
     client.getVodCategories()
       .then((cats) => {
         if (cats && cats.length > 0) {
@@ -41,23 +52,29 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
           setSelectedCategoryIdx(0);
         }
       })
-      .catch((err) => console.error("Erro ao carregar categorias VOD:", err));
+      .catch((err) => console.error("[Movies] Erro ao carregar categorias VOD:", err))
+      .finally(() => setIsLoadingCats(false));
   }, [client]);
 
-  // Carrega filmes apenas da categoria selecionada (máxima performance, ~200KB em vez de 50MB)
+  // Carrega filmes da categoria selecionada
   useEffect(() => {
     if (!selectedCategory) return;
-    setIsLoading(true);
+    setIsLoadingMovies(true);
+    setDisplayedCount(BATCH_SIZE);
+    setSelectedMovieIdx(0);
+
     client.getVodStreams(selectedCategory)
       .then((data) => {
-        setMovies(data || []);
-        setSelectedMovieIdx(0);
+        setAllMovies(data || []);
       })
-      .catch((err) => console.error("Erro ao carregar filmes:", err))
-      .finally(() => setIsLoading(false));
+      .catch((err) => {
+        console.error("[Movies] Erro ao carregar filmes da categoria:", err);
+        setAllMovies([]);
+      })
+      .finally(() => setIsLoadingMovies(false));
   }, [client, selectedCategory]);
 
-  // Força foco real do DOM no elemento ativo (desativa cursor na TV LG)
+  // Sincroniza o foco real do DOM na TV LG para desativar ponteiro de mouse e guiar o D-Pad
   useEffect(() => {
     if (!isPlaying && isFocusedContent) {
       if (activeFocusColumn === 'categories' && activeCategoryBtnRef.current) {
@@ -68,7 +85,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         activeMovieBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }
     }
-  }, [selectedCategoryIdx, selectedMovieIdx, activeFocusColumn, isFocusedContent, isPlaying]);
+  }, [selectedCategoryIdx, selectedMovieIdx, activeFocusColumn, isFocusedContent, isPlaying, displayedMovies.length]);
 
   const startPlaying = (movie: XtreamVod) => {
     setSelectedMovie(movie);
@@ -81,7 +98,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     onFullScreenChange?.(false);
   };
 
-  // D-Pad Navigation
+  // Navegação D-Pad para Smart TV
   useSpatialNav({
     onUp: () => {
       if (isPlaying) return;
@@ -96,7 +113,14 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       if (activeFocusColumn === 'categories') {
         setSelectedCategoryIdx((prev) => Math.min(categories.length - 1, prev + 1));
       } else if (activeFocusColumn === 'grid') {
-        setSelectedMovieIdx((prev) => Math.min(movies.length - 1, prev + 5));
+        setSelectedMovieIdx((prev) => {
+          const nextIdx = Math.min(allMovies.length - 1, prev + 5);
+          // Se estiver chegando ao final dos filmes exibidos, carrega o próximo lote
+          if (nextIdx >= displayedCount - 5 && displayedCount < allMovies.length) {
+            setDisplayedCount((c) => Math.min(allMovies.length, c + BATCH_SIZE));
+          }
+          return nextIdx;
+        });
       }
     },
     onLeft: () => {
@@ -104,7 +128,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       if (activeFocusColumn === 'categories') {
         onRequestFocusSidebar?.();
       } else if (activeFocusColumn === 'grid') {
-        if (selectedMovieIdx % 5 === 0) {
+        if (selectedMovieIdx % 5 === 0 || displayedMovies.length === 0) {
           setActiveFocusColumn('categories');
         } else {
           setSelectedMovieIdx((prev) => Math.max(0, prev - 1));
@@ -114,9 +138,18 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     onRight: () => {
       if (isPlaying) return;
       if (activeFocusColumn === 'categories') {
-        setActiveFocusColumn('grid');
+        if (displayedMovies.length > 0) {
+          setActiveFocusColumn('grid');
+          setSelectedMovieIdx(0);
+        }
       } else if (activeFocusColumn === 'grid') {
-        setSelectedMovieIdx((prev) => Math.min(movies.length - 1, prev + 1));
+        setSelectedMovieIdx((prev) => {
+          const nextIdx = Math.min(allMovies.length - 1, prev + 1);
+          if (nextIdx >= displayedCount - 2 && displayedCount < allMovies.length) {
+            setDisplayedCount((c) => Math.min(allMovies.length, c + BATCH_SIZE));
+          }
+          return nextIdx;
+        });
       }
     },
     onSelect: () => {
@@ -124,10 +157,10 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       if (activeFocusColumn === 'categories') {
         if (categories[selectedCategoryIdx]) {
           setSelectedCategory(categories[selectedCategoryIdx].category_id);
+          setActiveFocusColumn('grid');
         }
-        setActiveFocusColumn('grid');
-      } else if (activeFocusColumn === 'grid' && movies[selectedMovieIdx]) {
-        startPlaying(movies[selectedMovieIdx]);
+      } else if (activeFocusColumn === 'grid' && displayedMovies[selectedMovieIdx]) {
+        startPlaying(displayedMovies[selectedMovieIdx]);
       }
     },
     onBack: () => {
@@ -145,11 +178,14 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     activeFocusColumn,
     selectedCategoryIdx,
     selectedMovieIdx,
-    movies,
+    displayedMovies,
+    allMovies.length,
+    displayedCount,
     categories,
     isFocusedContent
   ]);
 
+  // Player de Vídeo em Tela Cheia
   if (isPlaying && selectedMovie) {
     return (
       <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black">
@@ -166,84 +202,109 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
 
   return (
     <div className="w-full h-full flex bg-[#0a0d14] overflow-hidden select-none">
-      {/* Categorias VOD */}
-      <div className={`w-64 h-full bg-[#121722]/60 border-r border-[#2a3449] p-4 flex flex-col transition-all ${
-        isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/50 bg-[#161d2b]' : ''
+      {/* Coluna de Gêneros/Categorias */}
+      <div className={`w-72 h-full bg-[#121722]/80 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 ${
+        isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>
-        <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3 px-2">
-          Gêneros ({categories.length})
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-2 flex items-center justify-between">
+          <span>Gêneros VOD</span>
+          <span className="text-emerald-400 font-mono">{categories.length}</span>
         </h2>
-        <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-          {categories.map((cat, catIdx) => {
-            const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === catIdx;
-            const isSelected = selectedCategory === cat.category_id;
 
-            return (
-              <button
-                key={cat.category_id}
-                ref={isCatFocused ? activeCategoryBtnRef : null}
-                tabIndex={0}
-                onClick={() => {
-                  setSelectedCategory(cat.category_id);
-                  setSelectedCategoryIdx(catIdx);
-                  setActiveFocusColumn('grid');
-                }}
-                className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium transition truncate cursor-pointer ${
-                  isSelected
-                    ? 'bg-emerald-500 text-black font-bold shadow'
-                    : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
-                } ${
-                  isCatFocused
-                    ? 'ring-4 ring-emerald-300 shadow-xl scale-102 font-extrabold outline-none bg-emerald-400 text-black'
-                    : ''
-                }`}
-              >
-                {cat.category_name}
-              </button>
-            );
-          })}
-        </div>
+        {isLoadingCats ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+            <Loader2 className="w-6 h-6 animate-spin text-emerald-400 mb-2" />
+            <span className="text-xs">Carregando gêneros...</span>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+            {categories.map((cat, catIdx) => {
+              const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === catIdx;
+              const isSelected = selectedCategory === cat.category_id;
+
+              return (
+                <button
+                  type="button"
+                  key={cat.category_id}
+                  ref={isCatFocused ? activeCategoryBtnRef : null}
+                  tabIndex={0}
+                  onClick={() => {
+                    setSelectedCategory(cat.category_id);
+                    setSelectedCategoryIdx(catIdx);
+                    setActiveFocusColumn('grid');
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium transition truncate cursor-pointer ${
+                    isCatFocused
+                      ? 'bg-emerald-400 text-black font-extrabold shadow-xl scale-102 ring-4 ring-emerald-300 outline-none'
+                      : isSelected
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold'
+                      : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
+                  }`}
+                >
+                  {cat.category_name}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Grid de Filmes */}
-      <div className={`flex-1 h-full p-6 overflow-y-auto custom-scrollbar transition-all ${
-        isFocusedContent && activeFocusColumn === 'grid' ? 'ring-2 ring-emerald-500/30' : ''
-      }`}>
+      {/* Grade de Filmes */}
+      <div 
+        ref={gridContainerRef}
+        className={`flex-1 h-full p-6 overflow-y-auto custom-scrollbar transition-all ${
+          isFocusedContent && activeFocusColumn === 'grid' ? 'ring-2 ring-emerald-500/30' : ''
+        }`}
+      >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <Film className="w-6 h-6 text-emerald-400" />
-            Catálogo de Filmes ({movies.length})
+            <span>Catálogo de Filmes</span>
+            {allMovies.length > 0 && (
+              <span className="text-sm font-normal text-slate-400 ml-1">
+                ({displayedMovies.length} de {allMovies.length})
+              </span>
+            )}
           </h2>
-          <span className="text-xs text-slate-500 font-mono">[OK] Assistir Filme</span>
+          <div className="text-xs text-slate-400 flex items-center gap-3">
+            <span className="font-mono bg-[#1a2233] px-2.5 py-1 rounded-md text-emerald-400">
+              [OK] Assistir
+            </span>
+            <span className="font-mono bg-[#1a2233] px-2.5 py-1 rounded-md text-slate-300">
+              [◀] Voltar para Gêneros
+            </span>
+          </div>
         </div>
 
-        {isLoading ? (
-          <div className="w-full h-64 flex flex-col items-center justify-center text-slate-400">
-            <Loader2 className="w-10 h-10 animate-spin text-emerald-400 mb-2" />
-            <span>Carregando filmes da categoria...</span>
+        {isLoadingMovies ? (
+          <div className="w-full h-80 flex flex-col items-center justify-center text-slate-400">
+            <Loader2 className="w-12 h-12 animate-spin text-emerald-400 mb-3" />
+            <span className="text-sm">Carregando catálogo de filmes...</span>
           </div>
-        ) : movies.length === 0 ? (
-          <div className="w-full h-64 flex flex-col items-center justify-center text-slate-500">
-            <Film className="w-12 h-12 mb-2 text-slate-600" />
-            <p>Nenhum filme disponível nesta categoria.</p>
+        ) : allMovies.length === 0 ? (
+          <div className="w-full h-80 flex flex-col items-center justify-center text-slate-500">
+            <Film className="w-16 h-16 mb-3 text-slate-600" />
+            <p className="text-base font-semibold text-slate-400">Nenhum filme disponível nesta categoria.</p>
+            <p className="text-xs text-slate-500 mt-1">Selecione outro gênero no menu à esquerda.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {movies.map((movie, movieIdx) => {
+            {displayedMovies.map((movie, movieIdx) => {
               const isMovieFocused = isFocusedContent && activeFocusColumn === 'grid' && selectedMovieIdx === movieIdx;
+
               return (
                 <button
                   type="button"
                   tabIndex={0}
-                  key={movie.stream_id}
+                  key={`${movie.stream_id}-${movieIdx}`}
                   ref={isMovieFocused ? activeMovieBtnRef : null}
                   onClick={() => {
                     setSelectedMovieIdx(movieIdx);
                     startPlaying(movie);
                   }}
-                  className={`group relative bg-[#121722] border rounded-xl overflow-hidden cursor-pointer transition-all duration-200 shadow-lg text-left ${
+                  className={`group relative bg-[#121722] border rounded-xl overflow-hidden cursor-pointer transition-all duration-150 shadow-lg text-left ${
                     isMovieFocused
-                      ? 'border-emerald-400 ring-4 ring-emerald-400/60 scale-105 shadow-2xl z-10 bg-[#161d2b]'
+                      ? 'border-emerald-400 ring-4 ring-emerald-400/80 scale-104 shadow-2xl z-10 bg-[#161d2b]'
                       : 'border-[#2a3449] hover:border-emerald-500/50'
                   }`}
                 >

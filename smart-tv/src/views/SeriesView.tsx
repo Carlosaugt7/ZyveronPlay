@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { XtreamClient } from '../lib/xtream';
 import { XtreamCategory, XtreamSeries, XtreamSeason, XtreamEpisode } from '../types';
 import { Player } from '../components/Player';
@@ -12,6 +12,8 @@ interface SeriesViewProps {
   onFullScreenChange?: (full: boolean) => void;
 }
 
+const BATCH_SIZE = 30; // Proteção de memória para Smart TVs
+
 export const SeriesView: React.FC<SeriesViewProps> = ({
   client,
   isFocusedContent = true,
@@ -21,9 +23,11 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedCategoryIdx, setSelectedCategoryIdx] = useState<number>(0);
-  const [seriesList, setSeriesList] = useState<XtreamSeries[]>([]);
+  const [allSeries, setAllSeries] = useState<XtreamSeries[]>([]);
+  const [displayedCount, setDisplayedCount] = useState<number>(BATCH_SIZE);
   const [selectedSeriesIdx, setSelectedSeriesIdx] = useState<number>(0);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoadingCats, setIsLoadingCats] = useState<boolean>(true);
+  const [isLoadingSeries, setIsLoadingSeries] = useState<boolean>(false);
 
   // Detalhes da Série
   const [selectedSeries, setSelectedSeries] = useState<XtreamSeries | null>(null);
@@ -42,14 +46,19 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     ext: string;
   } | null>(null);
 
-  const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid' | 'episodes'>('grid');
+  const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid' | 'episodes'>('categories');
 
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
   const activeSeriesBtnRef = useRef<HTMLButtonElement>(null);
   const activeEpBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Carrega categorias ao iniciar e seleciona a primeira categoria disponível
+  const displayedSeries = useMemo(() => {
+    return allSeries.slice(0, displayedCount);
+  }, [allSeries, displayedCount]);
+
+  // Carrega categorias ao iniciar
   useEffect(() => {
+    setIsLoadingCats(true);
     client.getSeriesCategories()
       .then((cats) => {
         if (cats && cats.length > 0) {
@@ -58,20 +67,26 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
           setSelectedCategoryIdx(0);
         }
       })
-      .catch((err) => console.error("Erro ao carregar categorias de séries:", err));
+      .catch((err) => console.error("[Series] Erro ao carregar categorias de séries:", err))
+      .finally(() => setIsLoadingCats(false));
   }, [client]);
 
-  // Carrega séries da categoria selecionada (máxima performance)
+  // Carrega séries da categoria selecionada
   useEffect(() => {
     if (!selectedCategory) return;
-    setIsLoading(true);
+    setIsLoadingSeries(true);
+    setDisplayedCount(BATCH_SIZE);
+    setSelectedSeriesIdx(0);
+
     client.getSeries(selectedCategory)
       .then((data) => {
-        setSeriesList(data || []);
-        setSelectedSeriesIdx(0);
+        setAllSeries(data || []);
       })
-      .catch((err) => console.error("Erro ao carregar séries:", err))
-      .finally(() => setIsLoading(false));
+      .catch((err) => {
+        console.error("[Series] Erro ao carregar séries da categoria:", err);
+        setAllSeries([]);
+      })
+      .finally(() => setIsLoadingSeries(false));
   }, [client, selectedCategory]);
 
   // Força foco real no DOM para desativar cursor na TV LG
@@ -88,7 +103,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         activeEpBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }
     }
-  }, [selectedCategoryIdx, selectedSeriesIdx, selectedEpisodeIdx, activeFocusColumn, isFocusedContent, playingEpisode]);
+  }, [selectedCategoryIdx, selectedSeriesIdx, selectedEpisodeIdx, activeFocusColumn, isFocusedContent, playingEpisode, displayedSeries.length]);
 
   const handleOpenSeries = async (series: XtreamSeries) => {
     setSelectedSeries(series);
@@ -101,7 +116,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       const firstSeasonKey = Object.keys(details.episodes || {})[0] || '1';
       setSelectedSeason(firstSeasonKey);
     } catch (err) {
-      console.error("Erro ao carregar temporadas da série:", err);
+      console.error("[Series] Erro ao carregar temporadas da série:", err);
     } finally {
       setIsLoadingDetails(false);
     }
@@ -117,7 +132,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     onFullScreenChange?.(false);
   };
 
-  // D-Pad Navigation
+  // Navegação D-Pad para Smart TV
   useSpatialNav({
     onUp: () => {
       if (playingEpisode) return;
@@ -134,7 +149,13 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       if (activeFocusColumn === 'categories') {
         setSelectedCategoryIdx((prev) => Math.min(categories.length - 1, prev + 1));
       } else if (activeFocusColumn === 'grid') {
-        setSelectedSeriesIdx((prev) => Math.min(seriesList.length - 1, prev + 5));
+        setSelectedSeriesIdx((prev) => {
+          const nextIdx = Math.min(allSeries.length - 1, prev + 5);
+          if (nextIdx >= displayedCount - 5 && displayedCount < allSeries.length) {
+            setDisplayedCount((c) => Math.min(allSeries.length, c + BATCH_SIZE));
+          }
+          return nextIdx;
+        });
       } else if (activeFocusColumn === 'episodes') {
         const totalEps = (seriesDetails?.episodes?.[selectedSeason] || []).length;
         setSelectedEpisodeIdx((prev) => Math.min(totalEps - 1, prev + 1));
@@ -145,19 +166,31 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       if (activeFocusColumn === 'categories') {
         onRequestFocusSidebar?.();
       } else if (activeFocusColumn === 'grid') {
-        if (selectedSeriesIdx % 5 === 0) {
+        if (selectedSeriesIdx % 5 === 0 || displayedSeries.length === 0) {
           setActiveFocusColumn('categories');
         } else {
           setSelectedSeriesIdx((prev) => Math.max(0, prev - 1));
         }
+      } else if (activeFocusColumn === 'episodes') {
+        setActiveFocusColumn('grid');
+        setSelectedSeries(null);
       }
     },
     onRight: () => {
       if (playingEpisode) return;
       if (activeFocusColumn === 'categories') {
-        setActiveFocusColumn('grid');
+        if (displayedSeries.length > 0) {
+          setActiveFocusColumn('grid');
+          setSelectedSeriesIdx(0);
+        }
       } else if (activeFocusColumn === 'grid') {
-        setSelectedSeriesIdx((prev) => Math.min(seriesList.length - 1, prev + 1));
+        setSelectedSeriesIdx((prev) => {
+          const nextIdx = Math.min(allSeries.length - 1, prev + 1);
+          if (nextIdx >= displayedCount - 2 && displayedCount < allSeries.length) {
+            setDisplayedCount((c) => Math.min(allSeries.length, c + BATCH_SIZE));
+          }
+          return nextIdx;
+        });
       }
     },
     onSelect: () => {
@@ -165,13 +198,14 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       if (activeFocusColumn === 'categories') {
         if (categories[selectedCategoryIdx]) {
           setSelectedCategory(categories[selectedCategoryIdx].category_id);
+          setActiveFocusColumn('grid');
         }
-        setActiveFocusColumn('grid');
-      } else if (activeFocusColumn === 'grid' && seriesList[selectedSeriesIdx]) {
-        handleOpenSeries(seriesList[selectedSeriesIdx]);
+      } else if (activeFocusColumn === 'grid' && displayedSeries[selectedSeriesIdx]) {
+        handleOpenSeries(displayedSeries[selectedSeriesIdx]);
       } else if (activeFocusColumn === 'episodes') {
-        const ep = (seriesDetails?.episodes?.[selectedSeason] || [])[selectedEpisodeIdx];
-        if (ep && selectedSeries) {
+        const eps = seriesDetails?.episodes?.[selectedSeason] || [];
+        const ep = eps[selectedEpisodeIdx];
+        if (ep) {
           startPlayingEpisode({
             id: ep.id,
             title: `T${selectedSeason}:E${ep.episode_num} - ${ep.title}`,
@@ -183,7 +217,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     onBack: () => {
       if (playingEpisode) {
         stopPlayingEpisode();
-      } else if (selectedSeries) {
+      } else if (activeFocusColumn === 'episodes') {
         setSelectedSeries(null);
         setActiveFocusColumn('grid');
       } else if (activeFocusColumn === 'grid') {
@@ -195,25 +229,26 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     disabled: !isFocusedContent
   }, [
     playingEpisode,
-    selectedSeries,
     activeFocusColumn,
     selectedCategoryIdx,
     selectedSeriesIdx,
     selectedEpisodeIdx,
-    seriesList,
+    displayedSeries,
+    allSeries.length,
+    displayedCount,
     categories,
     seriesDetails,
     selectedSeason,
     isFocusedContent
   ]);
 
-  if (playingEpisode && selectedSeries) {
+  // Player de Vídeo do Episódio
+  if (playingEpisode) {
     return (
       <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black">
         <Player
           streamUrl={client.buildEpisodeUrl(playingEpisode.id, playingEpisode.ext)}
-          title={`${selectedSeries.name} - ${playingEpisode.title}`}
-          logoUrl={selectedSeries.cover}
+          title={playingEpisode.title}
           onBack={stopPlayingEpisode}
           isFullScreen={true}
         />
@@ -222,85 +257,107 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   }
 
   return (
-    <div className="w-full h-full flex bg-[#0a0d14] overflow-hidden select-none relative">
-      {/* Categorias Séries */}
-      <div className={`w-64 h-full bg-[#121722]/60 border-r border-[#2a3449] p-4 flex flex-col transition-all ${
-        isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/50 bg-[#161d2b]' : ''
+    <div className="w-full h-full flex bg-[#0a0d14] overflow-hidden select-none">
+      {/* Coluna de Categorias */}
+      <div className={`w-72 h-full bg-[#121722]/80 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 ${
+        isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>
-        <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3 px-2">
-          Gêneros ({categories.length})
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-2 flex items-center justify-between">
+          <span>Gêneros Séries</span>
+          <span className="text-emerald-400 font-mono">{categories.length}</span>
         </h2>
-        <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-          {categories.map((cat, catIdx) => {
-            const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === catIdx;
-            const isSelected = selectedCategory === cat.category_id;
 
-            return (
-              <button
-                key={cat.category_id}
-                ref={isCatFocused ? activeCategoryBtnRef : null}
-                tabIndex={0}
-                onClick={() => {
-                  setSelectedCategory(cat.category_id);
-                  setSelectedCategoryIdx(catIdx);
-                  setActiveFocusColumn('grid');
-                }}
-                className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium transition truncate cursor-pointer ${
-                  isSelected
-                    ? 'bg-emerald-500 text-black font-bold shadow'
-                    : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
-                } ${
-                  isCatFocused
-                    ? 'ring-4 ring-emerald-300 shadow-xl scale-102 font-extrabold outline-none bg-emerald-400 text-black'
-                    : ''
-                }`}
-              >
-                {cat.category_name}
-              </button>
-            );
-          })}
-        </div>
+        {isLoadingCats ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+            <Loader2 className="w-6 h-6 animate-spin text-emerald-400 mb-2" />
+            <span className="text-xs">Carregando gêneros...</span>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+            {categories.map((cat, catIdx) => {
+              const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === catIdx;
+              const isSelected = selectedCategory === cat.category_id;
+
+              return (
+                <button
+                  type="button"
+                  key={cat.category_id}
+                  ref={isCatFocused ? activeCategoryBtnRef : null}
+                  tabIndex={0}
+                  onClick={() => {
+                    setSelectedCategory(cat.category_id);
+                    setSelectedCategoryIdx(catIdx);
+                    setActiveFocusColumn('grid');
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium transition truncate cursor-pointer ${
+                    isCatFocused
+                      ? 'bg-emerald-400 text-black font-extrabold shadow-xl scale-102 ring-4 ring-emerald-300 outline-none'
+                      : isSelected
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold'
+                      : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
+                  }`}
+                >
+                  {cat.category_name}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Grid de Séries */}
+      {/* Grade de Séries */}
       <div className={`flex-1 h-full p-6 overflow-y-auto custom-scrollbar transition-all ${
         isFocusedContent && activeFocusColumn === 'grid' ? 'ring-2 ring-emerald-500/30' : ''
       }`}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <Clapperboard className="w-6 h-6 text-emerald-400" />
-            Catálogo de Séries ({seriesList.length})
+            <span>Catálogo de Séries</span>
+            {allSeries.length > 0 && (
+              <span className="text-sm font-normal text-slate-400 ml-1">
+                ({displayedSeries.length} de {allSeries.length})
+              </span>
+            )}
           </h2>
-          <span className="text-xs text-slate-500 font-mono">[OK] Abrir Série</span>
+          <div className="text-xs text-slate-400 flex items-center gap-3">
+            <span className="font-mono bg-[#1a2233] px-2.5 py-1 rounded-md text-emerald-400">
+              [OK] Abrir Série
+            </span>
+            <span className="font-mono bg-[#1a2233] px-2.5 py-1 rounded-md text-slate-300">
+              [◀] Voltar para Gêneros
+            </span>
+          </div>
         </div>
 
-        {isLoading ? (
-          <div className="w-full h-64 flex flex-col items-center justify-center text-slate-400">
-            <Loader2 className="w-10 h-10 animate-spin text-emerald-400 mb-2" />
-            <span>Carregando séries da categoria...</span>
+        {isLoadingSeries ? (
+          <div className="w-full h-80 flex flex-col items-center justify-center text-slate-400">
+            <Loader2 className="w-12 h-12 animate-spin text-emerald-400 mb-3" />
+            <span className="text-sm">Carregando catálogo de séries...</span>
           </div>
-        ) : seriesList.length === 0 ? (
-          <div className="w-full h-64 flex flex-col items-center justify-center text-slate-500">
-            <Clapperboard className="w-12 h-12 mb-2 text-slate-600" />
-            <p>Nenhuma série disponível nesta categoria.</p>
+        ) : allSeries.length === 0 ? (
+          <div className="w-full h-80 flex flex-col items-center justify-center text-slate-500">
+            <Clapperboard className="w-16 h-16 mb-3 text-slate-600" />
+            <p className="text-base font-semibold text-slate-400">Nenhuma série disponível nesta categoria.</p>
+            <p className="text-xs text-slate-500 mt-1">Selecione outro gênero no menu à esquerda.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {seriesList.map((series, sIdx) => {
-              const isSeriesFocused = isFocusedContent && activeFocusColumn === 'grid' && selectedSeriesIdx === sIdx;
+            {displayedSeries.map((series, seriesIdx) => {
+              const isSeriesFocused = isFocusedContent && activeFocusColumn === 'grid' && selectedSeriesIdx === seriesIdx;
+
               return (
                 <button
                   type="button"
                   tabIndex={0}
-                  key={series.series_id}
+                  key={`${series.series_id}-${seriesIdx}`}
                   ref={isSeriesFocused ? activeSeriesBtnRef : null}
                   onClick={() => {
-                    setSelectedSeriesIdx(sIdx);
+                    setSelectedSeriesIdx(seriesIdx);
                     handleOpenSeries(series);
                   }}
-                  className={`group relative bg-[#121722] border rounded-xl overflow-hidden cursor-pointer transition-all duration-200 shadow-lg text-left ${
+                  className={`group relative bg-[#121722] border rounded-xl overflow-hidden cursor-pointer transition-all duration-150 shadow-lg text-left ${
                     isSeriesFocused
-                      ? 'border-emerald-400 ring-4 ring-emerald-400/60 scale-105 shadow-2xl z-10 bg-[#161d2b]'
+                      ? 'border-emerald-400 ring-4 ring-emerald-400/80 scale-104 shadow-2xl z-10 bg-[#161d2b]'
                       : 'border-[#2a3449] hover:border-emerald-500/50'
                   }`}
                 >
