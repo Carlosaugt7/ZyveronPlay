@@ -21,6 +21,7 @@ export default function App() {
   const [activeDevice, setActiveDevice] = useState<DeviceActivation | null>(null);
   const [currentSection, setCurrentSection] = useState<MainSection>('live');
   const [focusZone, setFocusZone] = useState<'sidebar' | 'content'>('content');
+  const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
 
   // Chaves de controle para revalidação reativa sem travamento
   const [authReloadKey, setAuthReloadKey] = useState<number>(0);
@@ -30,7 +31,6 @@ export default function App() {
   useEffect(() => {
     setActivationStatus('loading');
 
-    // Timeout de segurança para Smart TVs: se demorar mais que 2.5s, força exibição da tela de ativação
     const safetyTimeout = setTimeout(() => {
       setActivationStatus((prev) => (prev === 'loading' ? 'unregistered' : prev));
     }, 2500);
@@ -76,8 +76,8 @@ export default function App() {
     onSelect: () => {
       setFocusZone('content');
     },
-    disabled: focusZone !== 'sidebar' || activationStatus !== 'active'
-  }, [focusZone, currentSection, activationStatus]);
+    disabled: focusZone !== 'sidebar' || activationStatus !== 'active' || isFullScreen
+  }, [focusZone, currentSection, activationStatus, isFullScreen]);
 
   // Força revalidação no Firestore caso o usuário clique em "Verificar Agora"
   const handleRefreshActivation = () => {
@@ -126,15 +126,18 @@ export default function App() {
 
   // 3. Aplicação Principal Ativa (TV Ao Vivo, Filmes, Séries, Ajustes)
   return (
-    <div className="w-screen h-screen flex bg-[#0a0d14] overflow-hidden">
-      <NavigationBar
-        currentSection={currentSection}
-        onSelectSection={(sec) => {
-          setCurrentSection(sec);
-          setFocusZone('content');
-        }}
-        isFocused={focusZone === 'sidebar'}
-      />
+    <div className="w-screen h-screen flex bg-[#0a0d14] overflow-hidden relative">
+      {/* Barra de Menu Lateral - Ocultada completamente quando o vídeo estiver em tela cheia */}
+      {!isFullScreen && (
+        <NavigationBar
+          currentSection={currentSection}
+          onSelectSection={(sec) => {
+            setCurrentSection(sec);
+            setFocusZone('content');
+          }}
+          isFocused={focusZone === 'sidebar'}
+        />
+      )}
 
       <main className="flex-1 h-full overflow-hidden">
         {currentSection === 'live' && (
@@ -143,6 +146,7 @@ export default function App() {
             isFocusedContent={focusZone === 'content'}
             onRequestFocusSidebar={() => setFocusZone('sidebar')}
             reloadKey={contentReloadKey}
+            onFullScreenChange={setIsFullScreen}
           />
         )}
         {currentSection === 'vod' && (
@@ -150,6 +154,7 @@ export default function App() {
             client={xtreamClient}
             isFocusedContent={focusZone === 'content'}
             onRequestFocusSidebar={() => setFocusZone('sidebar')}
+            onFullScreenChange={setIsFullScreen}
           />
         )}
         {currentSection === 'series' && (
@@ -157,6 +162,7 @@ export default function App() {
             client={xtreamClient}
             isFocusedContent={focusZone === 'content'}
             onRequestFocusSidebar={() => setFocusZone('sidebar')}
+            onFullScreenChange={setIsFullScreen}
           />
         )}
         {currentSection === 'settings' && (

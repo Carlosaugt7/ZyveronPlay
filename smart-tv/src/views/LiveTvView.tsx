@@ -12,13 +12,15 @@ interface LiveTvViewProps {
   isFocusedContent?: boolean;
   onRequestFocusSidebar?: () => void;
   reloadKey?: number;
+  onFullScreenChange?: (full: boolean) => void;
 }
 
 export const LiveTvView: React.FC<LiveTvViewProps> = ({
   client,
   isFocusedContent = true,
   onRequestFocusSidebar,
-  reloadKey = 0
+  reloadKey = 0,
+  onFullScreenChange
 }) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -34,6 +36,13 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
 
   const categoriesContainerRef = useRef<HTMLDivElement>(null);
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
+  const activeChannelBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Notifica o App sobre mudanças em tela cheia para sumir com a NavigationBar
+  const setFullScreenMode = (full: boolean) => {
+    setIsFullScreen(full);
+    onFullScreenChange?.(full);
+  };
 
   // Carrega categorias ao iniciar ou quando recarregar lista
   useEffect(() => {
@@ -61,15 +70,17 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       .finally(() => setIsLoadingChannels(false));
   }, [client, selectedCategory, reloadKey]);
 
-  // Auto-scroll da categoria ativa para mantê-la visível na TV
+  // Força foco real do DOM no botão selecionado (elimina o cursor do Magic Remote da TV LG)
   useEffect(() => {
-    if (activeFocusColumn === 'categories' && activeCategoryBtnRef.current) {
-      activeCategoryBtnRef.current.scrollIntoView({
-        block: 'nearest',
-        behavior: 'smooth'
-      });
+    if (!isFullScreen && isFocusedContent) {
+      if (activeFocusColumn === 'categories' && activeCategoryBtnRef.current) {
+        activeCategoryBtnRef.current.focus();
+        activeCategoryBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (activeFocusColumn === 'channels' && activeChannelBtnRef.current) {
+        activeChannelBtnRef.current.focus();
+      }
     }
-  }, [selectedCategoryIdx, activeFocusColumn]);
+  }, [selectedCategoryIdx, selectedChannelIdx, activeFocusColumn, isFocusedContent, isFullScreen]);
 
   // Teclas do Controle Remoto (D-Pad para Smart TV)
   useSpatialNav({
@@ -115,7 +126,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         setActiveFocusColumn('channels');
       } else if (activeFocusColumn === 'channels' && filteredChannels[selectedChannelIdx]) {
         setCurrentPlayingChannel(filteredChannels[selectedChannelIdx]);
-        setIsFullScreen(true);
+        setFullScreenMode(true);
       }
     },
     onSelect: () => {
@@ -129,12 +140,12 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         setActiveFocusColumn('channels');
       } else if (activeFocusColumn === 'channels' && filteredChannels[selectedChannelIdx]) {
         setCurrentPlayingChannel(filteredChannels[selectedChannelIdx]);
-        setIsFullScreen(true);
+        setFullScreenMode(true);
       }
     },
     onBack: () => {
       if (isFullScreen) {
-        setIsFullScreen(false);
+        setFullScreenMode(false);
       } else if (activeFocusColumn === 'channels') {
         setActiveFocusColumn('categories');
       } else if (activeFocusColumn === 'categories') {
@@ -160,16 +171,16 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
 
   return (
     <div className="w-full h-full flex bg-[#0a0d14] relative overflow-hidden select-none">
-      {/* Tela Cheia do Player */}
+      {/* TELA CHEIA FIXADA (Cobre 100% da tela, sobrepondo a NavigationBar e tudo mais) */}
       {isFullScreen && currentPlayingChannel && (
-        <div className="absolute inset-0 z-50 bg-black">
+        <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black">
           <Player
             streamUrl={client.buildLiveHlsUrl(currentPlayingChannel.stream_id)}
             fallbackUrl={client.buildLiveTsUrl(currentPlayingChannel.stream_id)}
             title={currentPlayingChannel.name}
             channelNum={currentPlayingChannel.num || selectedChannelIdx + 1}
             logoUrl={currentPlayingChannel.stream_icon}
-            onBack={() => setIsFullScreen(false)}
+            onBack={() => setFullScreenMode(false)}
             isFullScreen={true}
           />
         </div>
@@ -265,13 +276,16 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                 const isItemFocused = isSelected && isFocusedContent && activeFocusColumn === 'channels';
 
                 return (
-                  <div
+                  <button
+                    type="button"
+                    tabIndex={0}
+                    ref={isItemFocused ? activeChannelBtnRef : null}
                     onClick={() => {
                       setSelectedChannelIdx(index);
                       setCurrentPlayingChannel(channel);
-                      setIsFullScreen(true);
+                      setFullScreenMode(true);
                     }}
-                    className={`w-full h-[58px] px-3 rounded-xl flex items-center justify-between cursor-pointer transition select-none ${
+                    className={`w-full h-[58px] px-3 rounded-xl flex items-center justify-between cursor-pointer transition select-none text-left ${
                       isItemFocused
                         ? 'bg-emerald-500 text-black font-extrabold shadow-2xl scale-102 ring-4 ring-emerald-300'
                         : isSelected
@@ -298,13 +312,13 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                       <span className="font-semibold text-sm truncate">{channel.name}</span>
                     </div>
 
-                    <button
+                    <div
                       onClick={(e) => handleToggleFav(channel.stream_id, e)}
                       className={`p-1.5 transition ${isItemFocused ? 'text-black hover:text-slate-900' : 'text-slate-400 hover:text-amber-400'}`}
                     >
                       <Star className={`w-4 h-4 ${isFav ? 'fill-amber-400 text-amber-400' : ''}`} />
-                    </button>
-                  </div>
+                    </div>
+                  </button>
                 );
               }}
             />
@@ -328,7 +342,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                   isFullScreen={false}
                 />
                 <button
-                  onClick={() => setIsFullScreen(true)}
+                  onClick={() => setFullScreenMode(true)}
                   className="absolute bottom-4 right-4 p-3 bg-black/70 hover:bg-emerald-500 hover:text-black text-white rounded-xl backdrop-blur-md transition flex items-center gap-2 text-sm font-bold shadow-lg cursor-pointer"
                 >
                   <Maximize2 className="w-5 h-5" /> Expandir Tela Cheia [OK]

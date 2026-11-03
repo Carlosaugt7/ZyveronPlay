@@ -3,14 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <!-- Elimina Mixed Content promovendo automaticamente qualquer stream ou redirect http:// para https:// -->
-    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests" />
     <title>Zyveron Play - Smart TV</title>
     <!-- Favicon e Ícone -->
     <link rel="icon" type="image/svg+xml" href="./icon.png" />
     <!-- Tizen & webOS tags de compatibilidade -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="screen-orientation" content="landscape" />
     <style>
       /* Evita scrollbars nativas em Smart TVs e ajusta foco */
       * {
@@ -28,7 +27,6 @@
         width: 100vw;
         height: 100vh;
       }
-      /* Remove contornos padrão de navegadores em favor do foco customizado */
       :focus {
         outline: none;
       }

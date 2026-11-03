@@ -23,7 +23,7 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer(async (req, res) => {
-  // CORS universal para Smart TVs
+  // CORS universal para Smart TVs e navegadores
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
   res.setHeader('Access-Control-Allow-Headers', '*');
@@ -46,22 +46,30 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
-      const targetObj = new URL(target);
       const clientIp = req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+      const upstreamHeaders = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': '*/*', // Aceita streams de vídeo, m3u8, ts, json sem disparar HTTP 406
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+        'X-Forwarded-For': String(clientIp || ''),
+        'X-Real-IP': String(clientIp || '')
+      };
+
+      if (req.headers.range) {
+        upstreamHeaders['Range'] = req.headers.range;
+      }
 
       const upstreamRes = await fetch(target, {
         method: req.method === 'HEAD' ? 'HEAD' : 'GET',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Accept': 'application/json, text/plain, */*',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-          'X-Forwarded-For': String(clientIp || ''),
-          'X-Real-IP': String(clientIp || '')
-        }
+        headers: upstreamHeaders,
+        redirect: 'follow'
       });
 
       const contentType = upstreamRes.headers.get('content-type') || 'application/octet-stream';
       const contentLength = upstreamRes.headers.get('content-length');
+      const acceptRanges = upstreamRes.headers.get('accept-ranges');
+      const contentRange = upstreamRes.headers.get('content-range');
 
       const headers = {
         'Content-Type': contentType,
@@ -70,9 +78,9 @@ const server = http.createServer(async (req, res) => {
         'Cache-Control': 'no-cache'
       };
 
-      if (contentLength) {
-        headers['Content-Length'] = contentLength;
-      }
+      if (contentLength) headers['Content-Length'] = contentLength;
+      if (acceptRanges) headers['Accept-Ranges'] = acceptRanges;
+      if (contentRange) headers['Content-Range'] = contentRange;
 
       res.writeHead(upstreamRes.status, headers);
 

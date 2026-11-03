@@ -16,20 +16,32 @@ body {
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
-}
-
-/* Modo Controle Remoto: Oculta o ponteiro do mouse na Smart TV (LG webOS / Samsung Tizen) */
-body.tv-remote-mode,
-body.tv-remote-mode * {
   cursor: none !important;
 }
 
-/* Indicador de Foco Luminoso para Navegação por Teclas do Controle */
+/* Força cursor invisível para desativar o Magic Remote da TV LG e Samsung */
+* {
+  cursor: none !important;
+}
+
+/* Modo Desktop PC (Permite mouse apenas se usuário mexer o mouse no PC) */
+body.mouse-enabled,
+body.mouse-enabled * {
+  cursor: default !important;
+}
+
+body.mouse-enabled button,
+body.mouse-enabled a,
+body.mouse-enabled [role="button"] {
+  cursor: pointer !important;
+}
+
+/* Remove contornos padrão em favor do foco de alta visibilidade */
 *:focus {
   outline: none !important;
 }
 
-/* Scrollbar invisível ou ultra-fina para TVs */
+/* Scrollbar ultra-fina para TVs */
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
   height: 4px;

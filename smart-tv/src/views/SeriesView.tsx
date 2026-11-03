@@ -9,12 +9,14 @@ interface SeriesViewProps {
   client: XtreamClient;
   isFocusedContent?: boolean;
   onRequestFocusSidebar?: () => void;
+  onFullScreenChange?: (full: boolean) => void;
 }
 
 export const SeriesView: React.FC<SeriesViewProps> = ({
   client,
   isFocusedContent = true,
-  onRequestFocusSidebar
+  onRequestFocusSidebar,
+  onFullScreenChange
 }) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -150,7 +152,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       } else if (activeFocusColumn === 'episodes') {
         const ep = (seriesDetails?.episodes?.[selectedSeason] || [])[selectedEpisodeIdx];
         if (ep && selectedSeries) {
-          setPlayingEpisode({
+          startPlayingEpisode({
             id: ep.id,
             title: `T${selectedSeason}:E${ep.episode_num} - ${ep.title}`,
             ext: ep.container_extension || 'mp4'
@@ -160,7 +162,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     },
     onBack: () => {
       if (playingEpisode) {
-        setPlayingEpisode(null);
+        stopPlayingEpisode();
       } else if (selectedSeries) {
         setSelectedSeries(null);
         setActiveFocusColumn('grid');
@@ -185,14 +187,24 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     isFocusedContent
   ]);
 
+  const startPlayingEpisode = (epData: { id: string; title: string; ext: string }) => {
+    setPlayingEpisode(epData);
+    onFullScreenChange?.(true);
+  };
+
+  const stopPlayingEpisode = () => {
+    setPlayingEpisode(null);
+    onFullScreenChange?.(false);
+  };
+
   if (playingEpisode && selectedSeries) {
     return (
-      <div className="w-full h-full bg-black relative">
+      <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black">
         <Player
           streamUrl={client.buildEpisodeUrl(playingEpisode.id, playingEpisode.ext)}
           title={`${selectedSeries.name} - ${playingEpisode.title}`}
           logoUrl={selectedSeries.cover}
-          onBack={() => setPlayingEpisode(null)}
+          onBack={stopPlayingEpisode}
           isFullScreen={true}
         />
       </div>
@@ -389,7 +401,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                           key={ep.id}
                           onClick={() => {
                             setSelectedEpisodeIdx(epIdx);
-                            setPlayingEpisode({
+                            startPlayingEpisode({
                               id: ep.id,
                               title: `T${selectedSeason}:E${ep.episode_num} - ${ep.title}`,
                               ext: ep.container_extension || 'mp4'

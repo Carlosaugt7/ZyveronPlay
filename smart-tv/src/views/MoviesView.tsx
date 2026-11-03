@@ -9,12 +9,14 @@ interface MoviesViewProps {
   client: XtreamClient;
   isFocusedContent?: boolean;
   onRequestFocusSidebar?: () => void;
+  onFullScreenChange?: (full: boolean) => void;
 }
 
 export const MoviesView: React.FC<MoviesViewProps> = ({
   client,
   isFocusedContent = true,
-  onRequestFocusSidebar
+  onRequestFocusSidebar,
+  onFullScreenChange
 }) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -109,13 +111,12 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         }
         setActiveFocusColumn('grid');
       } else if (activeFocusColumn === 'grid' && movies[selectedMovieIdx]) {
-        setSelectedMovie(movies[selectedMovieIdx]);
-        setIsPlaying(true);
+        startPlaying(movies[selectedMovieIdx]);
       }
     },
     onBack: () => {
       if (isPlaying) {
-        setIsPlaying(false);
+        stopPlaying();
       } else if (activeFocusColumn === 'grid') {
         setActiveFocusColumn('categories');
       } else if (activeFocusColumn === 'categories') {
@@ -133,14 +134,25 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     isFocusedContent
   ]);
 
+  const startPlaying = (movie: XtreamVod) => {
+    setSelectedMovie(movie);
+    setIsPlaying(true);
+    onFullScreenChange?.(true);
+  };
+
+  const stopPlaying = () => {
+    setIsPlaying(false);
+    onFullScreenChange?.(false);
+  };
+
   if (isPlaying && selectedMovie) {
     return (
-      <div className="w-full h-full bg-black relative">
+      <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black">
         <Player
           streamUrl={client.buildVodUrl(selectedMovie.stream_id, selectedMovie.container_extension)}
           title={selectedMovie.name}
           logoUrl={selectedMovie.stream_icon}
-          onBack={() => setIsPlaying(false)}
+          onBack={stopPlaying}
           isFullScreen={true}
         />
       </div>
@@ -231,8 +243,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                   ref={isMovieFocused ? activeMovieCardRef : null}
                   onClick={() => {
                     setSelectedMovieIdx(movieIdx);
-                    setSelectedMovie(movie);
-                    setIsPlaying(true);
+                    startPlaying(movie);
                   }}
                   className={`group relative bg-[#121722] border rounded-xl overflow-hidden cursor-pointer transition-all duration-200 shadow-lg ${
                     isMovieFocused

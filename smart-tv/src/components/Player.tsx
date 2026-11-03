@@ -12,27 +12,6 @@ interface PlayerProps {
   isFullScreen?: boolean;
 }
 
-// Sanitiza URLs de stream para garantir conformidade HTTPS e eliminar Mixed Content
-function sanitizeStreamUrl(url: string): string {
-  if (!url) return '';
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.startsWith('http://')) {
-    return url.replace(/^http:\/\//i, 'https://').replace(':80/', '/');
-  }
-  return url;
-}
-
-// Custom Loader para Hls.js promovendo playlists e fragmentos para HTTPS
-class HlsUrlUpgradeLoader extends Hls.DefaultConfig.loader {
-  load(context: any, config: any, callbacks: any) {
-    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-      if (context.url && context.url.startsWith('http://')) {
-        context.url = context.url.replace(/^http:\/\//i, 'https://').replace(':80/', '/');
-      }
-    }
-    super.load(context, config, callbacks);
-  }
-}
-
 export const Player: React.FC<PlayerProps> = ({
   streamUrl,
   fallbackUrl,
@@ -49,7 +28,7 @@ export const Player: React.FC<PlayerProps> = ({
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [showOsd, setShowOsd] = useState(true);
-  const [activeUrl, setActiveUrl] = useState(() => sanitizeStreamUrl(streamUrl));
+  const [activeUrl, setActiveUrl] = useState(streamUrl);
 
   // Auto-hide do OSD após 4.5 segundos
   useEffect(() => {
@@ -62,7 +41,7 @@ export const Player: React.FC<PlayerProps> = ({
 
   // Atualiza a URL ativa quando streamUrl mudar
   useEffect(() => {
-    setActiveUrl(sanitizeStreamUrl(streamUrl));
+    setActiveUrl(streamUrl);
   }, [streamUrl]);
 
   useEffect(() => {
@@ -79,11 +58,22 @@ export const Player: React.FC<PlayerProps> = ({
     }
 
     const isHls = activeUrl.includes('.m3u8');
-    const cleanFallback = fallbackUrl ? sanitizeStreamUrl(fallbackUrl) : undefined;
+    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
 
-    if (isHls && Hls.isSupported()) {
+    // Se estiver em HTTPS e o stream for HTTP puro, utiliza o proxy seguro da VPS para evitar Mixed Content
+    const effectiveUrl = (isHttps && activeUrl.startsWith('http://'))
+      ? `/api/proxy?url=${encodeURIComponent(activeUrl)}`
+      : activeUrl;
+
+    // 1. Suporte nativo da Smart TV (LG webOS / Samsung Tizen / Safari)
+    if (video.canPlayType('application/vnd.apple.mpegurl') && !navigator.userAgent.includes('Chrome')) {
+      video.src = effectiveUrl;
+      video.load();
+      video.play().catch(() => {});
+    } 
+    // 2. Motor Hls.js com buffer adaptativo para PC e Smart TVs baseadas em Chromium
+    else if (isHls && Hls.isSupported()) {
       const hls = new Hls({
-        loader: HlsUrlUpgradeLoader as any,
         enableWorker: true,
         lowLatencyMode: true,
         backBufferLength: 15,
@@ -94,17 +84,13 @@ export const Player: React.FC<PlayerProps> = ({
         manifestLoadingTimeOut: 12000,
         levelLoadingTimeOut: 12000,
         fragLoadingTimeOut: 15000,
-        xhrSetup: (xhr, url) => {
-          // Interceptor de segurança no XMLHttpRequest
-          if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.startsWith('http://')) {
-            const secureUrl = url.replace(/^http:\/\//i, 'https://').replace(':80/', '/');
-            xhr.open('GET', secureUrl, true);
-          }
+        xhrSetup: (xhr) => {
+          xhr.withCredentials = false;
         }
       });
 
       hlsRef.current = hls;
-      hls.loadSource(activeUrl);
+      hls.loadSource(effectiveUrl);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -116,12 +102,17 @@ export const Player: React.FC<PlayerProps> = ({
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              // Tenta fallback TS se falhar na rede
-              if (cleanFallback && activeUrl !== cleanFallback) {
-                console.warn("[Player] HLS com falha de rede. Tentando stream TS alternativo...");
-                setActiveUrl(cleanFallback);
+              // Se falhar e ainda não estava usando o proxy, tenta via proxy da VPS
+              if (!effectiveUrl.includes('/api/proxy') && isHttps) {
+                console.warn("[Player] Tentando carregar via proxy seguro da VPS...");
+                const proxyUrl = `/api/proxy?url=${encodeURIComponent(activeUrl)}`;
+                hls.loadSource(proxyUrl);
+                hls.startLoad();
+              } else if (fallbackUrl && activeUrl !== fallbackUrl) {
+                console.warn("[Player] HLS com falha de rede. Tentando stream alternativo...");
+                setActiveUrl(fallbackUrl);
               } else {
-                console.warn("[Player] Tentando reconectar stream HLS...");
+                console.warn("[Player] Reconectando stream...");
                 hls.startLoad();
               }
               break;
@@ -137,22 +128,19 @@ export const Player: React.FC<PlayerProps> = ({
           }
         }
       });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl') || !isHls) {
-      // Reprodução nativa direta da Smart TV (LG webOS / Samsung Tizen / Safari)
-      video.src = activeUrl;
+    } else {
+      // Reprodução nativa direta para MP4 / TS
+      video.src = effectiveUrl;
       video.load();
       video.play().catch(() => {});
-    } else {
-      setHasError(true);
-      setErrorMessage('Navegador não suporta reprodução deste formato.');
     }
 
     const handlePlaying = () => setIsLoading(false);
     const handleWaiting = () => setIsLoading(true);
     const handleError = () => {
-      if (cleanFallback && activeUrl !== cleanFallback) {
+      if (fallbackUrl && activeUrl !== fallbackUrl) {
         console.warn("[Player] Player nativo com erro. Tentando stream alternativo...");
-        setActiveUrl(cleanFallback);
+        setActiveUrl(fallbackUrl);
       } else {
         setIsLoading(false);
         setHasError(true);
