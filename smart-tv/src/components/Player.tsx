@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { Loader2, AlertCircle, Play, Pause, Volume2, VolumeX, ArrowLeft } from 'lucide-react';
+import { Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 
 interface PlayerProps {
   streamUrl: string;
@@ -10,6 +10,27 @@ interface PlayerProps {
   logoUrl?: string;
   onBack?: () => void;
   isFullScreen?: boolean;
+}
+
+// Sanitiza URLs de stream para garantir conformidade HTTPS e eliminar Mixed Content
+function sanitizeStreamUrl(url: string): string {
+  if (!url) return '';
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.startsWith('http://')) {
+    return url.replace(/^http:\/\//i, 'https://').replace(':80/', '/');
+  }
+  return url;
+}
+
+// Custom Loader para Hls.js promovendo playlists e fragmentos para HTTPS
+class HlsUrlUpgradeLoader extends Hls.DefaultConfig.loader {
+  load(context: any, config: any, callbacks: any) {
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+      if (context.url && context.url.startsWith('http://')) {
+        context.url = context.url.replace(/^http:\/\//i, 'https://').replace(':80/', '/');
+      }
+    }
+    super.load(context, config, callbacks);
+  }
 }
 
 export const Player: React.FC<PlayerProps> = ({
@@ -28,11 +49,9 @@ export const Player: React.FC<PlayerProps> = ({
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [showOsd, setShowOsd] = useState(true);
-  const [isPaused, setIsPaused] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [activeUrl, setActiveUrl] = useState(streamUrl);
+  const [activeUrl, setActiveUrl] = useState(() => sanitizeStreamUrl(streamUrl));
 
-  // Auto-hide do OSD após 4 segundos
+  // Auto-hide do OSD após 4.5 segundos
   useEffect(() => {
     setShowOsd(true);
     const timer = setTimeout(() => {
@@ -41,9 +60,9 @@ export const Player: React.FC<PlayerProps> = ({
     return () => clearTimeout(timer);
   }, [title, streamUrl]);
 
-  // Inicializa o Player (Hls.js ou Nativo)
+  // Atualiza a URL ativa quando streamUrl mudar
   useEffect(() => {
-    setActiveUrl(streamUrl);
+    setActiveUrl(sanitizeStreamUrl(streamUrl));
   }, [streamUrl]);
 
   useEffect(() => {
@@ -60,9 +79,11 @@ export const Player: React.FC<PlayerProps> = ({
     }
 
     const isHls = activeUrl.includes('.m3u8');
+    const cleanFallback = fallbackUrl ? sanitizeStreamUrl(fallbackUrl) : undefined;
 
     if (isHls && Hls.isSupported()) {
       const hls = new Hls({
+        loader: HlsUrlUpgradeLoader as any,
         enableWorker: true,
         lowLatencyMode: true,
         backBufferLength: 15,
@@ -70,9 +91,16 @@ export const Player: React.FC<PlayerProps> = ({
         maxMaxBufferLength: 20,
         liveSyncDurationCount: 3,
         liveMaxLatencyDurationCount: 6,
-        manifestLoadingTimeOut: 10000,
-        levelLoadingTimeOut: 10000,
+        manifestLoadingTimeOut: 12000,
+        levelLoadingTimeOut: 12000,
         fragLoadingTimeOut: 15000,
+        xhrSetup: (xhr, url) => {
+          // Interceptor de segurança no XMLHttpRequest
+          if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.startsWith('http://')) {
+            const secureUrl = url.replace(/^http:\/\//i, 'https://').replace(':80/', '/');
+            xhr.open('GET', secureUrl, true);
+          }
+        }
       });
 
       hlsRef.current = hls;
@@ -88,38 +116,43 @@ export const Player: React.FC<PlayerProps> = ({
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              // Tenta fallback para TS se falhar na rede
-              if (fallbackUrl && activeUrl !== fallbackUrl) {
-                console.warn("HLS com falha de rede. Tentando stream TS alternativo...");
-                setActiveUrl(fallbackUrl);
+              // Tenta fallback TS se falhar na rede
+              if (cleanFallback && activeUrl !== cleanFallback) {
+                console.warn("[Player] HLS com falha de rede. Tentando stream TS alternativo...");
+                setActiveUrl(cleanFallback);
               } else {
+                console.warn("[Player] Tentando reconectar stream HLS...");
                 hls.startLoad();
               }
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
+              console.warn("[Player] Recuperando erro de decodificação de mídia...");
               hls.recoverMediaError();
               break;
             default:
               hls.destroy();
               setHasError(true);
-              setErrorMessage('Falha ao reproduzir o stream.');
+              setErrorMessage('Falha ao reproduzir o sinal deste canal.');
               break;
           }
         }
       });
-    } else {
-      // Reprodução nativa direta (HTML5) para MP4 / TS
+    } else if (video.canPlayType('application/vnd.apple.mpegurl') || !isHls) {
+      // Reprodução nativa direta da Smart TV (LG webOS / Samsung Tizen / Safari)
       video.src = activeUrl;
       video.load();
       video.play().catch(() => {});
+    } else {
+      setHasError(true);
+      setErrorMessage('Navegador não suporta reprodução deste formato.');
     }
 
     const handlePlaying = () => setIsLoading(false);
     const handleWaiting = () => setIsLoading(true);
     const handleError = () => {
-      if (fallbackUrl && activeUrl !== fallbackUrl) {
-        console.warn("Player nativo com erro. Tentando stream alternativo...");
-        setActiveUrl(fallbackUrl);
+      if (cleanFallback && activeUrl !== cleanFallback) {
+        console.warn("[Player] Player nativo com erro. Tentando stream alternativo...");
+        setActiveUrl(cleanFallback);
       } else {
         setIsLoading(false);
         setHasError(true);
@@ -169,7 +202,7 @@ export const Player: React.FC<PlayerProps> = ({
           {onBack && (
             <button
               onClick={onBack}
-              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold flex items-center gap-2"
+              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold flex items-center gap-2 cursor-pointer shadow-lg"
             >
               <ArrowLeft className="w-5 h-5" /> Voltar para a Lista
             </button>
@@ -214,4 +247,3 @@ export const Player: React.FC<PlayerProps> = ({
     </div>
   );
 };
-

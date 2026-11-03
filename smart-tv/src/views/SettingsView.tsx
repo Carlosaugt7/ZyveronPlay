@@ -7,7 +7,7 @@ interface SettingsViewProps {
   device: DeviceActivation;
   isFocusedContent?: boolean;
   onRequestFocusSidebar?: () => void;
-  onRefreshData: () => void;
+  onSyncContent: () => void;
   onResetDevice: () => void;
 }
 
@@ -15,11 +15,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   device,
   isFocusedContent = true,
   onRequestFocusSidebar,
-  onRefreshData,
+  onSyncContent,
   onResetDevice
 }) => {
   const [clearedSuccess, setClearedSuccess] = useState(false);
+  const [syncSuccess, setSyncSuccess] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [focusedBtnIdx, setFocusedBtnIdx] = useState<number>(0);
+
+  const handleSync = () => {
+    setIsSyncing(true);
+    onSyncContent();
+    setTimeout(() => {
+      setIsSyncing(false);
+      setSyncSuccess(true);
+      setTimeout(() => setSyncSuccess(false), 3000);
+    }, 1200);
+  };
 
   const handleClearCache = () => {
     try {
@@ -44,7 +56,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     },
     onSelect: () => {
       if (focusedBtnIdx === 0) {
-        onRefreshData();
+        handleSync();
       } else if (focusedBtnIdx === 1) {
         handleClearCache();
       } else if (focusedBtnIdx === 2) {
@@ -55,7 +67,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       onRequestFocusSidebar?.();
     },
     disabled: !isFocusedContent
-  }, [focusedBtnIdx, isFocusedContent, onRefreshData, onResetDevice]);
+  }, [focusedBtnIdx, isFocusedContent, onSyncContent, onResetDevice]);
 
   return (
     <div className={`w-full h-full p-8 bg-[#0a0d14] overflow-y-auto select-none transition-all ${
@@ -128,14 +140,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <p className="text-xs text-slate-400 mt-0.5">Recarrega canais e categorias do servidor IPTV agora</p>
               </div>
               <button
-                onClick={onRefreshData}
+                onClick={handleSync}
                 className={`px-4 py-2 font-semibold rounded-lg flex items-center gap-2 text-sm transition cursor-pointer ${
                   isFocusedContent && focusedBtnIdx === 0
                     ? 'bg-emerald-400 text-black shadow-lg shadow-emerald-400/40 ring-2 ring-emerald-300'
                     : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                 }`}
               >
-                <RefreshCw className="w-4 h-4" /> Recarregar
+                <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                {isSyncing ? 'Sincronizando...' : syncSuccess ? 'Sincronizado!' : 'Recarregar'}
               </button>
             </div>
 

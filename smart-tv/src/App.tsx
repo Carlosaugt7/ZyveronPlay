@@ -22,7 +22,11 @@ export default function App() {
   const [currentSection, setCurrentSection] = useState<MainSection>('live');
   const [focusZone, setFocusZone] = useState<'sidebar' | 'content'>('content');
 
-  // Inicializa a escuta em tempo real no Firestore para este MAC
+  // Chaves de controle para revalidação reativa sem travamento
+  const [authReloadKey, setAuthReloadKey] = useState<number>(0);
+  const [contentReloadKey, setContentReloadKey] = useState<number>(0);
+
+  // Inicializa e escuta em tempo real no Firestore para este MAC
   useEffect(() => {
     setActivationStatus('loading');
 
@@ -44,7 +48,7 @@ export default function App() {
       clearTimeout(safetyTimeout);
       unsubscribe();
     };
-  }, [identity.mac]);
+  }, [identity.mac, authReloadKey]);
 
   // Instância do Cliente Xtream conectada ao DNS e credenciais ativas
   const xtreamClient = useMemo(() => {
@@ -75,14 +79,21 @@ export default function App() {
     disabled: focusZone !== 'sidebar' || activationStatus !== 'active'
   }, [focusZone, currentSection, activationStatus]);
 
+  // Força revalidação no Firestore caso o usuário clique em "Verificar Agora"
   const handleRefreshActivation = () => {
     setActivationStatus('loading');
-    setIdentity({ ...getOrCreateDeviceIdentity() });
+    setAuthReloadKey((prev) => prev + 1);
+  };
+
+  // Sincroniza a lista de canais sem deslogar ou travar a tela
+  const handleSyncContent = () => {
+    setContentReloadKey((prev) => prev + 1);
   };
 
   const handleResetDevice = () => {
     localStorage.clear();
     setIdentity(getOrCreateDeviceIdentity());
+    setAuthReloadKey((prev) => prev + 1);
   };
 
   // 1. Tela de Carregamento Inicial
@@ -105,7 +116,10 @@ export default function App() {
         status={activationStatus}
         message={statusMessage}
         onRefresh={handleRefreshActivation}
-        onIdentityChanged={() => setIdentity(getOrCreateDeviceIdentity())}
+        onIdentityChanged={() => {
+          setIdentity(getOrCreateDeviceIdentity());
+          setAuthReloadKey((k) => k + 1);
+        }}
       />
     );
   }
@@ -128,6 +142,7 @@ export default function App() {
             client={xtreamClient}
             isFocusedContent={focusZone === 'content'}
             onRequestFocusSidebar={() => setFocusZone('sidebar')}
+            reloadKey={contentReloadKey}
           />
         )}
         {currentSection === 'vod' && (
@@ -149,7 +164,7 @@ export default function App() {
             device={activeDevice}
             isFocusedContent={focusZone === 'content'}
             onRequestFocusSidebar={() => setFocusZone('sidebar')}
-            onRefreshData={handleRefreshActivation}
+            onSyncContent={handleSyncContent}
             onResetDevice={handleResetDevice}
           />
         )}

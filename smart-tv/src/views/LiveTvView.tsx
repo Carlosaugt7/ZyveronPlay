@@ -11,12 +11,14 @@ interface LiveTvViewProps {
   client: XtreamClient;
   isFocusedContent?: boolean;
   onRequestFocusSidebar?: () => void;
+  reloadKey?: number;
 }
 
 export const LiveTvView: React.FC<LiveTvViewProps> = ({
   client,
   isFocusedContent = true,
-  onRequestFocusSidebar
+  onRequestFocusSidebar,
+  reloadKey = 0
 }) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -33,7 +35,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const categoriesContainerRef = useRef<HTMLDivElement>(null);
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Carrega categorias ao iniciar
+  // Carrega categorias ao iniciar ou quando recarregar lista
   useEffect(() => {
     setFavorites(getFavorites('live'));
     client.getLiveCategories()
@@ -41,9 +43,9 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         setCategories(cats || []);
       })
       .catch((err) => console.error("Erro ao carregar categorias:", err));
-  }, [client]);
+  }, [client, reloadKey]);
 
-  // Carrega canais da categoria selecionada
+  // Carrega canais da categoria selecionada ou quando recarregar lista
   useEffect(() => {
     setIsLoadingChannels(true);
     client.getLiveStreams(selectedCategory === 'all' ? undefined : selectedCategory)
@@ -57,7 +59,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       })
       .catch((err) => console.error("Erro ao carregar canais:", err))
       .finally(() => setIsLoadingChannels(false));
-  }, [client, selectedCategory]);
+  }, [client, selectedCategory, reloadKey]);
 
   // Auto-scroll da categoria ativa para mantê-la visível na TV
   useEffect(() => {
@@ -104,7 +106,6 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       if (activeFocusColumn === 'channels') {
         setActiveFocusColumn('categories');
       } else if (activeFocusColumn === 'categories') {
-        // Retorna o foco para o menu lateral
         onRequestFocusSidebar?.();
       }
     },
