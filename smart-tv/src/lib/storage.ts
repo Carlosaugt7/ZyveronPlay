@@ -1,3 +1,5 @@
+import { DeviceActivation } from '../types';
+
 /**
  * Gerenciador de Armazenamento Local e Identidade da Smart TV
  * Suporta persistência dupla (localStorage + IndexedDB) para máxima resiliência
@@ -8,7 +10,8 @@ const STORAGE_KEYS = {
   DEVICE_KEY: 'zyveron_device_key',
   FAVORITES: 'zyveron_favorites',
   LAST_CHANNEL: 'zyveron_last_channel',
-  SETTINGS: 'zyveron_tv_settings'
+  SETTINGS: 'zyveron_tv_settings',
+  ACTIVE_DEVICE: 'zyveron_active_device'
 };
 
 /**
@@ -99,5 +102,27 @@ export function toggleFavorite(id: number, type: 'live' | 'vod' | 'series' = 'li
   } catch {
     return false;
   }
+}
+
+/**
+ * Cache do último dispositivo ativo para inicialização instantânea
+ */
+export function getCachedDevice(): DeviceActivation | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.ACTIVE_DEVICE);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveCachedDevice(device: DeviceActivation | null): void {
+  try {
+    if (device) {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_DEVICE, JSON.stringify(device));
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_DEVICE);
+    }
+  } catch {}
 }
 

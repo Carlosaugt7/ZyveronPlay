@@ -40,20 +40,19 @@ export type DeviceStatusCallback = (state: {
   device?: DeviceActivation;
 }) => void;
 
-let lastSignature = "";
-
 /**
  * Escuta o estado do dispositivo em tempo real
  */
 export function listenDeviceActivation(mac: string, callback: DeviceStatusCallback): Unsubscribe {
   const cleanMac = mac.toUpperCase().trim();
   const deviceDocRef = doc(firestore, "devices", cleanMac);
+  let listenerSignature = "";
 
   return onSnapshot(
     deviceDocRef,
     async (snapshot) => {
       if (!snapshot.exists()) {
-        lastSignature = "unregistered";
+        listenerSignature = "unregistered";
         callback({ status: 'unregistered', message: 'Aparelho ainda não ativado no painel.' });
         return;
       }
@@ -94,7 +93,7 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
 
       // Validação de bloqueio
       if (status === 'blocked') {
-        lastSignature = "blocked";
+        listenerSignature = "blocked";
         callback({ status: 'blocked', message: 'Aparelho bloqueado pela administração.' });
         return;
       }
@@ -103,14 +102,14 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
       if (expirationDate) {
         const expDate = new Date(expirationDate);
         if (!isNaN(expDate.getTime()) && expDate < new Date()) {
-          lastSignature = "expired";
+          listenerSignature = "expired";
           callback({ status: 'expired', message: `Mensalidade vencida em ${expDate.toLocaleDateString('pt-BR')}` });
           return;
         }
       }
 
       if (!activeDns || !username || !password) {
-        lastSignature = "unregistered_no_creds";
+        listenerSignature = "unregistered_no_creds";
         callback({ 
           status: 'unregistered', 
           message: 'Aparelho cadastrado, mas lista ou DNS ainda não atribuídos no painel.' 
@@ -126,11 +125,11 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
 
       // Assinatura de autenticação única para evitar loops infinitos de renderização
       const currentSignature = `${cleanMac}|${status}|${expirationDate}|${serverId}|${username}|${password}|${activeDns}|${serverName}`;
-      if (currentSignature === lastSignature) {
+      if (currentSignature === listenerSignature) {
         // Nada de relevante mudou; ignora alterações de heartbeat/lastSeen
         return;
       }
-      lastSignature = currentSignature;
+      listenerSignature = currentSignature;
 
       const activeDevice: DeviceActivation = {
         mac: cleanMac,

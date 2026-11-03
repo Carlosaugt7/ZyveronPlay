@@ -58,20 +58,17 @@ export const Player: React.FC<PlayerProps> = ({
     }
 
     const isHls = activeUrl.includes('.m3u8');
-    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const isSmartTv = /(web0s|webos|tizen|smarttv|smart-tv)/i.test(navigator.userAgent);
+    const isNativeHlsSupported = video.canPlayType('application/vnd.apple.mpegurl');
 
-    // Se estiver em HTTPS e o stream for HTTP puro, utiliza o proxy seguro da VPS para evitar Mixed Content
-    const effectiveUrl = (isHttps && activeUrl.startsWith('http://'))
-      ? `/api/proxy?url=${encodeURIComponent(activeUrl)}`
-      : activeUrl;
-
-    // 1. Suporte nativo da Smart TV (LG webOS / Samsung Tizen / Safari)
-    if (video.canPlayType('application/vnd.apple.mpegurl') && !navigator.userAgent.includes('Chrome')) {
-      video.src = effectiveUrl;
+    // 1. Em Smart TVs (LG webOS e Samsung Tizen): utiliza o pipeline de decodificação de hardware nativo da TV
+    // O player nativo da Smart TV toca streams diretamente pelo chip de vídeo sem as restrições de XHR do navegador
+    if (isSmartTv || (isNativeHlsSupported && !navigator.userAgent.includes('Windows') && !navigator.userAgent.includes('Macintosh'))) {
+      video.src = activeUrl;
       video.load();
       video.play().catch(() => {});
     } 
-    // 2. Motor Hls.js com buffer adaptativo para PC e Smart TVs baseadas em Chromium
+    // 2. Em computadores Desktop / Notebooks: utiliza Hls.js com buffer adaptativo
     else if (isHls && Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
@@ -90,7 +87,7 @@ export const Player: React.FC<PlayerProps> = ({
       });
 
       hlsRef.current = hls;
-      hls.loadSource(effectiveUrl);
+      hls.loadSource(activeUrl);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -102,26 +99,29 @@ export const Player: React.FC<PlayerProps> = ({
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              // Se falhar e ainda não estava usando o proxy, tenta via proxy da VPS
-              if (!effectiveUrl.includes('/api/proxy') && isHttps) {
-                console.warn("[Player] Tentando carregar via proxy seguro da VPS...");
-                const proxyUrl = `/api/proxy?url=${encodeURIComponent(activeUrl)}`;
-                hls.loadSource(proxyUrl);
-                hls.startLoad();
-              } else if (fallbackUrl && activeUrl !== fallbackUrl) {
-                console.warn("[Player] HLS com falha de rede. Tentando stream alternativo...");
+              // Se falhar na rede no PC e houver fallback TS
+              if (fallbackUrl && activeUrl !== fallbackUrl) {
+                console.warn("[Player] HLS com falha de rede. Tentando stream TS alternativo...");
                 setActiveUrl(fallbackUrl);
               } else {
-                console.warn("[Player] Reconectando stream...");
-                hls.startLoad();
+                hls.destroy();
+                setIsLoading(false);
+                setHasError(true);
+                const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+                if (isHttps) {
+                  setErrorMessage('O stream deste canal é transmitido em HTTP. No computador, acesse via http://tvplay.loja-am.top ou libere "Conteúdo não seguro" no ícone ao lado da barra de endereços.');
+                } else {
+                  setErrorMessage('Sinal temporariamente indisponível no servidor.');
+                }
               }
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.warn("[Player] Recuperando erro de decodificação de mídia...");
+              console.warn("[Player] Recuperando decodificação de mídia...");
               hls.recoverMediaError();
               break;
             default:
               hls.destroy();
+              setIsLoading(false);
               setHasError(true);
               setErrorMessage('Falha ao reproduzir o sinal deste canal.');
               break;
@@ -130,7 +130,7 @@ export const Player: React.FC<PlayerProps> = ({
       });
     } else {
       // Reprodução nativa direta para MP4 / TS
-      video.src = effectiveUrl;
+      video.src = activeUrl;
       video.load();
       video.play().catch(() => {});
     }
@@ -183,10 +183,10 @@ export const Player: React.FC<PlayerProps> = ({
 
       {/* Error Overlay */}
       {hasError && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-20 p-6 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 z-20 p-8 text-center">
           <AlertCircle className="w-20 h-20 text-red-500 mb-4" />
-          <h3 className="text-2xl font-bold text-white mb-2">Canal Fora do Ar</h3>
-          <p className="text-slate-300 max-w-md mb-6">{errorMessage}</p>
+          <h3 className="text-2xl font-bold text-white mb-2">Canal Indisponível</h3>
+          <p className="text-slate-300 max-w-lg mb-6 text-sm leading-relaxed">{errorMessage}</p>
           {onBack && (
             <button
               onClick={onBack}

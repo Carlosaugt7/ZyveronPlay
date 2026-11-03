@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getOrCreateDeviceIdentity } from './lib/storage';
+import { getOrCreateDeviceIdentity, getCachedDevice, saveCachedDevice } from './lib/storage';
 import { listenDeviceActivation } from './lib/firebase';
 import { DeviceActivation } from './types';
 import { XtreamClient } from './lib/xtream';
@@ -16,9 +16,12 @@ const SECTIONS: MainSection[] = ['live', 'vod', 'series', 'settings'];
 
 export default function App() {
   const [identity, setIdentity] = useState(() => getOrCreateDeviceIdentity());
-  const [activationStatus, setActivationStatus] = useState<'loading' | 'unregistered' | 'active' | 'expired' | 'blocked'>('loading');
+  const initialCached = useMemo(() => getCachedDevice(), []);
+  const [activeDevice, setActiveDevice] = useState<DeviceActivation | null>(() => initialCached);
+  const [activationStatus, setActivationStatus] = useState<'loading' | 'unregistered' | 'active' | 'expired' | 'blocked'>(
+    () => (initialCached && initialCached.mac === identity.mac ? 'active' : 'loading')
+  );
   const [statusMessage, setStatusMessage] = useState<string>('');
-  const [activeDevice, setActiveDevice] = useState<DeviceActivation | null>(null);
   const [currentSection, setCurrentSection] = useState<MainSection>('live');
   const [focusZone, setFocusZone] = useState<'sidebar' | 'content'>('content');
   const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
@@ -29,18 +32,27 @@ export default function App() {
 
   // Inicializa e escuta em tempo real no Firestore para este MAC
   useEffect(() => {
-    setActivationStatus('loading');
+    // Se não tiver cache para este MAC, exibe loading
+    const cached = getCachedDevice();
+    if (!cached || cached.mac !== identity.mac) {
+      setActivationStatus('loading');
+    }
 
+    // Timeout de segurança para conexões lentas de Smart TV (6s)
     const safetyTimeout = setTimeout(() => {
       setActivationStatus((prev) => (prev === 'loading' ? 'unregistered' : prev));
-    }, 2500);
+    }, 6000);
 
     const unsubscribe = listenDeviceActivation(identity.mac, (state) => {
       clearTimeout(safetyTimeout);
       setActivationStatus(state.status);
       setStatusMessage(state.message || '');
-      if (state.device) {
+      if (state.status === 'active' && state.device) {
         setActiveDevice(state.device);
+        saveCachedDevice(state.device);
+      } else if (state.status !== 'active') {
+        saveCachedDevice(null);
+        setActiveDevice(null);
       }
     });
 
@@ -117,7 +129,10 @@ export default function App() {
         message={statusMessage}
         onRefresh={handleRefreshActivation}
         onIdentityChanged={() => {
+          saveCachedDevice(null);
+          setActiveDevice(null);
           setIdentity(getOrCreateDeviceIdentity());
+          setActivationStatus('loading');
           setAuthReloadKey((k) => k + 1);
         }}
       />
