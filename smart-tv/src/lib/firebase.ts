@@ -1,0 +1,135 @@
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { 
+  getFirestore, 
+  doc, 
+  getDoc, 
+  onSnapshot, 
+  updateDoc, 
+  serverTimestamp,
+  Unsubscribe 
+} from "firebase/firestore";
+import { DeviceActivation } from "../types";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD_keI8HrRiu2zmXXi0JybhBFBu7xn8cbw",
+  authDomain: "zyveronplay.firebaseapp.com",
+  projectId: "zyveronplay",
+  storageBucket: "zyveronplay.firebasestorage.app",
+  messagingSenderId: "37945698653",
+  appId: "1:37945698653:web:4cf82d2f42f8c9644520b4",
+};
+
+export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+export const firestore = getFirestore(app);
+
+export type DeviceStatusCallback = (state: {
+  status: 'loading' | 'unregistered' | 'active' | 'expired' | 'blocked';
+  message?: string;
+  device?: DeviceActivation;
+}) => void;
+
+/**
+ * Escuta o estado do dispositivo em tempo real
+ */
+export function listenDeviceActivation(mac: string, callback: DeviceStatusCallback): Unsubscribe {
+  const cleanMac = mac.toUpperCase().trim();
+  const deviceDocRef = doc(firestore, "devices", cleanMac);
+
+  return onSnapshot(
+    deviceDocRef,
+    async (snapshot) => {
+      if (!snapshot.exists()) {
+        callback({ status: 'unregistered', message: 'Aparelho ainda não ativado no painel.' });
+        return;
+      }
+
+      const data = snapshot.data();
+      const status = data.status || 'active';
+      const expirationDate = data.expirationDate || '';
+      const serverId = data.serverId || '';
+      let username = data.username || '';
+      let password = data.password || '';
+      let serverName = data.serverName || 'Servidor 1';
+      let activeDns = data.serverDns || data.activeDns || data.dns || data.serverUrl || '';
+
+      // Se a conta 1 estiver vazia, tenta conta 2
+      if (!username && data.username2) {
+        username = data.username2;
+        password = data.password2 || '';
+        serverName = data.serverName2 || 'Servidor 2';
+        activeDns = data.serverDns2 || data.activeDns2 || activeDns;
+      }
+
+      // Se não tiver DNS direto no doc do aparelho, busca do servidor
+      if ((!activeDns || activeDns.trim() === '') && serverId) {
+        try {
+          const serverDocRef = doc(firestore, "servers", serverId);
+          const serverSnap = await getDoc(serverDocRef);
+          if (serverSnap.exists()) {
+            const sData = serverSnap.data();
+            activeDns = sData.activeDns || sData.serverDns || sData.dns || sData.serverUrl || '';
+            if (sData.name) serverName = sData.name;
+          }
+        } catch (err) {
+          console.error("Erro ao carregar dados do servidor:", err);
+        }
+      }
+
+      // Validação de bloqueio
+      if (status === 'blocked') {
+        callback({ status: 'blocked', message: 'Aparelho bloqueado pela administração.' });
+        return;
+      }
+
+      // Validação de validade
+      if (expirationDate) {
+        const expDate = new Date(expirationDate);
+        if (!isNaN(expDate.getTime()) && expDate < new Date()) {
+          callback({ status: 'expired', message: `Mensalidade vencida em ${expDate.toLocaleDateString('pt-BR')}` });
+          return;
+        }
+      }
+
+      if (!activeDns || !username || !password) {
+        callback({ 
+          status: 'unregistered', 
+          message: 'Aparelho cadastrado, mas lista ou DNS ainda não atribuídos no painel.' 
+        });
+        return;
+      }
+
+      // Limpa protocolo duplo se existir
+      activeDns = activeDns.trim().replace(/\/+$/, '');
+      if (!/^https?:\/\//i.test(activeDns)) {
+        activeDns = `http://${activeDns}`;
+      }
+
+      const activeDevice: DeviceActivation = {
+        mac: cleanMac,
+        deviceKey: data.deviceKey || '',
+        status: 'active',
+        expirationDate,
+        serverId,
+        serverName,
+        activeDns,
+        username,
+        password
+      };
+
+      callback({ status: 'active', device: activeDevice });
+
+      // Atualiza heartbeat / lastSeen
+      try {
+        updateDoc(deviceDocRef, {
+          lastSeen: serverTimestamp(),
+          isOnline: true,
+          appVersion: 'SmartTV-1.0.0'
+        }).catch(() => {});
+      } catch {}
+    },
+    (error) => {
+      console.error("Erro no listener do dispositivo:", error);
+      callback({ status: 'unregistered', message: 'Erro ao conectar ao serviço de autenticação.' });
+    }
+  );
+}

@@ -1,0 +1,15 @@
+{
+  "id": "com.zyveron.play.tv",
+  "version": "1.0.0",
+  "vendor": "Zyveron",
+  "type": "web",
+  "main": "index.html",
+  "title": "Zyveron Play",
+  "icon": "icon.png",
+  "largeIcon": "icon.png",
+  "resolution": "1920x1080",
+  "uiRevision": 2,
+  "requiredPermissions": [
+    "network"
+  ]
+}
