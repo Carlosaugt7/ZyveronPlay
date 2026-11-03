@@ -72,14 +72,15 @@ class ZyveronPlayerManager(private val context: Context) {
 
     private fun createPlayer(): ExoPlayer {
         try {
-            // 1. Buffer Inteligente para TV: Início ultra-rápido (~1.5s) e absorção de oscilações
+            // 1. Buffer Inteligente para TV: Início ultra-rápido (< 1s) e absorção de oscilações
             val loadControl = DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
-                    2500,  // Mínimo de buffer (ms)
+                    2000,  // Mínimo de buffer (ms)
                     15000, // Máximo de buffer (ms)
-                    1500,  // Buffer para iniciar reprodução imediatamente no Zapping
-                    3000   // Buffer após re-buffer
+                    1000,  // Buffer para iniciar reprodução imediatamente no Zapping (<1s!)
+                    2000   // Buffer após re-buffer
                 )
+                .setBackBuffer(10000, true) // Retém 10s para re-seeking instantâneo
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
 

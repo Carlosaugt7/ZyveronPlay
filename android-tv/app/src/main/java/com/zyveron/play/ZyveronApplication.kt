@@ -9,6 +9,7 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import com.zyveron.play.ui.crash.CrashActivity
+import com.zyveron.play.util.NetworkSecurityHelper
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -17,17 +18,21 @@ class ZyveronApplication : Application(), ImageLoaderFactory {
 
     override fun newImageLoader(): ImageLoader {
         return ImageLoader.Builder(this)
+            .okHttpClient {
+                NetworkSecurityHelper.createUnsafeOkHttpClient(connectTimeoutSec = 10, readTimeoutSec = 15)
+            }
             .bitmapConfig(Bitmap.Config.RGB_565)
             .allowRgb565(true)
+            .allowHardware(false)
             .memoryCache {
                 MemoryCache.Builder(this)
-                    .maxSizePercent(0.15)
+                    .maxSizePercent(0.12)
                     .build()
             }
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(40L * 1024 * 1024)
+                    .maxSizeBytes(50L * 1024 * 1024)
                     .build()
             }
             .crossfade(false)

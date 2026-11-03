@@ -8,7 +8,9 @@ import androidx.room.PrimaryKey
     tableName = "vod_movies",
     indices = [
         Index(value = ["categoryId"]),
-        Index(value = ["name"])
+        Index(value = ["categoryId", "num"]),
+        Index(value = ["name"]),
+        Index(value = ["isFavorite"])
     ]
 )
 data class VodEntity(

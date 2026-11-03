@@ -1,9 +1,16 @@
 package com.zyveron.play.data.local
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "categories")
+@Entity(
+    tableName = "categories",
+    indices = [
+        Index(value = ["type"]),
+        Index(value = ["type", "categoryName"])
+    ]
+)
 data class CategoryEntity(
     @PrimaryKey
     val categoryId: String,

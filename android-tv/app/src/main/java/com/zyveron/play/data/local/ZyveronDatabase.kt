@@ -12,7 +12,7 @@ import androidx.room.RoomDatabase
         VodEntity::class,
         SeriesEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class ZyveronDatabase : RoomDatabase() {
