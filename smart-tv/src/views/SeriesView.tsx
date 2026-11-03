@@ -19,7 +19,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   onFullScreenChange
 }) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedCategoryIdx, setSelectedCategoryIdx] = useState<number>(0);
   const [seriesList, setSeriesList] = useState<XtreamSeries[]>([]);
   const [selectedSeriesIdx, setSelectedSeriesIdx] = useState<number>(0);
@@ -45,17 +45,27 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid' | 'episodes'>('grid');
 
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
-  const activeSeriesCardRef = useRef<HTMLDivElement>(null);
+  const activeSeriesBtnRef = useRef<HTMLButtonElement>(null);
+  const activeEpBtnRef = useRef<HTMLButtonElement>(null);
 
+  // Carrega categorias ao iniciar e seleciona a primeira categoria disponível
   useEffect(() => {
     client.getSeriesCategories()
-      .then((cats) => setCategories(cats || []))
+      .then((cats) => {
+        if (cats && cats.length > 0) {
+          setCategories(cats);
+          setSelectedCategory(cats[0].category_id);
+          setSelectedCategoryIdx(0);
+        }
+      })
       .catch((err) => console.error("Erro ao carregar categorias de séries:", err));
   }, [client]);
 
+  // Carrega séries da categoria selecionada (máxima performance)
   useEffect(() => {
+    if (!selectedCategory) return;
     setIsLoading(true);
-    client.getSeries(selectedCategory === 'all' ? undefined : selectedCategory)
+    client.getSeries(selectedCategory)
       .then((data) => {
         setSeriesList(data || []);
         setSelectedSeriesIdx(0);
@@ -64,19 +74,21 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       .finally(() => setIsLoading(false));
   }, [client, selectedCategory]);
 
-  // Auto-scroll da categoria ativa
+  // Força foco real no DOM para desativar cursor na TV LG
   useEffect(() => {
-    if (activeFocusColumn === 'categories' && activeCategoryBtnRef.current) {
-      activeCategoryBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (!playingEpisode && isFocusedContent) {
+      if (activeFocusColumn === 'categories' && activeCategoryBtnRef.current) {
+        activeCategoryBtnRef.current.focus();
+        activeCategoryBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (activeFocusColumn === 'grid' && activeSeriesBtnRef.current) {
+        activeSeriesBtnRef.current.focus();
+        activeSeriesBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (activeFocusColumn === 'episodes' && activeEpBtnRef.current) {
+        activeEpBtnRef.current.focus();
+        activeEpBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
     }
-  }, [selectedCategoryIdx, activeFocusColumn]);
-
-  // Auto-scroll da série ativa
-  useEffect(() => {
-    if (activeFocusColumn === 'grid' && activeSeriesCardRef.current) {
-      activeSeriesCardRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }
-  }, [selectedSeriesIdx, activeFocusColumn]);
+  }, [selectedCategoryIdx, selectedSeriesIdx, selectedEpisodeIdx, activeFocusColumn, isFocusedContent, playingEpisode]);
 
   const handleOpenSeries = async (series: XtreamSeries) => {
     setSelectedSeries(series);
@@ -95,6 +107,16 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     }
   };
 
+  const startPlayingEpisode = (epData: { id: string; title: string; ext: string }) => {
+    setPlayingEpisode(epData);
+    onFullScreenChange?.(true);
+  };
+
+  const stopPlayingEpisode = () => {
+    setPlayingEpisode(null);
+    onFullScreenChange?.(false);
+  };
+
   // D-Pad Navigation
   useSpatialNav({
     onUp: () => {
@@ -110,7 +132,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     onDown: () => {
       if (playingEpisode) return;
       if (activeFocusColumn === 'categories') {
-        setSelectedCategoryIdx((prev) => Math.min(categories.length, prev + 1));
+        setSelectedCategoryIdx((prev) => Math.min(categories.length - 1, prev + 1));
       } else if (activeFocusColumn === 'grid') {
         setSelectedSeriesIdx((prev) => Math.min(seriesList.length - 1, prev + 5));
       } else if (activeFocusColumn === 'episodes') {
@@ -141,10 +163,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     onSelect: () => {
       if (playingEpisode) return;
       if (activeFocusColumn === 'categories') {
-        if (selectedCategoryIdx === 0) {
-          setSelectedCategory('all');
-        } else if (categories[selectedCategoryIdx - 1]) {
-          setSelectedCategory(categories[selectedCategoryIdx - 1].category_id);
+        if (categories[selectedCategoryIdx]) {
+          setSelectedCategory(categories[selectedCategoryIdx].category_id);
         }
         setActiveFocusColumn('grid');
       } else if (activeFocusColumn === 'grid' && seriesList[selectedSeriesIdx]) {
@@ -187,16 +207,6 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     isFocusedContent
   ]);
 
-  const startPlayingEpisode = (epData: { id: string; title: string; ext: string }) => {
-    setPlayingEpisode(epData);
-    onFullScreenChange?.(true);
-  };
-
-  const stopPlayingEpisode = () => {
-    setPlayingEpisode(null);
-    onFullScreenChange?.(false);
-  };
-
   if (playingEpisode && selectedSeries) {
     return (
       <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black">
@@ -218,41 +228,25 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/50 bg-[#161d2b]' : ''
       }`}>
         <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3 px-2">
-          Categorias de Séries
+          Gêneros ({categories.length})
         </h2>
         <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-          <button
-            ref={selectedCategoryIdx === 0 ? activeCategoryBtnRef : null}
-            onClick={() => {
-              setSelectedCategory('all');
-              setSelectedCategoryIdx(0);
-              setActiveFocusColumn('grid');
-            }}
-            className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-semibold transition cursor-pointer ${
-              selectedCategory === 'all'
-                ? 'bg-emerald-500 text-black shadow'
-                : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
-            } ${
-              isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 0
-                ? 'ring-4 ring-emerald-300 shadow-xl scale-102 font-extrabold outline-none bg-emerald-400 text-black'
-                : ''
-            }`}
-          >
-            ★ Todas as Séries
-          </button>
           {categories.map((cat, catIdx) => {
-            const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === (catIdx + 1);
+            const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === catIdx;
+            const isSelected = selectedCategory === cat.category_id;
+
             return (
               <button
                 key={cat.category_id}
                 ref={isCatFocused ? activeCategoryBtnRef : null}
+                tabIndex={0}
                 onClick={() => {
                   setSelectedCategory(cat.category_id);
-                  setSelectedCategoryIdx(catIdx + 1);
+                  setSelectedCategoryIdx(catIdx);
                   setActiveFocusColumn('grid');
                 }}
                 className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium transition truncate cursor-pointer ${
-                  selectedCategory === cat.category_id
+                  isSelected
                     ? 'bg-emerald-500 text-black font-bold shadow'
                     : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
                 } ${
@@ -283,23 +277,30 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         {isLoading ? (
           <div className="w-full h-64 flex flex-col items-center justify-center text-slate-400">
             <Loader2 className="w-10 h-10 animate-spin text-emerald-400 mb-2" />
-            <span>Carregando séries...</span>
+            <span>Carregando séries da categoria...</span>
+          </div>
+        ) : seriesList.length === 0 ? (
+          <div className="w-full h-64 flex flex-col items-center justify-center text-slate-500">
+            <Clapperboard className="w-12 h-12 mb-2 text-slate-600" />
+            <p>Nenhuma série disponível nesta categoria.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {seriesList.map((series, sIdx) => {
               const isSeriesFocused = isFocusedContent && activeFocusColumn === 'grid' && selectedSeriesIdx === sIdx;
               return (
-                <div
+                <button
+                  type="button"
+                  tabIndex={0}
                   key={series.series_id}
-                  ref={isSeriesFocused ? activeSeriesCardRef : null}
+                  ref={isSeriesFocused ? activeSeriesBtnRef : null}
                   onClick={() => {
                     setSelectedSeriesIdx(sIdx);
                     handleOpenSeries(series);
                   }}
-                  className={`group relative bg-[#121722] border rounded-xl overflow-hidden cursor-pointer transition-all duration-200 shadow-lg ${
+                  className={`group relative bg-[#121722] border rounded-xl overflow-hidden cursor-pointer transition-all duration-200 shadow-lg text-left ${
                     isSeriesFocused
-                      ? 'border-emerald-400 ring-4 ring-emerald-400/60 scale-105 shadow-2xl z-10'
+                      ? 'border-emerald-400 ring-4 ring-emerald-400/60 scale-105 shadow-2xl z-10 bg-[#161d2b]'
                       : 'border-[#2a3449] hover:border-emerald-500/50'
                   }`}
                 >
@@ -335,7 +336,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                       </div>
                     )}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -344,7 +345,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
 
       {/* Modal de Temporadas e Episódios */}
       {selectedSeries && (
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-md z-40 flex items-center justify-center p-8">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-8">
           <div className="w-full max-w-4xl max-h-[85vh] bg-[#121722] border border-[#2a3449] rounded-2xl flex flex-col overflow-hidden shadow-2xl">
             {/* Header Modal */}
             <div className="p-6 border-b border-[#2a3449] flex items-center justify-between">
@@ -353,6 +354,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                 <p className="text-xs text-slate-400 mt-1 line-clamp-2">{selectedSeries.plot}</p>
               </div>
               <button
+                type="button"
+                tabIndex={0}
                 onClick={() => {
                   setSelectedSeries(null);
                   setActiveFocusColumn('grid');
@@ -377,6 +380,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                     {Object.keys(seriesDetails?.episodes || {}).map((seasonKey) => (
                       <button
                         key={seasonKey}
+                        type="button"
+                        tabIndex={0}
                         onClick={() => {
                           setSelectedSeason(seasonKey);
                           setSelectedEpisodeIdx(0);
@@ -397,8 +402,11 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                     {(seriesDetails?.episodes?.[selectedSeason] || []).map((ep, epIdx) => {
                       const isEpFocused = isFocusedContent && activeFocusColumn === 'episodes' && selectedEpisodeIdx === epIdx;
                       return (
-                        <div
+                        <button
                           key={ep.id}
+                          type="button"
+                          tabIndex={0}
+                          ref={isEpFocused ? activeEpBtnRef : null}
                           onClick={() => {
                             setSelectedEpisodeIdx(epIdx);
                             startPlayingEpisode({
@@ -407,7 +415,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                               ext: ep.container_extension || 'mp4'
                             });
                           }}
-                          className={`flex items-center justify-between p-3.5 rounded-xl cursor-pointer transition select-none ${
+                          className={`w-full flex items-center justify-between p-3.5 rounded-xl cursor-pointer transition select-none text-left ${
                             isEpFocused
                               ? 'bg-emerald-500 text-black font-extrabold shadow-xl scale-102 ring-4 ring-emerald-300'
                               : 'bg-[#1b2234]/60 hover:bg-[#1b2234] border border-[#2a3449] text-white'
@@ -426,7 +434,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                           }`}>
                             <Play className="w-4 h-4 fill-current ml-0.5" />
                           </div>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>

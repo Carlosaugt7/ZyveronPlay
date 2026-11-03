@@ -3,11 +3,19 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 
+// Proteção de histórico: previne que a tecla Voltar (Return/461) feche a página web da Smart TV
+try {
+  window.history.pushState({ app: 'zyveron' }, '', window.location.href);
+  window.addEventListener('popstate', () => {
+    window.history.pushState({ app: 'zyveron' }, '', window.location.href);
+  });
+} catch {}
+
 // Detecção avançada de Smart TV (LG webOS, Samsung Tizen, Android TV, etc.)
 const isSmartTv = /(web0s|webos|tizen|smarttv|smart-tv|viera|bravia|netcast|crkey)/i.test(navigator.userAgent);
 
 if (isSmartTv) {
-  // webOS Magic Remote API (desliga o cursor do mouse e força modo D-Pad)
+  // webOS Magic Remote API (desativa o cursor do mouse e força modo D-Pad)
   if ((window as any).webOSSystem) {
     try {
       (window as any).webOSSystem.cursor?.('hidden');

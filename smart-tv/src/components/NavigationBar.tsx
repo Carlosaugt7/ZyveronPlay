@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Tv, Film, Clapperboard, Settings } from 'lucide-react';
 
 export type MainSection = 'live' | 'vod' | 'series' | 'settings';
@@ -14,12 +14,21 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
   onSelectSection,
   isFocused = false
 }) => {
+  const activeBtnRef = useRef<HTMLButtonElement>(null);
+
   const menuItems: { id: MainSection; label: string; icon: any }[] = [
     { id: 'live', label: 'Canais Ao Vivo', icon: Tv },
     { id: 'vod', label: 'Filmes', icon: Film },
     { id: 'series', label: 'Séries', icon: Clapperboard },
     { id: 'settings', label: 'Ajustes', icon: Settings },
   ];
+
+  // Garante que o botão ativo receba foco no DOM quando a sidebar estiver em foco
+  useEffect(() => {
+    if (isFocused && activeBtnRef.current) {
+      activeBtnRef.current.focus();
+    }
+  }, [isFocused, currentSection]);
 
   return (
     <aside className={`w-64 h-full bg-[#121722] border-r border-[#2a3449] flex flex-col justify-between p-5 select-none transition-all duration-200 ${
@@ -49,6 +58,8 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
             return (
               <button
                 key={item.id}
+                ref={isSelected ? activeBtnRef : null}
+                tabIndex={0}
                 onClick={() => onSelectSection(item.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-medium text-sm transition text-left cursor-pointer ${
                   isSelected && isFocused

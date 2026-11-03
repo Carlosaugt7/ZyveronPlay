@@ -19,7 +19,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   onFullScreenChange
 }) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedCategoryIdx, setSelectedCategoryIdx] = useState<number>(0);
   const [movies, setMovies] = useState<XtreamVod[]>([]);
   const [selectedMovieIdx, setSelectedMovieIdx] = useState<number>(0);
@@ -29,17 +29,26 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid'>('grid');
 
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
-  const activeMovieCardRef = useRef<HTMLDivElement>(null);
+  const activeMovieBtnRef = useRef<HTMLButtonElement>(null);
 
+  // Carrega categorias ao iniciar e seleciona a primeira categoria disponível
   useEffect(() => {
     client.getVodCategories()
-      .then((cats) => setCategories(cats || []))
+      .then((cats) => {
+        if (cats && cats.length > 0) {
+          setCategories(cats);
+          setSelectedCategory(cats[0].category_id);
+          setSelectedCategoryIdx(0);
+        }
+      })
       .catch((err) => console.error("Erro ao carregar categorias VOD:", err));
   }, [client]);
 
+  // Carrega filmes apenas da categoria selecionada (máxima performance, ~200KB em vez de 50MB)
   useEffect(() => {
+    if (!selectedCategory) return;
     setIsLoading(true);
-    client.getVodStreams(selectedCategory === 'all' ? undefined : selectedCategory)
+    client.getVodStreams(selectedCategory)
       .then((data) => {
         setMovies(data || []);
         setSelectedMovieIdx(0);
@@ -48,19 +57,29 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       .finally(() => setIsLoading(false));
   }, [client, selectedCategory]);
 
-  // Auto-scroll da categoria ativa
+  // Força foco real do DOM no elemento ativo (desativa cursor na TV LG)
   useEffect(() => {
-    if (activeFocusColumn === 'categories' && activeCategoryBtnRef.current) {
-      activeCategoryBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (!isPlaying && isFocusedContent) {
+      if (activeFocusColumn === 'categories' && activeCategoryBtnRef.current) {
+        activeCategoryBtnRef.current.focus();
+        activeCategoryBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (activeFocusColumn === 'grid' && activeMovieBtnRef.current) {
+        activeMovieBtnRef.current.focus();
+        activeMovieBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
     }
-  }, [selectedCategoryIdx, activeFocusColumn]);
+  }, [selectedCategoryIdx, selectedMovieIdx, activeFocusColumn, isFocusedContent, isPlaying]);
 
-  // Auto-scroll do card de filme ativo
-  useEffect(() => {
-    if (activeFocusColumn === 'grid' && activeMovieCardRef.current) {
-      activeMovieCardRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }
-  }, [selectedMovieIdx, activeFocusColumn]);
+  const startPlaying = (movie: XtreamVod) => {
+    setSelectedMovie(movie);
+    setIsPlaying(true);
+    onFullScreenChange?.(true);
+  };
+
+  const stopPlaying = () => {
+    setIsPlaying(false);
+    onFullScreenChange?.(false);
+  };
 
   // D-Pad Navigation
   useSpatialNav({
@@ -69,14 +88,13 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       if (activeFocusColumn === 'categories') {
         setSelectedCategoryIdx((prev) => Math.max(0, prev - 1));
       } else if (activeFocusColumn === 'grid') {
-        // Colunas de grid (aprox 5 colunas)
         setSelectedMovieIdx((prev) => Math.max(0, prev - 5));
       }
     },
     onDown: () => {
       if (isPlaying) return;
       if (activeFocusColumn === 'categories') {
-        setSelectedCategoryIdx((prev) => Math.min(categories.length, prev + 1));
+        setSelectedCategoryIdx((prev) => Math.min(categories.length - 1, prev + 1));
       } else if (activeFocusColumn === 'grid') {
         setSelectedMovieIdx((prev) => Math.min(movies.length - 1, prev + 5));
       }
@@ -104,10 +122,8 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     onSelect: () => {
       if (isPlaying) return;
       if (activeFocusColumn === 'categories') {
-        if (selectedCategoryIdx === 0) {
-          setSelectedCategory('all');
-        } else if (categories[selectedCategoryIdx - 1]) {
-          setSelectedCategory(categories[selectedCategoryIdx - 1].category_id);
+        if (categories[selectedCategoryIdx]) {
+          setSelectedCategory(categories[selectedCategoryIdx].category_id);
         }
         setActiveFocusColumn('grid');
       } else if (activeFocusColumn === 'grid' && movies[selectedMovieIdx]) {
@@ -134,17 +150,6 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     isFocusedContent
   ]);
 
-  const startPlaying = (movie: XtreamVod) => {
-    setSelectedMovie(movie);
-    setIsPlaying(true);
-    onFullScreenChange?.(true);
-  };
-
-  const stopPlaying = () => {
-    setIsPlaying(false);
-    onFullScreenChange?.(false);
-  };
-
   if (isPlaying && selectedMovie) {
     return (
       <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black">
@@ -166,41 +171,25 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/50 bg-[#161d2b]' : ''
       }`}>
         <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3 px-2">
-          Gêneros / Categorias
+          Gêneros ({categories.length})
         </h2>
         <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-          <button
-            ref={selectedCategoryIdx === 0 ? activeCategoryBtnRef : null}
-            onClick={() => {
-              setSelectedCategory('all');
-              setSelectedCategoryIdx(0);
-              setActiveFocusColumn('grid');
-            }}
-            className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-semibold transition cursor-pointer ${
-              selectedCategory === 'all'
-                ? 'bg-emerald-500 text-black shadow'
-                : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
-            } ${
-              isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 0
-                ? 'ring-4 ring-emerald-300 shadow-xl scale-102 font-extrabold outline-none bg-emerald-400 text-black'
-                : ''
-            }`}
-          >
-            ★ Todos os Filmes
-          </button>
           {categories.map((cat, catIdx) => {
-            const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === (catIdx + 1);
+            const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === catIdx;
+            const isSelected = selectedCategory === cat.category_id;
+
             return (
               <button
                 key={cat.category_id}
                 ref={isCatFocused ? activeCategoryBtnRef : null}
+                tabIndex={0}
                 onClick={() => {
                   setSelectedCategory(cat.category_id);
-                  setSelectedCategoryIdx(catIdx + 1);
+                  setSelectedCategoryIdx(catIdx);
                   setActiveFocusColumn('grid');
                 }}
                 className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium transition truncate cursor-pointer ${
-                  selectedCategory === cat.category_id
+                  isSelected
                     ? 'bg-emerald-500 text-black font-bold shadow'
                     : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
                 } ${
@@ -231,23 +220,30 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         {isLoading ? (
           <div className="w-full h-64 flex flex-col items-center justify-center text-slate-400">
             <Loader2 className="w-10 h-10 animate-spin text-emerald-400 mb-2" />
-            <span>Carregando filmes...</span>
+            <span>Carregando filmes da categoria...</span>
+          </div>
+        ) : movies.length === 0 ? (
+          <div className="w-full h-64 flex flex-col items-center justify-center text-slate-500">
+            <Film className="w-12 h-12 mb-2 text-slate-600" />
+            <p>Nenhum filme disponível nesta categoria.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {movies.map((movie, movieIdx) => {
               const isMovieFocused = isFocusedContent && activeFocusColumn === 'grid' && selectedMovieIdx === movieIdx;
               return (
-                <div
+                <button
+                  type="button"
+                  tabIndex={0}
                   key={movie.stream_id}
-                  ref={isMovieFocused ? activeMovieCardRef : null}
+                  ref={isMovieFocused ? activeMovieBtnRef : null}
                   onClick={() => {
                     setSelectedMovieIdx(movieIdx);
                     startPlaying(movie);
                   }}
-                  className={`group relative bg-[#121722] border rounded-xl overflow-hidden cursor-pointer transition-all duration-200 shadow-lg ${
+                  className={`group relative bg-[#121722] border rounded-xl overflow-hidden cursor-pointer transition-all duration-200 shadow-lg text-left ${
                     isMovieFocused
-                      ? 'border-emerald-400 ring-4 ring-emerald-400/60 scale-105 shadow-2xl z-10'
+                      ? 'border-emerald-400 ring-4 ring-emerald-400/60 scale-105 shadow-2xl z-10 bg-[#161d2b]'
                       : 'border-[#2a3449] hover:border-emerald-500/50'
                   }`}
                 >
@@ -283,7 +279,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                       </div>
                     )}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
