@@ -14,6 +14,7 @@ interface LiveTvViewProps {
 export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategoryIdx, setSelectedCategoryIdx] = useState<number>(0);
   const [channels, setChannels] = useState<XtreamStream[]>([]);
   const [filteredChannels, setFilteredChannels] = useState<XtreamStream[]>([]);
   const [selectedChannelIdx, setSelectedChannelIdx] = useState<number>(0);
@@ -49,7 +50,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
       .finally(() => setIsLoadingChannels(false));
   }, [client, selectedCategory]);
 
-  // Teclas do Controle Remoto (D-Pad)
+  // Teclas do Controle Remoto (D-Pad para Smart TV)
   useSpatialNav({
     onUp: () => {
       if (isFullScreen) {
@@ -61,6 +62,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
         }
       } else if (activeFocusColumn === 'channels') {
         setSelectedChannelIdx((prev) => Math.max(0, prev - 1));
+      } else if (activeFocusColumn === 'categories') {
+        setSelectedCategoryIdx((prev) => Math.max(0, prev - 1));
       }
     },
     onDown: () => {
@@ -73,6 +76,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
         }
       } else if (activeFocusColumn === 'channels') {
         setSelectedChannelIdx((prev) => Math.min(filteredChannels.length - 1, prev + 1));
+      } else if (activeFocusColumn === 'categories') {
+        setSelectedCategoryIdx((prev) => Math.min(categories.length, prev + 1));
       }
     },
     onLeft: () => {
@@ -86,7 +91,17 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
       }
     },
     onSelect: () => {
-      if (!isFullScreen && filteredChannels[selectedChannelIdx]) {
+      if (isFullScreen) {
+        return;
+      }
+      if (activeFocusColumn === 'categories') {
+        if (selectedCategoryIdx === 0) {
+          setSelectedCategory('all');
+        } else if (categories[selectedCategoryIdx - 1]) {
+          setSelectedCategory(categories[selectedCategoryIdx - 1].category_id);
+        }
+        setActiveFocusColumn('channels');
+      } else if (activeFocusColumn === 'channels' && filteredChannels[selectedChannelIdx]) {
         setCurrentPlayingChannel(filteredChannels[selectedChannelIdx]);
         setIsFullScreen(true);
       }
@@ -94,9 +109,11 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
     onBack: () => {
       if (isFullScreen) {
         setIsFullScreen(false);
+      } else if (activeFocusColumn === 'channels') {
+        setActiveFocusColumn('categories');
       }
     }
-  }, [isFullScreen, activeFocusColumn, filteredChannels, selectedChannelIdx]);
+  }, [isFullScreen, activeFocusColumn, filteredChannels, selectedChannelIdx, selectedCategoryIdx, categories]);
 
   const handleToggleFav = (channelId: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -128,28 +145,41 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
         </h2>
         <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
           <button
-            onClick={() => setSelectedCategory('all')}
+            onClick={() => {
+              setSelectedCategory('all');
+              setSelectedCategoryIdx(0);
+              setActiveFocusColumn('channels');
+            }}
+            tabIndex={0}
             className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-semibold transition ${
               selectedCategory === 'all'
                 ? 'bg-emerald-500 text-black shadow'
                 : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
-            }`}
+            } ${activeFocusColumn === 'categories' && selectedCategoryIdx === 0 ? 'ring-4 ring-emerald-300 shadow-lg scale-102 font-extrabold outline-none' : ''}`}
           >
             ★ Todos os Canais
           </button>
-          {categories.map((cat) => (
-            <button
-              key={cat.category_id}
-              onClick={() => setSelectedCategory(cat.category_id)}
-              className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium transition truncate ${
-                selectedCategory === cat.category_id
-                  ? 'bg-emerald-500 text-black font-bold shadow'
-                  : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
-              }`}
-            >
-              {cat.category_name}
-            </button>
-          ))}
+          {categories.map((cat, catIdx) => {
+            const isCatFocused = activeFocusColumn === 'categories' && selectedCategoryIdx === (catIdx + 1);
+            return (
+              <button
+                key={cat.category_id}
+                onClick={() => {
+                  setSelectedCategory(cat.category_id);
+                  setSelectedCategoryIdx(catIdx + 1);
+                  setActiveFocusColumn('channels');
+                }}
+                tabIndex={0}
+                className={`w-full text-left px-3.5 py-2.5 rounded-lg text-sm font-medium transition truncate ${
+                  selectedCategory === cat.category_id
+                    ? 'bg-emerald-500 text-black font-bold shadow'
+                    : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
+                } ${isCatFocused ? 'ring-4 ring-emerald-300 shadow-lg scale-102 font-extrabold outline-none' : ''}`}
+              >
+                {cat.category_name}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -189,8 +219,10 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
                       setIsFullScreen(true);
                     }}
                     className={`w-full h-[58px] px-3 rounded-xl flex items-center justify-between cursor-pointer transition select-none ${
-                      isSelected
-                        ? 'bg-emerald-500/20 border-2 border-emerald-400 text-white shadow-lg'
+                      isSelected && activeFocusColumn === 'channels'
+                        ? 'bg-emerald-500/30 border-3 border-emerald-400 ring-4 ring-emerald-400/40 text-white shadow-xl scale-102 font-bold'
+                        : isSelected
+                        ? 'bg-[#1b2234] border border-emerald-500/50 text-white'
                         : 'bg-[#121722]/80 hover:bg-[#1b2234] text-slate-200 border border-transparent'
                     }`}
                   >

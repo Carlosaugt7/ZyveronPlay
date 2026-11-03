@@ -40,6 +40,8 @@ export type DeviceStatusCallback = (state: {
   device?: DeviceActivation;
 }) => void;
 
+let lastSignature = "";
+
 /**
  * Escuta o estado do dispositivo em tempo real
  */
@@ -51,6 +53,7 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
     deviceDocRef,
     async (snapshot) => {
       if (!snapshot.exists()) {
+        lastSignature = "unregistered";
         callback({ status: 'unregistered', message: 'Aparelho ainda não ativado no painel.' });
         return;
       }
@@ -91,6 +94,7 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
 
       // Validação de bloqueio
       if (status === 'blocked') {
+        lastSignature = "blocked";
         callback({ status: 'blocked', message: 'Aparelho bloqueado pela administração.' });
         return;
       }
@@ -99,12 +103,14 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
       if (expirationDate) {
         const expDate = new Date(expirationDate);
         if (!isNaN(expDate.getTime()) && expDate < new Date()) {
+          lastSignature = "expired";
           callback({ status: 'expired', message: `Mensalidade vencida em ${expDate.toLocaleDateString('pt-BR')}` });
           return;
         }
       }
 
       if (!activeDns || !username || !password) {
+        lastSignature = "unregistered_no_creds";
         callback({ 
           status: 'unregistered', 
           message: 'Aparelho cadastrado, mas lista ou DNS ainda não atribuídos no painel.' 
@@ -117,6 +123,14 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
       if (!/^https?:\/\//i.test(activeDns)) {
         activeDns = `http://${activeDns}`;
       }
+
+      // Assinatura de autenticação única para evitar loops infinitos de renderização
+      const currentSignature = `${cleanMac}|${status}|${expirationDate}|${serverId}|${username}|${password}|${activeDns}|${serverName}`;
+      if (currentSignature === lastSignature) {
+        // Nada de relevante mudou; ignora alterações de heartbeat/lastSeen
+        return;
+      }
+      lastSignature = currentSignature;
 
       const activeDevice: DeviceActivation = {
         mac: cleanMac,
@@ -131,15 +145,6 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
       };
 
       callback({ status: 'active', device: activeDevice });
-
-      // Atualiza heartbeat / lastSeen
-      try {
-        updateDoc(deviceDocRef, {
-          lastSeen: serverTimestamp(),
-          isOnline: true,
-          appVersion: 'SmartTV-1.0.0'
-        }).catch(() => {});
-      } catch {}
     },
     (error) => {
       console.error("Erro no listener do dispositivo:", error);

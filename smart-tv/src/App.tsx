@@ -42,13 +42,13 @@ export default function App() {
     };
   }, [identity.mac]);
 
-  // Instância do Cliente Xtream conectada ao DNS e credenciais ativas
+  // Instância do Cliente Xtream conectada ao DNS e credenciais ativas (estável, sem recriação desnecessária)
   const xtreamClient = useMemo(() => {
     if (!activeDevice || !activeDevice.activeDns || !activeDevice.username || !activeDevice.password) {
       return null;
     }
     return new XtreamClient(activeDevice.activeDns, activeDevice.username, activeDevice.password);
-  }, [activeDevice]);
+  }, [activeDevice?.activeDns, activeDevice?.username, activeDevice?.password]);
 
   const handleRefreshActivation = () => {
     setActivationStatus('loading');
