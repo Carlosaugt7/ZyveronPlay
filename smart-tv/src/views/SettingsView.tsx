@@ -61,9 +61,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <div className="p-4 bg-[#1b2234]/70 rounded-xl border border-slate-800">
               <span className="text-xs text-slate-400 flex items-center gap-1.5 mb-1">
-                <Globe className="w-4 h-4 text-emerald-400" /> Servidor / DNS Ativo
+                <Globe className="w-4 h-4 text-emerald-400" /> Servidor Conectado
               </span>
-              <span className="text-sm font-mono text-white truncate block">{device.activeDns}</span>
+              <span className="text-base font-bold text-white truncate block">{device.serverName || 'Servidor 1'}</span>
             </div>
 
             <div className="p-4 bg-[#1b2234]/70 rounded-xl border border-slate-800">

@@ -72,15 +72,17 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
         activeDns = data.serverDns2 || data.activeDns2 || activeDns;
       }
 
-      // Se não tiver DNS direto no doc do aparelho, busca do servidor
-      if ((!activeDns || activeDns.trim() === '') && serverId) {
+      // Busca o nome do servidor na coleção servers se tiver serverId
+      if (serverId) {
         try {
           const serverDocRef = doc(firestore, "servers", serverId);
           const serverSnap = await getDoc(serverDocRef);
           if (serverSnap.exists()) {
             const sData = serverSnap.data();
-            activeDns = sData.activeDns || sData.serverDns || sData.dns || sData.serverUrl || '';
             if (sData.name) serverName = sData.name;
+            if (!activeDns || activeDns.trim() === '') {
+              activeDns = sData.activeDns || sData.serverDns || sData.dns || sData.serverUrl || '';
+            }
           }
         } catch (err) {
           console.error("Erro ao carregar dados do servidor:", err);

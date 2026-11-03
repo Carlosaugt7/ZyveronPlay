@@ -387,7 +387,7 @@ export default function DevicesPage() {
                 <tr className="border-b border-zinc-800 text-zinc-300 font-semibold uppercase tracking-wider text-[10px]">
                   <th className="py-3 px-3">MAC / Identificador</th>
                   <th className="py-3 px-3">Device Key</th>
-                  <th className="py-3 px-3">Servidor / DNS</th>
+                  <th className="py-3 px-3">Servidor</th>
                   <th className="py-3 px-3">Usuário Xtream</th>
                   <th className="py-3 px-3">Revenda</th>
                   <th className="py-3 px-3">Vencimento</th>
@@ -431,30 +431,16 @@ export default function DevicesPage() {
                           <div>
                             <div className="flex items-center gap-1.5">
                               <Server className="w-3 h-3 text-sky-400 shrink-0" />
-                              <span className="font-medium text-white">{dev.serverName || "Lista 1"}</span>
+                              <span className="font-semibold text-white text-xs">{dev.serverName || "Lista 1"}</span>
                             </div>
-                            {dev.serverDns ? (
-                              <p className="text-[10px] text-zinc-400 font-mono truncate max-w-[200px] mt-0.5" title={dev.serverDns}>
-                                {dev.serverDns}
-                              </p>
-                            ) : (
-                              <p className="text-[10px] text-rose-400 font-medium mt-0.5">⚠️ DNS não configurado</p>
-                            )}
                           </div>
 
                           {dev.username2 && (
                             <div className="mt-2 pt-1.5 border-t border-zinc-800/80">
                               <div className="flex items-center gap-1.5 text-emerald-400">
                                 <Server className="w-3 h-3 text-emerald-400 shrink-0" />
-                                <span className="font-medium text-[11px]">{dev.serverName2 || "Lista 2"}</span>
+                                <span className="font-semibold text-[11px]">{dev.serverName2 || "Lista 2"}</span>
                               </div>
-                              {dev.serverDns2 ? (
-                                <p className="text-[10px] text-emerald-400/80 font-mono truncate max-w-[200px] mt-0.5" title={dev.serverDns2}>
-                                  {dev.serverDns2}
-                                </p>
-                              ) : (
-                                <p className="text-[10px] text-rose-400 font-medium mt-0.5">⚠️ DNS 2 não configurado</p>
-                              )}
                             </div>
                           )}
                         </td>
