@@ -63,3 +63,4 @@ pnpm run dev
 # Gerar compilação estática de produção
 pnpm run build
 ```
+

@@ -245,3 +245,4 @@ export const SeriesView: React.FC<SeriesViewProps> = ({ client }) => {
     </div>
   );
 };
+

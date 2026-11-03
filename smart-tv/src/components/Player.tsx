@@ -214,3 +214,4 @@ export const Player: React.FC<PlayerProps> = ({
     </div>
   );
 };
+

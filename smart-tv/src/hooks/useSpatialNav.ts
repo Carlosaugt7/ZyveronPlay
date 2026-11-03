@@ -84,3 +84,4 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 }
+

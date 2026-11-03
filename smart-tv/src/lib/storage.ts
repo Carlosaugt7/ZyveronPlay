@@ -100,3 +100,4 @@ export function toggleFavorite(id: number, type: 'live' | 'vod' | 'series' = 'li
     return false;
   }
 }
+

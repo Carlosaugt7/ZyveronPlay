@@ -291,3 +291,4 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({ client }) => {
     </div>
   );
 };
+

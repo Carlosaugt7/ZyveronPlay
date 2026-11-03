@@ -141,3 +141,4 @@ export const MoviesView: React.FC<MoviesViewProps> = ({ client }) => {
     </div>
   );
 };
+

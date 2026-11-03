@@ -72,3 +72,4 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
     </aside>
   );
 };
+

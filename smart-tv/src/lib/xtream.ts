@@ -117,3 +117,4 @@ export class XtreamClient {
     return `${this.baseDns}/series/${this.user}/${this.pass}/${streamId}.${ext}`;
   }
 }
+
