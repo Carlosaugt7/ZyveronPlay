@@ -2,11 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Esconde cursor em Smart TVs - FORÇADO */
+/* FORÇA esconder cursor em Smart TVs - MÁXIMA PRIORIDADE */
+html.smart-tv,
+html.smart-tv *,
+html.smart-tv *::before,
+html.smart-tv *::after,
 body.smart-tv,
 body.smart-tv *,
-html.smart-tv,
-html.smart-tv * {
+body.smart-tv *::before,
+body.smart-tv *::after,
+.smart-tv,
+.smart-tv * {
   cursor: none !important;
   -webkit-user-select: none !important;
   -moz-user-select: none !important;
@@ -14,12 +20,16 @@ html.smart-tv * {
   user-select: none !important;
 }
 
-/* Foco visível para navegação D-Pad */
+/* Foco MUITO visível para navegação D-Pad */
 body.smart-tv button:focus,
 body.smart-tv [tabindex]:focus,
-body.smart-tv a:focus {
-  outline: 4px solid #10b981 !important;
-  outline-offset: 2px !important;
+body.smart-tv a:focus,
+.smart-tv button:focus,
+.smart-tv [tabindex]:focus,
+.smart-tv a:focus {
+  outline: 6px solid #10b981 !important;
+  outline-offset: 4px !important;
+  box-shadow: 0 0 0 8px rgba(16, 185, 129, 0.3) !important;
 }
 
 /* Scrollbar customizado para TV */

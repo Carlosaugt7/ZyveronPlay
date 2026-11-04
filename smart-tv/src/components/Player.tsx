@@ -42,6 +42,22 @@ export const Player: React.FC<PlayerProps> = ({
     disabled: !isFullScreen || hasError
   }, [onBack, isFullScreen, hasError]);
 
+  // Escuta evento customizado de VOLTAR da Smart TV
+  useEffect(() => {
+    const handleSmartTvBack = () => {
+      if (isFullScreen && onBack && !hasError) {
+        console.log('[Player] Evento smartTvBack capturado - voltando');
+        onBack();
+      }
+    };
+
+    window.addEventListener('smartTvBack', handleSmartTvBack);
+    
+    return () => {
+      window.removeEventListener('smartTvBack', handleSmartTvBack);
+    };
+  }, [isFullScreen, onBack, hasError]);
+
   // Auto-hide do OSD após 4.5 segundos
   useEffect(() => {
     setShowOsd(true);

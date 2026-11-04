@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste LG webOS - Zyveron</title>
+    <style>
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box;
+            cursor: none !important;
+        }
+        
+        body {
+            background: #0a0d14;
+            color: white;
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            cursor: none !important;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #10b981;
+            margin-bottom: 20px;
+        }
+        
+        .info {
+            background: #1a1f2e;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 2px solid #2a3449;
+        }
+        
+        .log {
+            background: #000;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+        
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+        }
+        
+        .log-entry.info { color: #10b981; }
+        .log-entry.warn { color: #f59e0b; }
+        .log-entry.error { color: #ef4444; }
+        
+        .buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        button {
+            background: #10b981;
+            color: black;
+            border: none;
+            padding: 30px 20px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: none !important;
+            transition: all 0.2s;
+        }
+        
+        button:focus {
+            outline: 6px solid #10b981 !important;
+            outline-offset: 4px !important;
+            box-shadow: 0 0 0 10px rgba(16, 185, 129, 0.4) !important;
+            transform: scale(1.05);
+            background: #059669;
+        }
+        
+        button:hover {
+            background: #059669;
+        }
+        
+        .key-display {
+            background: #1a1f2e;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 24px;
+            margin: 20px 0;
+            border: 2px solid #2a3449;
+        }
+        
+        .key-display.active {
+            background: #10b981;
+            color: black;
+            border-color: #10b981;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Teste de Navegação LG webOS</h1>
+        
+        <div class="info">
+            <p><strong>User Agent:</strong> <span id="userAgent"></span></p>
+            <p><strong>Plataforma:</strong> <span id="platform"></span></p>
+            <p><strong>Smart TV Detectada:</strong> <span id="isSmartTv"></span></p>
+            <p><strong>webOSSystem Disponível:</strong> <span id="hasWebOS"></span></p>
+        </div>
+        
+        <div class="key-display" id="keyDisplay">
+            Pressione qualquer tecla do controle...
+        </div>
+        
+        <h2 style="margin-top: 30px; color: #10b981;">Botões de Teste (Use as SETAS para navegar)</h2>
+        <div class="buttons">
+            <button id="btn1" tabindex="0">Botão 1</button>
+            <button id="btn2" tabindex="0">Botão 2</button>
+            <button id="btn3" tabindex="0">Botão 3</button>
+            <button id="btn4" tabindex="0">Botão 4</button>
+            <button id="btn5" tabindex="0">Botão 5</button>
+            <button id="btn6" tabindex="0">Botão 6</button>
+        </div>
+        
+        <h2 style="margin-top: 30px; color: #10b981;">Log de Eventos</h2>
+        <div class="log" id="log"></div>
+        
+        <button onclick="clearLog()" style="width: 100%; margin-top: 10px;">Limpar Log</button>
+    </div>
+    
+    <script>
+        // Detecta Smart TV
+        const isSmartTv = /(web0s|webos|tizen|smarttv|smart-tv)/i.test(navigator.userAgent);
+        const isLgWebOs = /(web0s|webos)/i.test(navigator.userAgent);
+        
+        // Preenche informações
+        document.getElementById('userAgent').textContent = navigator.userAgent;
+        document.getElementById('platform').textContent = navigator.platform;
+        document.getElementById('isSmartTv').textContent = isSmartTv ? '✅ SIM' : '❌ NÃO';
+        document.getElementById('hasWebOS').textContent = typeof window.webOSSystem !== 'undefined' ? '✅ SIM' : '❌ NÃO';
+        
+        // Log function
+        const logDiv = document.getElementById('log');
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.insertBefore(entry, logDiv.firstChild);
+            console.log(message);
+        }
+        
+        function clearLog() {
+            logDiv.innerHTML = '';
+            log('Log limpo', 'info');
+        }
+        
+        // Tenta esconder cursor do webOS
+        if (isLgWebOs && window.webOSSystem?.cursor) {
+            try {
+                window.webOSSystem.cursor('hidden');
+                log('✅ Cursor webOS escondido com sucesso', 'info');
+            } catch (err) {
+                log('❌ Erro ao esconder cursor webOS: ' + err.message, 'error');
+            }
+        }
+        
+        // Monitora teclas
+        const keyDisplay = document.getElementById('keyDisplay');
+        
+        window.addEventListener('keydown', (e) => {
+            e.preventDefault();
+            
+            const info = `Code: ${e.keyCode} | Key: ${e.key} | Which: ${e.which}`;
+            keyDisplay.textContent = info;
+            keyDisplay.classList.add('active');
+            
+            let keyName = e.key || 'Unknown';
+            if (e.keyCode === 461) keyName = 'BACK/RETURN (LG)';
+            if (e.keyCode === 10009) keyName = 'BACK (Samsung)';
+            if (e.keyCode === 38) keyName = 'CIMA';
+            if (e.keyCode === 40) keyName = 'BAIXO';
+            if (e.keyCode === 37) keyName = 'ESQUERDA';
+            if (e.keyCode === 39) keyName = 'DIREITA';
+            if (e.keyCode === 13) keyName = 'OK/ENTER';
+            
+            log(`🎮 Tecla: ${keyName} (Code: ${e.keyCode})`, 'info');
+            
+            setTimeout(() => {
+                keyDisplay.classList.remove('active');
+            }, 500);
+        }, true);
+        
+        // Monitora cliques nos botões
+        document.querySelectorAll('button').forEach((btn, index) => {
+            btn.addEventListener('click', () => {
+                log(`✅ Botão ${btn.textContent} clicado!`, 'info');
+            });
+            
+            btn.addEventListener('focus', () => {
+                log(`👁️ Foco em: ${btn.textContent}`, 'info');
+            });
+        });
+        
+        // Monitora eventos de mouse
+        document.addEventListener('mousemove', (e) => {
+            log(`⚠️ MOUSE DETECTADO em (${e.clientX}, ${e.clientY})`, 'warn');
+        });
+        
+        // Força foco no primeiro botão
+        setTimeout(() => {
+            document.getElementById('btn1').focus();
+            log('🎯 Foco inicial aplicado no Botão 1', 'info');
+        }, 500);
+        
+        // Log inicial
+        log('🚀 Teste inicializado', 'info');
+        log(`📱 Dispositivo: ${isSmartTv ? 'Smart TV' : 'Desktop/Mobile'}`, 'info');
+        
+        if (isLgWebOs) {
+            log('📺 LG webOS detectado', 'info');
+        }
+        
+        log('Use as SETAS do controle para navegar entre botões', 'info');
+        log('Pressione OK para selecionar', 'info');
+        log('Pressione VOLTAR para testar', 'info');
+    </script>
+</body>
+</html>
