@@ -46,12 +46,13 @@ object NetworkSecurityHelper {
     }
 
     fun createUnsafeOkHttpClient(
-        connectTimeoutSec: Long = 15,
-        readTimeoutSec: Long = 35
+        connectTimeoutSec: Long = 20,   // Aumentado de 15s para 20s
+        readTimeoutSec: Long = 120      // Aumentado de 35s para 120s (padrão IPTV)
     ): OkHttpClient {
         return OkHttpClient.Builder()
             .connectTimeout(connectTimeoutSec, TimeUnit.SECONDS)
             .readTimeout(readTimeoutSec, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS) // Novo timeout de escrita
             .sslSocketFactory(unsafeSslSocketFactory, unsafeTrustManager)
             .hostnameVerifier(unsafeHostnameVerifier)
             .connectionPool(okhttp3.ConnectionPool(8, 5, TimeUnit.MINUTES))

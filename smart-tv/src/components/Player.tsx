@@ -126,17 +126,21 @@ export const Player: React.FC<PlayerProps> = ({
     else if (isHls && Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: true,
-        backBufferLength: 15,
-        maxBufferLength: 10,
-        maxMaxBufferLength: 20,
-        liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 6,
-        manifestLoadingTimeOut: 12000,
-        levelLoadingTimeOut: 12000,
-        fragLoadingTimeOut: 15000,
+        lowLatencyMode: false,              // Desabilitado para maior estabilidade
+        backBufferLength: 20,               // Aumentado para 20s
+        maxBufferLength: 30,                // Aumentado para 30s
+        maxMaxBufferLength: 60,             // Aumentado para 60s
+        liveSyncDurationCount: 5,           // Mais tolerante (5 chunks)
+        liveMaxLatencyDurationCount: 10,    // Maior latência permitida
+        manifestLoadingTimeOut: 20000,      // 20s timeout
+        levelLoadingTimeOut: 20000,         // 20s timeout
+        fragLoadingTimeOut: 30000,          // 30s timeout
+        manifestLoadingMaxRetry: 4,         // 4 tentativas de retry
+        levelLoadingMaxRetry: 4,            // 4 tentativas de retry
+        fragLoadingMaxRetry: 6,             // 6 tentativas de retry
         xhrSetup: (xhr) => {
           xhr.withCredentials = false;
+          xhr.timeout = 30000;              // Timeout explícito de 30s
         }
       });
 

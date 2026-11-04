@@ -651,14 +651,14 @@ class LocalStore {
     this.save();
   }
 
-  createReseller(
+  async createReseller(
     name: string,
     email: string,
     role: "reseller" | "sub_reseller",
     parentId: string,
     initialCredits: number,
     password?: string
-  ): UserDocument {
+  ): Promise<UserDocument> {
     this.init();
     const cleanEmail = email.trim().toLowerCase();
     const existing = this.users.find(u => u.email.toLowerCase() === cleanEmail);
@@ -679,11 +679,26 @@ class LocalStore {
       FirestoreSync.syncUserToFirestore(parent);
     }
 
+    // Hash da senha se fornecida
+    let passwordHash = '';
+    if (password && password.trim() !== '') {
+      try {
+        // Importa dinamicamente para evitar erro no servidor
+        const { hashPassword } = await import('./auth');
+        passwordHash = await hashPassword(password.trim());
+      } catch (err) {
+        console.error('[Store] Erro ao fazer hash da senha:', err);
+        // Fallback para senha em texto plano (compatibilidade)
+        passwordHash = password.trim();
+      }
+    }
+
     const newUser: UserDocument = {
       uid: "usr-" + Math.random().toString(36).substring(2, 9),
       name: name.trim(),
       email: cleanEmail,
-      password: (password || "").trim(),
+      password: passwordHash,
+      passwordVersion: passwordHash && passwordHash.startsWith('$2') ? 2 : undefined,
       role,
       parentId,
       credits: initialCredits,
@@ -767,6 +782,19 @@ class LocalStore {
     FirestoreSync.syncUserToFirestore(existing);
     this.notify();
     return existing;
+  }
+
+  updateUser(user: UserDocument): UserDocument {
+    this.init();
+    const userIndex = this.users.findIndex(u => u.uid === user.uid);
+    if (userIndex !== -1) {
+      user.updatedAt = new Date().toISOString();
+      this.users[userIndex] = { ...user };
+      this.save();
+      FirestoreSync.syncUserToFirestore(user);
+      this.notify();
+    }
+    return user;
   }
 
   toggleResellerStatus(uid: string): UserDocument {

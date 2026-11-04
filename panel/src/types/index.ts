@@ -24,6 +24,7 @@ export interface UserDocument {
   name: string;
   email: string;
   password?: string;
+  passwordVersion?: number; // 2 = bcrypt hash, undefined/1 = texto plano (legado)
   role: UserRole;
   parentId: string | null;
   credits: number;

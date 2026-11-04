@@ -6,6 +6,7 @@ import { store } from "@/lib/store";
 import { FirestoreSync } from "@/lib/firestoreSync";
 import { auth } from "@/lib/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { hashPassword, verifyPassword, isBcryptHash } from "@/lib/auth";
 
 interface AuthContextType {
   user: UserDocument | null;
@@ -80,7 +81,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // 1. CONTA MESTRE DO ADMINISTRADOR:
     // Email: admin@zyveronplay.com | Senha: Adm0418$
-    if (email === "admin@zyveronplay.com" && password === "Adm0418$") {
+    const masterEmail = process.env.NEXT_PUBLIC_MASTER_EMAIL || "admin@zyveronplay.com";
+    const masterPasswordHash = process.env.MASTER_PASSWORD_BCRYPT;
+
+    if (email === masterEmail) {
+      let isValidMaster = false;
+      
+      // Nova validação com bcrypt (se configurado)
+      if (masterPasswordHash) {
+        isValidMaster = await verifyPassword(password, masterPasswordHash);
+      }
+      // Fallback para desenvolvimento (senha em texto plano)
+      else if (password === "Adm0418$") {
+        isValidMaster = true;
+      }
+      
+      if (!isValidMaster) {
+        return { success: false, error: "Senha incorreta." };
+      }
+
       const adminUser: UserDocument = {
         uid: "usr-admin-master",
         name: "Administrador Zyveron",
@@ -120,9 +139,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (found.status === "blocked") {
         return { success: false, error: "Esta conta está bloqueada pelo administrador." };
       }
-      if (found.password && found.password.trim() !== "" && found.password !== password) {
-        return { success: false, error: "Senha incorreta." };
+      
+      if (found.password && found.password.trim() !== "") {
+        // Nova versão com hash bcrypt
+        if (found.passwordVersion === 2 || isBcryptHash(found.password)) {
+          const isValid = await verifyPassword(password, found.password);
+          if (!isValid) {
+            return { success: false, error: "Senha incorreta." };
+          }
+        }
+        // Fallback para senhas antigas (backward compatibility)
+        else if (found.password !== password) {
+          return { success: false, error: "Senha incorreta." };
+        }
+        // Auto-migra senha antiga para hash na primeira autenticação bem-sucedida
+        else {
+          try {
+            const newHash = await hashPassword(password);
+            found.password = newHash;
+            found.passwordVersion = 2;
+            store.updateUser(found);
+            console.log(`[Auth] Senha migrada para hash: ${found.email}`);
+          } catch (err) {
+            console.error('[Auth] Erro ao migrar senha:', err);
+            // Continua o login mesmo se a migração falhar
+          }
+        }
       }
+      
       if (
         found.name?.toLowerCase().includes("super admin") ||
         found.name?.toLowerCase().includes("administrador") ||

@@ -73,12 +73,12 @@ export default function ResellersPage() {
     return () => unsubscribe();
   }, [user]);
 
-  const handleCreateReseller = (e: React.FormEvent) => {
+  const handleCreateReseller = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
     if (!user) return;
     try {
-      store.createReseller(
+      await store.createReseller(
         nameInput.trim(),
         emailInput.trim(),
         roleInput,

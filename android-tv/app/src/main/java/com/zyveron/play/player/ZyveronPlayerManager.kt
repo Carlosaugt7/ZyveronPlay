@@ -19,6 +19,7 @@ import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.common.MimeTypes
 import androidx.media3.extractor.ts.TsExtractor
+import com.zyveron.play.analytics.QoSMonitor
 import com.zyveron.play.util.NetworkSecurityHelper
 import com.zyveron.play.util.SettingsHelper
 import com.zyveron.play.util.UrlHelper
@@ -61,10 +62,13 @@ class ZyveronPlayerManager(private val context: Context) {
     private var streamCandidates: List<String> = emptyList()
     private var currentCandidateIndex: Int = 0
     private var reconnectAttempts = 0
-    private val maxReconnectAttempts = 3
-    private val backoffIntervals = listOf(1500L, 3000L, 6000L) // Decisão 1.A
+    private val maxReconnectAttempts = 4 // Aumentado de 3 para 4 tentativas
+    private val backoffIntervals = listOf(3000L, 6000L, 12000L, 20000L) // Exponential backoff real (3s → 6s → 12s → 20s)
 
-    private val okHttpClient = NetworkSecurityHelper.createUnsafeOkHttpClient(connectTimeoutSec = 15, readTimeoutSec = 35)
+    private val okHttpClient = NetworkSecurityHelper.createUnsafeOkHttpClient(connectTimeoutSec = 20, readTimeoutSec = 120)
+
+    // QoS Monitor para telemetria e analytics
+    val qosMonitor = QoSMonitor(context)
 
     fun getPlayer(): ExoPlayer {
         return exoPlayer ?: createPlayer().also { exoPlayer = it }
@@ -72,15 +76,15 @@ class ZyveronPlayerManager(private val context: Context) {
 
     private fun createPlayer(): ExoPlayer {
         try {
-            // 1. Buffer Inteligente para TV: Início ultra-rápido (< 1s) e absorção de oscilações
+            // 1. Buffer Inteligente para TV: Otimizado para IPTV ao vivo com estabilidade máxima
             val loadControl = DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
-                    2000,  // Mínimo de buffer (ms)
-                    15000, // Máximo de buffer (ms)
-                    1000,  // Buffer para iniciar reprodução imediatamente no Zapping (<1s!)
-                    2000   // Buffer após re-buffer
+                    5000,   // Mínimo: 5s (absorve oscilações de rede típicas de IPTV)
+                    30000,  // Máximo: 30s (permite buffer maior em redes estáveis)
+                    3000,   // Início: 3s (balance entre velocidade e estabilidade)
+                    5000    // Re-buffer: 5s (evita cascade de rebuffers)
                 )
-                .setBackBuffer(10000, true) // Retém 10s para re-seeking instantâneo
+                .setBackBuffer(15000, true) // Retém 15s para re-seeking instantâneo
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
 
@@ -89,9 +93,12 @@ class ZyveronPlayerManager(private val context: Context) {
                 setTsExtractorFlags(
                     DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
                     DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or
-                    DefaultTsPayloadReaderFactory.FLAG_IGNORE_SPLICE_INFO_STREAM
+                    DefaultTsPayloadReaderFactory.FLAG_IGNORE_SPLICE_INFO_STREAM or
+                    DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS or
+                    DefaultTsPayloadReaderFactory.FLAG_OVERRIDE_CAPTION_DESCRIPTORS
                 )
                 setTsExtractorMode(TsExtractor.MODE_MULTI_PMT)
+                setTsExtractorTimestampSearchBytes(1800 * TsExtractor.TS_PACKET_SIZE)
             }
 
             // 3. User-Agent e Headers customizados para contornar bloqueios HTTP 403
@@ -102,10 +109,14 @@ class ZyveronPlayerManager(private val context: Context) {
 
             val mediaSourceFactory = DefaultMediaSourceFactory(defaultDataSourceFactory, extractorsFactory)
 
+            // 3. ABR (Adaptive Bitrate) ativo por padrão para melhor experiência em redes variáveis
             val isAdaptive = SettingsHelper.isAdaptiveQualityEnabled(context.applicationContext)
             val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context.applicationContext).apply {
                 parameters = buildUponParameters()
                     .setForceHighestSupportedBitrate(!isAdaptive)
+                    .setMaxVideoBitrate(8_000_000)  // Max 8 Mbps (4K safe limit)
+                    .setMaxVideoSize(1920, 1080)    // Limita resolução a 1080p por padrão
+                    .setPreferredAudioLanguage("por") // Prioriza áudio em português
                     .build()
             }
 
@@ -241,6 +252,7 @@ class ZyveronPlayerManager(private val context: Context) {
         // Se todos os candidatos falharam, realiza reconexão gradual com Exponential Backoff
         if (reconnectAttempts < maxReconnectAttempts && !currentStreamUrl.isNullOrBlank()) {
             reconnectAttempts++
+            qosMonitor.incrementReconnectCount() // Registra reconexão no QoS
             val delayMs = backoffIntervals.getOrElse(reconnectAttempts - 1) { 5000L }
             _playbackState.value = PlaybackState.Reconnecting(reconnectAttempts, maxReconnectAttempts)
 
@@ -283,6 +295,9 @@ class ZyveronPlayerManager(private val context: Context) {
 
             val player = getPlayer()
             player.stop()
+
+            // Anexa QoS Monitor para rastrear métricas
+            qosMonitor.attach(player, targetUrl, title)
 
             val mediaItem = buildMediaItem(targetUrl)
 
