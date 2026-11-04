@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
+import { useSpatialNav } from '../hooks/useSpatialNav';
 
 interface PlayerProps {
   streamUrl: string;
@@ -30,6 +31,17 @@ export const Player: React.FC<PlayerProps> = ({
   const [showOsd, setShowOsd] = useState(true);
   const [activeUrl, setActiveUrl] = useState(streamUrl);
 
+  // Hook de navegação D-Pad para capturar tecla VOLTAR em tela cheia
+  useSpatialNav({
+    onBack: () => {
+      if (onBack) {
+        console.log('[Player] Tecla VOLTAR pressionada - voltando para lista');
+        onBack();
+      }
+    },
+    disabled: !isFullScreen || hasError
+  }, [onBack, isFullScreen, hasError]);
+
   // Auto-hide do OSD após 4.5 segundos
   useEffect(() => {
     setShowOsd(true);
@@ -39,8 +51,22 @@ export const Player: React.FC<PlayerProps> = ({
     return () => clearTimeout(timer);
   }, [title, streamUrl]);
 
-  // Atualiza a URL ativa quando streamUrl mudar
+  // Atualiza a URL ativa quando streamUrl mudar e para o vídeo anterior
   useEffect(() => {
+    const video = videoRef.current;
+    if (video) {
+      // Para o vídeo atual imediatamente para evitar áudio sobreposto
+      video.pause();
+      video.src = '';
+      video.load();
+    }
+    
+    // Destrói instância Hls anterior se existir
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+    
     setActiveUrl(streamUrl);
   }, [streamUrl]);
 
@@ -48,14 +74,9 @@ export const Player: React.FC<PlayerProps> = ({
     const video = videoRef.current;
     if (!video || !activeUrl) return;
 
+    console.log('[Player] Iniciando carregamento:', activeUrl);
     setIsLoading(true);
     setHasError(false);
-
-    // Destrói instância Hls anterior se existir
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
 
     const isHls = activeUrl.includes('.m3u8');
     const isSmartTv = /(web0s|webos|tizen|smarttv|smart-tv)/i.test(navigator.userAgent);
@@ -64,9 +85,26 @@ export const Player: React.FC<PlayerProps> = ({
     // 1. Em Smart TVs (LG webOS e Samsung Tizen): utiliza o pipeline de decodificação de hardware nativo da TV
     // O player nativo da Smart TV toca streams diretamente pelo chip de vídeo sem as restrições de XHR do navegador
     if (isSmartTv || (isNativeHlsSupported && !navigator.userAgent.includes('Windows') && !navigator.userAgent.includes('Macintosh'))) {
-      video.src = activeUrl;
+      console.log('[Player] Usando player nativo da Smart TV');
+      
+      // Limpa o vídeo anterior completamente
+      video.pause();
+      video.removeAttribute('src');
       video.load();
-      video.play().catch(() => {});
+      
+      // Aguarda um frame antes de carregar o novo stream (evita sobreposição de áudio)
+      requestAnimationFrame(() => {
+        video.src = activeUrl;
+        video.load();
+        
+        // Aguarda o vídeo estar pronto antes de reproduzir
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            console.warn('[Player] Erro ao iniciar reprodução:', err);
+          });
+        }
+      });
     } 
     // 2. Em computadores Desktop / Notebooks: utiliza Hls.js com buffer adaptativo
     else if (isHls && Hls.isSupported()) {
@@ -135,11 +173,30 @@ export const Player: React.FC<PlayerProps> = ({
       video.play().catch(() => {});
     }
 
-    const handlePlaying = () => setIsLoading(false);
-    const handleWaiting = () => setIsLoading(true);
+    const handleLoadStart = () => {
+      console.log('[Player] Iniciando carregamento do stream');
+      setIsLoading(true);
+    };
+    
+    const handleLoadedData = () => {
+      console.log('[Player] Stream carregado e pronto');
+      setIsLoading(false);
+    };
+    
+    const handlePlaying = () => {
+      console.log('[Player] Reprodução iniciada');
+      setIsLoading(false);
+    };
+    
+    const handleWaiting = () => {
+      console.log('[Player] Buffering...');
+      setIsLoading(true);
+    };
+    
     const handleError = () => {
+      console.error('[Player] Erro no player');
       if (fallbackUrl && activeUrl !== fallbackUrl) {
-        console.warn("[Player] Player nativo com erro. Tentando stream alternativo...");
+        console.warn("[Player] Tentando stream alternativo...");
         setActiveUrl(fallbackUrl);
       } else {
         setIsLoading(false);
@@ -148,15 +205,22 @@ export const Player: React.FC<PlayerProps> = ({
       }
     };
 
+    video.addEventListener('loadstart', handleLoadStart);
+    video.addEventListener('loadeddata', handleLoadedData);
     video.addEventListener('playing', handlePlaying);
     video.addEventListener('waiting', handleWaiting);
     video.addEventListener('error', handleError);
 
     return () => {
+      video.removeEventListener('loadstart', handleLoadStart);
+      video.removeEventListener('loadeddata', handleLoadedData);
       video.removeEventListener('playing', handlePlaying);
       video.removeEventListener('waiting', handleWaiting);
       video.removeEventListener('error', handleError);
 
+      // Para o vídeo ao desmontar
+      video.pause();
+      
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;

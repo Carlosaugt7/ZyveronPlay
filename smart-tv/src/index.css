@@ -2,10 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Esconde cursor em Smart TVs */
+/* Esconde cursor em Smart TVs - FORÇADO */
 body.smart-tv,
-body.smart-tv * {
+body.smart-tv *,
+html.smart-tv,
+html.smart-tv * {
   cursor: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+}
+
+/* Foco visível para navegação D-Pad */
+body.smart-tv button:focus,
+body.smart-tv [tabindex]:focus,
+body.smart-tv a:focus {
+  outline: 4px solid #10b981 !important;
+  outline-offset: 2px !important;
 }
 
 /* Scrollbar customizado para TV */
