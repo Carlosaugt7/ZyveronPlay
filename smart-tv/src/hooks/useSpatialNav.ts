@@ -23,42 +23,39 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
     const code = e.keyCode || e.which;
     const key = e.key;
 
+    let handled = false;
+
     // Seta para Cima (38) ou Canal + (33)
     if (key === 'ArrowUp' || code === 38) {
-      e.preventDefault();
-      e.stopPropagation();
+      handled = true;
       if (handlers.onUp) {
         handlers.onUp();
       }
     }
     // Seta para Baixo (40) ou Canal - (34)
     else if (key === 'ArrowDown' || code === 40) {
-      e.preventDefault();
-      e.stopPropagation();
+      handled = true;
       if (handlers.onDown) {
         handlers.onDown();
       }
     }
     // Seta para Esquerda (37)
     else if (key === 'ArrowLeft' || code === 37) {
-      e.preventDefault();
-      e.stopPropagation();
+      handled = true;
       if (handlers.onLeft) {
         handlers.onLeft();
       }
     }
     // Seta para Direita (39)
     else if (key === 'ArrowRight' || code === 39) {
-      e.preventDefault();
-      e.stopPropagation();
+      handled = true;
       if (handlers.onRight) {
         handlers.onRight();
       }
     }
     // Seleção / OK / Enter (13)
     else if (key === 'Enter' || code === 13) {
-      e.preventDefault();
-      e.stopPropagation();
+      handled = true;
       if (handlers.onSelect) {
         handlers.onSelect();
       }
@@ -73,24 +70,21 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
       code === 10009 || 
       code === 461
     ) {
-      e.preventDefault();
-      e.stopPropagation();
+      handled = true;
       if (handlers.onBack) {
         handlers.onBack();
       }
     }
     // Play / Pause (LG: 415, 19 | Tizen: 415, 19, 10252)
     else if (code === 415 || code === 19 || code === 10252 || key === 'MediaPlayPause') {
-      e.preventDefault();
-      e.stopPropagation();
+      handled = true;
       if (handlers.onPlayPause) {
         handlers.onPlayPause();
       }
     }
     // Canal + (33)
     else if (code === 33 || key === 'ChannelUp') {
-      e.preventDefault();
-      e.stopPropagation();
+      handled = true;
       if (handlers.onChannelUp) {
         handlers.onChannelUp();
       } else if (handlers.onUp) {
@@ -99,13 +93,18 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
     }
     // Canal - (34)
     else if (code === 34 || key === 'ChannelDown') {
-      e.preventDefault();
-      e.stopPropagation();
+      handled = true;
       if (handlers.onChannelDown) {
         handlers.onChannelDown();
       } else if (handlers.onDown) {
         handlers.onDown();
       }
+    }
+
+    // Previne comportamento padrão apenas se a tecla foi tratada
+    if (handled) {
+      e.preventDefault();
+      e.stopPropagation();
     }
   }, [handlers, ...deps]);
 

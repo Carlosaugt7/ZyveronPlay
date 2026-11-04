@@ -146,7 +146,9 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     onBack: () => {
       if (isFullScreen) {
         setFullScreenMode(false);
-      } else if (activeFocusColumn === 'channels') {
+        return;
+      }
+      if (activeFocusColumn === 'channels') {
         setActiveFocusColumn('categories');
       } else if (activeFocusColumn === 'categories') {
         onRequestFocusSidebar?.();

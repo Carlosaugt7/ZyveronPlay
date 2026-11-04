@@ -2,6 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Esconde cursor em Smart TVs */
+body.smart-tv,
+body.smart-tv * {
+  cursor: none !important;
+}
+
+/* Scrollbar customizado para TV */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1b2234;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #10b981;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #059669;
+}
+
 /* Estilos Globais para Smart TVs */
 :root {
   color-scheme: dark;

@@ -15,21 +15,55 @@ try {
 const isSmartTv = /(web0s|webos|tizen|smarttv|smart-tv|viera|bravia|netcast|crkey)/i.test(navigator.userAgent);
 
 if (isSmartTv) {
+  console.log('[Zyveron] Smart TV detectada - ativando modo D-Pad');
+  
+  // Adiciona classe para esconder cursor globalmente
+  document.documentElement.classList.add('smart-tv');
+  document.body.classList.add('smart-tv');
+  
   // webOS Magic Remote API (desativa o cursor do mouse e força modo D-Pad)
   if ((window as any).webOSSystem) {
     try {
       (window as any).webOSSystem.cursor?.('hidden');
-    } catch {}
+      console.log('[Zyveron] Cursor do Magic Remote desativado');
+    } catch (err) {
+      console.warn('[Zyveron] Falha ao desativar cursor do Magic Remote:', err);
+    }
   }
+
+  // Esconde cursor CSS globalmente em Smart TVs
+  const style = document.createElement('style');
+  style.textContent = `
+    * {
+      cursor: none !important;
+    }
+    button, a, [role="button"] {
+      cursor: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+  
+  // Previne que o cursor apareça ao mover o mouse
+  document.addEventListener('mousemove', (e) => {
+    e.preventDefault();
+    if (e.target instanceof HTMLElement) {
+      e.target.style.cursor = 'none';
+    }
+  }, true);
 
   // Foco inicial automático para que o webOS reconheça o D-Pad na hora
   window.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
       const firstBtn = document.querySelector('button, [tabindex="0"]') as HTMLElement;
-      firstBtn?.focus();
+      if (firstBtn) {
+        firstBtn.focus();
+        console.log('[Zyveron] Foco inicial aplicado');
+      }
     }, 400);
   });
 } else {
+  console.log('[Zyveron] Dispositivo Desktop detectado - modo mouse ativo');
+  
   // Em computadores normais: permite mouse ao mover, e desativa ao usar teclas direcionais
   let lastMouseX = 0;
   let lastMouseY = 0;

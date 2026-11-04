@@ -46,25 +46,38 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     setIsLoadingCats(true);
     client.getVodCategories()
       .then((cats) => {
+        console.log('[Movies] Categorias VOD recebidas:', cats?.length || 0);
         if (cats && cats.length > 0) {
           setCategories(cats);
           setSelectedCategory(cats[0].category_id);
           setSelectedCategoryIdx(0);
+        } else {
+          console.warn('[Movies] Nenhuma categoria VOD retornada pela API');
+          setCategories([]);
         }
       })
-      .catch((err) => console.error("[Movies] Erro ao carregar categorias VOD:", err))
+      .catch((err) => {
+        console.error("[Movies] Erro ao carregar categorias VOD:", err);
+        setCategories([]);
+      })
       .finally(() => setIsLoadingCats(false));
   }, [client]);
 
   // Carrega filmes da categoria selecionada
   useEffect(() => {
-    if (!selectedCategory) return;
+    if (!selectedCategory) {
+      console.log('[Movies] Aguardando seleção de categoria...');
+      return;
+    }
+    
+    console.log('[Movies] Carregando filmes da categoria:', selectedCategory);
     setIsLoadingMovies(true);
     setDisplayedCount(BATCH_SIZE);
     setSelectedMovieIdx(0);
 
     client.getVodStreams(selectedCategory)
       .then((data) => {
+        console.log('[Movies] Filmes recebidos:', data?.length || 0);
         setAllMovies(data || []);
       })
       .catch((err) => {
@@ -166,7 +179,9 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     onBack: () => {
       if (isPlaying) {
         stopPlaying();
-      } else if (activeFocusColumn === 'grid') {
+        return;
+      }
+      if (activeFocusColumn === 'grid') {
         setActiveFocusColumn('categories');
       } else if (activeFocusColumn === 'categories') {
         onRequestFocusSidebar?.();

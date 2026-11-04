@@ -61,25 +61,38 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     setIsLoadingCats(true);
     client.getSeriesCategories()
       .then((cats) => {
+        console.log('[Series] Categorias de séries recebidas:', cats?.length || 0);
         if (cats && cats.length > 0) {
           setCategories(cats);
           setSelectedCategory(cats[0].category_id);
           setSelectedCategoryIdx(0);
+        } else {
+          console.warn('[Series] Nenhuma categoria de série retornada pela API');
+          setCategories([]);
         }
       })
-      .catch((err) => console.error("[Series] Erro ao carregar categorias de séries:", err))
+      .catch((err) => {
+        console.error("[Series] Erro ao carregar categorias de séries:", err);
+        setCategories([]);
+      })
       .finally(() => setIsLoadingCats(false));
   }, [client]);
 
   // Carrega séries da categoria selecionada
   useEffect(() => {
-    if (!selectedCategory) return;
+    if (!selectedCategory) {
+      console.log('[Series] Aguardando seleção de categoria...');
+      return;
+    }
+    
+    console.log('[Series] Carregando séries da categoria:', selectedCategory);
     setIsLoadingSeries(true);
     setDisplayedCount(BATCH_SIZE);
     setSelectedSeriesIdx(0);
 
     client.getSeries(selectedCategory)
       .then((data) => {
+        console.log('[Series] Séries recebidas:', data?.length || 0);
         setAllSeries(data || []);
       })
       .catch((err) => {
@@ -217,7 +230,9 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     onBack: () => {
       if (playingEpisode) {
         stopPlayingEpisode();
-      } else if (activeFocusColumn === 'episodes') {
+        return;
+      }
+      if (activeFocusColumn === 'episodes') {
         setSelectedSeries(null);
         setActiveFocusColumn('grid');
       } else if (activeFocusColumn === 'grid') {
