@@ -36,11 +36,12 @@ export default function DashboardPage() {
   const [quickDnsSuccess, setQuickDnsSuccess] = useState(false);
 
   // Estado para Atualização OTA do APK da TV
-  const [otaVersionCode, setOtaVersionCode] = useState(14);
-  const [otaVersionName, setOtaVersionName] = useState("2.8.4");
+  const [otaVersionCode, setOtaVersionCode] = useState(16);
+  const [otaVersionName, setOtaVersionName] = useState("2.9.1");
   const [otaApkUrl, setOtaApkUrl] = useState("https://github.com/Carlosaugt7/ZyveronPlay/raw/main/zyveron-play-tv.apk");
-  const [otaNotes, setOtaNotes] = useState("Correção definitiva de conexão de servidores, cache offline resiliente e estabilidade total.");
+  const [otaNotes, setOtaNotes] = useState("Versão 2.9.1: Correção de movimentação/slow-motion em frames, pasta Continue Assistindo, controle parental de conteúdo adulto (+18) com PIN e melhorias de usabilidade.");
   const [otaSavedSuccess, setOtaSavedSuccess] = useState(false);
+  const [publishedOta, setPublishedOta] = useState<{ versionCode: number; versionName: string } | null>(null);
 
   const loadData = () => {
     if (!user) return;
@@ -78,10 +79,18 @@ export default function DashboardPage() {
     loadData();
     FirestoreSync.fetchAppUpdate().then((info) => {
       if (info) {
-        setOtaVersionCode(info.versionCode || 14);
-        setOtaVersionName(info.versionName || "2.8.4");
-        setOtaApkUrl(info.apkUrl || "https://github.com/Carlosaugt7/ZyveronPlay/raw/main/zyveron-play-tv.apk");
-        setOtaNotes(info.releaseNotes || "");
+        setPublishedOta(info);
+        // Se a versão cadastrada for menor que a atual compilada (16), preenche com a 2.9.1
+        if (info.versionCode < 16) {
+          setOtaVersionCode(16);
+          setOtaVersionName("2.9.1");
+          setOtaNotes("Versão 2.9.1: Correção de movimentação/slow-motion em frames, pasta Continue Assistindo, controle parental de conteúdo adulto (+18) com PIN e melhorias de usabilidade.");
+        } else {
+          setOtaVersionCode(info.versionCode);
+          setOtaVersionName(info.versionName);
+          setOtaNotes(info.releaseNotes || "");
+        }
+        if (info.apkUrl) setOtaApkUrl(info.apkUrl);
       }
     });
     const unsubscribe = store.subscribe(() => {
@@ -98,6 +107,10 @@ export default function DashboardPage() {
       apkUrl: otaApkUrl.trim(),
       releaseNotes: otaNotes.trim(),
       isMandatory: false,
+    });
+    setPublishedOta({
+      versionCode: Number(otaVersionCode),
+      versionName: otaVersionName.trim(),
     });
     setOtaSavedSuccess(true);
     setTimeout(() => setOtaSavedSuccess(false), 4000);
@@ -356,6 +369,11 @@ export default function DashboardPage() {
                     <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">
                       Atualização Direta no App
                     </span>
+                    {publishedOta && (
+                      <span className="text-[10px] bg-sky-500/10 text-sky-300 border border-sky-500/20 px-2 py-0.5 rounded-full font-mono">
+                        No Ar: v{publishedOta.versionName} (Build {publishedOta.versionCode})
+                      </span>
+                    )}
                   </h3>
                   <p className="text-xs text-zinc-300">
                     Defina a versão oficial mais recente. Quando os clientes clicarem em &quot;Verificar Atualização&quot; no menu Ajustes, este APK será baixado e instalado automaticamente.
@@ -373,7 +391,7 @@ export default function DashboardPage() {
                   type="number"
                   value={otaVersionCode}
                   onChange={(e) => setOtaVersionCode(Number(e.target.value))}
-                  placeholder="13"
+                  placeholder="16"
                   className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
                   required
                 />
@@ -387,7 +405,7 @@ export default function DashboardPage() {
                   type="text"
                   value={otaVersionName}
                   onChange={(e) => setOtaVersionName(e.target.value)}
-                  placeholder="2.8.4"
+                  placeholder="2.9.1"
                   className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
                   required
                 />
