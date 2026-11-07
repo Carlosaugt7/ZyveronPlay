@@ -17,8 +17,104 @@ import {
   Globe,
   Trash2,
   ExternalLink,
-  Pencil
+  Pencil,
+  ShieldCheck
 } from "lucide-react";
+
+// Paleta de cores suaves e distintas para os cards de Servidores & DNS (Sem roxo/violeta)
+const SERVER_CARD_THEMES = [
+  {
+    name: "sky",
+    cardBg: "bg-gradient-to-br from-[#0c1929] via-[#0d1f33] to-[#080d14]",
+    border: "border-sky-500/25 hover:border-sky-400/50",
+    shadow: "shadow-lg shadow-sky-950/30 hover:shadow-sky-900/40",
+    iconBg: "bg-sky-500/15 border-sky-500/30 text-sky-400 shadow-sm shadow-sky-500/20",
+    dnsBox: "bg-[#071320]/80 border-sky-500/20 text-sky-300",
+    dnsLabel: "text-sky-300/70",
+    contingencyBadge: "bg-sky-500/10 text-sky-300 border-sky-500/20",
+    badge: "bg-sky-500/15 text-sky-300 border-sky-500/30",
+    glow: "from-sky-500/10 to-transparent",
+    accentBtn: "bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border-sky-500/35 hover:shadow-sky-950/50",
+  },
+  {
+    name: "emerald",
+    cardBg: "bg-gradient-to-br from-[#0a1e1b] via-[#0d2723] to-[#080d14]",
+    border: "border-emerald-500/25 hover:border-emerald-400/50",
+    shadow: "shadow-lg shadow-emerald-950/30 hover:shadow-emerald-900/40",
+    iconBg: "bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-sm shadow-emerald-500/20",
+    dnsBox: "bg-[#071714]/80 border-emerald-500/20 text-emerald-300",
+    dnsLabel: "text-emerald-300/70",
+    contingencyBadge: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
+    badge: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+    glow: "from-emerald-500/10 to-transparent",
+    accentBtn: "bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/35 hover:shadow-emerald-950/50",
+  },
+  {
+    name: "amber",
+    cardBg: "bg-gradient-to-br from-[#1c160a] via-[#241d0e] to-[#080d14]",
+    border: "border-amber-500/25 hover:border-amber-400/50",
+    shadow: "shadow-lg shadow-amber-950/30 hover:shadow-amber-900/40",
+    iconBg: "bg-amber-500/15 border-amber-500/30 text-amber-400 shadow-sm shadow-amber-500/20",
+    dnsBox: "bg-[#181308]/80 border-amber-500/20 text-amber-300",
+    dnsLabel: "text-amber-300/70",
+    contingencyBadge: "bg-amber-500/10 text-amber-300 border-amber-500/20",
+    badge: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+    glow: "from-amber-500/10 to-transparent",
+    accentBtn: "bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/35 hover:shadow-amber-950/50",
+  },
+  {
+    name: "cyan",
+    cardBg: "bg-gradient-to-br from-[#091b22] via-[#0c242e] to-[#080d14]",
+    border: "border-cyan-500/25 hover:border-cyan-400/50",
+    shadow: "shadow-lg shadow-cyan-950/30 hover:shadow-cyan-900/40",
+    iconBg: "bg-cyan-500/15 border-cyan-500/30 text-cyan-400 shadow-sm shadow-cyan-500/20",
+    dnsBox: "bg-[#07161c]/80 border-cyan-500/20 text-cyan-300",
+    dnsLabel: "text-cyan-300/70",
+    contingencyBadge: "bg-cyan-500/10 text-cyan-300 border-cyan-500/20",
+    badge: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",
+    glow: "from-cyan-500/10 to-transparent",
+    accentBtn: "bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border-cyan-500/35 hover:shadow-cyan-950/50",
+  },
+  {
+    name: "indigo",
+    cardBg: "bg-gradient-to-br from-[#0d162d] via-[#101d3c] to-[#080d14]",
+    border: "border-indigo-500/25 hover:border-indigo-400/50",
+    shadow: "shadow-lg shadow-indigo-950/30 hover:shadow-indigo-900/40",
+    iconBg: "bg-indigo-500/15 border-indigo-500/30 text-indigo-400 shadow-sm shadow-indigo-500/20",
+    dnsBox: "bg-[#0a1124]/80 border-indigo-500/20 text-indigo-300",
+    dnsLabel: "text-indigo-300/70",
+    contingencyBadge: "bg-indigo-500/10 text-indigo-300 border-indigo-500/20",
+    badge: "bg-indigo-500/15 text-indigo-300 border-indigo-500/30",
+    glow: "from-indigo-500/10 to-transparent",
+    accentBtn: "bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border-indigo-500/35 hover:shadow-indigo-950/50",
+  },
+  {
+    name: "teal",
+    cardBg: "bg-gradient-to-br from-[#091b19] via-[#0c2623] to-[#080d14]",
+    border: "border-teal-500/25 hover:border-teal-400/50",
+    shadow: "shadow-lg shadow-teal-950/30 hover:shadow-teal-900/40",
+    iconBg: "bg-teal-500/15 border-teal-500/30 text-teal-400 shadow-sm shadow-teal-500/20",
+    dnsBox: "bg-[#071614]/80 border-teal-500/20 text-teal-300",
+    dnsLabel: "text-teal-300/70",
+    contingencyBadge: "bg-teal-500/10 text-teal-300 border-teal-500/20",
+    badge: "bg-teal-500/15 text-teal-300 border-teal-500/30",
+    glow: "from-teal-500/10 to-transparent",
+    accentBtn: "bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border-teal-500/35 hover:shadow-teal-950/50",
+  },
+  {
+    name: "rose",
+    cardBg: "bg-gradient-to-br from-[#1c0c14] via-[#26101c] to-[#080d14]",
+    border: "border-rose-500/25 hover:border-rose-400/50",
+    shadow: "shadow-lg shadow-rose-950/30 hover:shadow-rose-900/40",
+    iconBg: "bg-rose-500/15 border-rose-500/30 text-rose-400 shadow-sm shadow-rose-500/20",
+    dnsBox: "bg-[#180911]/80 border-rose-500/20 text-rose-300",
+    dnsLabel: "text-rose-300/70",
+    contingencyBadge: "bg-rose-500/10 text-rose-300 border-rose-500/20",
+    badge: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+    glow: "from-rose-500/10 to-transparent",
+    accentBtn: "bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border-rose-500/35 hover:shadow-rose-950/50",
+  }
+];
 
 export default function ServersPage() {
   const { user } = useAuth();
@@ -160,6 +256,10 @@ export default function ServersPage() {
     loadData();
   };
 
+  const totalScreens = servers.reduce((acc, s) => acc + (s.deviceCount || 0), 0);
+  const activeServersCount = servers.filter((s) => (s.status || "active") === "active").length;
+  const totalContingencies = servers.reduce((acc, s) => acc + (s.fallbackDns?.length || 0), 0);
+
   return (
     <>
       <Navbar
@@ -208,6 +308,53 @@ export default function ServersPage() {
           </div>
         </div>
 
+        {/* Métricas Resumidas com Cores Suaves Distintas e Sombreamento */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#0c1826] to-[#0a1017] border border-sky-500/20 hover:border-sky-500/40 transition-all duration-300 shadow-lg shadow-sky-950/20 hover:shadow-sky-950/40">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-sky-200/80">Total de Servidores</span>
+              <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                <Server className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="text-2xl font-bold text-white mt-3">{servers.length}</p>
+            <p className="text-[11px] text-zinc-400 mt-1">Servidores cadastrados no painel</p>
+          </div>
+
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#0a1e1b] to-[#0a1017] border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-300 shadow-lg shadow-emerald-950/20 hover:shadow-emerald-950/40">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-emerald-200/80">Servidores Ativos</span>
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <Radio className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="text-2xl font-bold text-emerald-400 mt-3">{activeServersCount}</p>
+            <p className="text-[11px] text-zinc-400 mt-1">100% operacionais na rede</p>
+          </div>
+
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#1c160a] to-[#0a1017] border border-amber-500/20 hover:border-amber-500/40 transition-all duration-300 shadow-lg shadow-amber-950/20 hover:shadow-amber-950/40">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-amber-200/80">Telas Conectadas</span>
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <Tv className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="text-2xl font-bold text-white mt-3">{totalScreens}</p>
+            <p className="text-[11px] text-zinc-400 mt-1">Aparelhos ativos distribuídos</p>
+          </div>
+
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#091b22] to-[#0a1017] border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300 shadow-lg shadow-cyan-950/20 hover:shadow-cyan-950/40">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-cyan-200/80">Rotas de Contingência</span>
+              <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="text-2xl font-bold text-cyan-400 mt-3">{totalContingencies}</p>
+            <p className="text-[11px] text-zinc-400 mt-1">Rotas reservas prontas para uso</p>
+          </div>
+        </div>
+
         {/* Lista de Servidores */}
         {servers.length === 0 ? (
           <div className="p-8 rounded-2xl bg-[#0c121a] border border-zinc-800/80 text-center space-y-3">
@@ -227,87 +374,111 @@ export default function ServersPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {servers.map((srv) => (
-              <div
-                key={srv.id}
-                className="p-5 rounded-2xl bg-[#0c121a] border border-zinc-800/80 hover:border-zinc-700 transition flex flex-col justify-between space-y-4 shadow-sm"
-              >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                        <Server className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-white">{srv.name}</h4>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <p className="text-[10px] text-zinc-400 font-mono">{srv.id}</p>
-                          {user?.role === "superadmin" && (
-                            <span className="text-[9px] bg-zinc-800 text-sky-400 border border-zinc-700 px-1.5 py-0.2 rounded font-medium">
-                              {srv.ownerRole === "superadmin" ? "Admin Master" : `Revenda: ${srv.ownerName || srv.ownerId}`}
-                            </span>
-                          )}
+            {servers.map((srv, idx) => {
+              const theme = SERVER_CARD_THEMES[idx % SERVER_CARD_THEMES.length];
+              return (
+                <div
+                  key={srv.id}
+                  className={`group relative overflow-hidden p-5 rounded-2xl ${theme.cardBg} border ${theme.border} ${theme.shadow} transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex flex-col justify-between space-y-4`}
+                >
+                  {/* Efeito Glow Suave no Canto */}
+                  <div className={`absolute -top-12 -right-12 w-32 h-32 rounded-full bg-gradient-to-br ${theme.glow} blur-2xl pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity duration-300`} />
+
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-9 h-9 rounded-xl ${theme.iconBg} flex items-center justify-center transition-transform duration-300 group-hover:scale-105`}>
+                          <Server className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-white group-hover:text-white flex items-center gap-2">
+                            {srv.name}
+                          </h4>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-[10px] text-zinc-400 font-mono">{srv.id}</p>
+                            {user?.role === "superadmin" && (
+                              <span className="text-[9px] bg-zinc-900/90 text-sky-400 border border-zinc-700/80 px-1.5 py-0.2 rounded font-medium">
+                                {srv.ownerRole === "superadmin" ? "Admin Master" : `Revenda: ${srv.ownerName || srv.ownerId}`}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
+                      <span className={`flex items-center gap-1 text-[10px] ${theme.badge} px-2.5 py-0.5 rounded-full font-semibold shadow-sm`}>
+                        <Radio className="w-2.5 h-2.5 animate-pulse" /> Ativo
+                      </span>
                     </div>
-                    <span className="flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-semibold">
-                      <Radio className="w-2.5 h-2.5" /> Ativo
-                    </span>
-                  </div>
 
-                  {srv.notes && (
-                    <p className="text-xs text-zinc-300 mt-3">{srv.notes}</p>
-                  )}
+                    {srv.notes && (
+                      <p className="text-xs text-zinc-300 mt-3 line-clamp-2">{srv.notes}</p>
+                    )}
 
-                  {/* DNS Atual */}
-                  <div className="mt-4 p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-1.5">
-                    <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
-                      DNS Ativo na Rede
-                    </span>
-                    <p className="text-xs font-mono text-sky-400 break-all select-all font-semibold">
-                      {srv.activeDns}
-                    </p>
-                  </div>
-
-                  {/* Contingência */}
-                  {srv.fallbackDns.length > 0 && (
-                    <div className="mt-2 text-[11px] text-zinc-300">
-                      <span className="text-zinc-400">Contingência:</span> {srv.fallbackDns.join(", ")}
+                    {/* DNS Primário Atual */}
+                    <div className={`mt-4 p-3.5 rounded-xl ${theme.dnsBox} border space-y-1.5 shadow-inner`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider block ${theme.dnsLabel}`}>
+                          DNS Primário (Principal)
+                        </span>
+                        <span className="text-[10px] font-mono text-zinc-400">Ativo na Rede</span>
+                      </div>
+                      <p className="text-xs font-mono break-all select-all font-bold">
+                        {srv.activeDns}
+                      </p>
                     </div>
-                  )}
-                </div>
 
-                <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs text-zinc-300">
-                    <Tv className="w-3.5 h-3.5 text-zinc-300" />
-                    <span>{srv.deviceCount ?? 0} telas</span>
+                    {/* Contingência */}
+                    {srv.fallbackDns && srv.fallbackDns.length > 0 && (
+                      <div className="mt-3 space-y-1.5">
+                        <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
+                          Rotas de Contingência:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {srv.fallbackDns.map((fb, fbIdx) => (
+                            <span
+                              key={fbIdx}
+                              className={`text-[11px] font-mono px-2 py-0.5 rounded-lg border ${theme.contingencyBadge} flex items-center gap-1 shadow-sm`}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
+                              {fb}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => handleOpenEditModal(srv)}
-                      className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium transition flex items-center gap-1"
-                      title="Editar servidor"
-                    >
-                      <Pencil className="w-3.5 h-3.5 text-zinc-400" /> Editar
-                    </button>
-                    <button
-                      onClick={() => handleOpenDnsModal(srv)}
-                      className="px-3 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs font-bold transition flex items-center gap-1.5"
-                    >
-                      <Zap className="w-3.5 h-3.5" /> Trocar DNS
-                    </button>
-                    <button
-                      onClick={() => handleDeleteServer(srv)}
-                      title="Excluir servidor"
-                      className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-900/40 text-zinc-400 hover:text-rose-400 border border-zinc-700 text-xs transition"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                  <div className="relative z-10 pt-3 border-t border-zinc-800/80 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs text-zinc-300 font-medium">
+                      <Tv className="w-3.5 h-3.5 text-zinc-400" />
+                      <span><strong className="text-white">{srv.deviceCount ?? 0}</strong> telas ativas</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleOpenEditModal(srv)}
+                        className="px-2.5 py-1.5 rounded-lg bg-zinc-800/90 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/80 text-xs font-medium transition flex items-center gap-1 shadow-sm"
+                        title="Editar servidor"
+                      >
+                        <Pencil className="w-3.5 h-3.5 text-zinc-400" /> Editar
+                      </button>
+                      <button
+                        onClick={() => handleOpenDnsModal(srv)}
+                        className={`px-3 py-1.5 rounded-lg ${theme.accentBtn} border text-xs font-bold transition flex items-center gap-1.5 shadow-sm`}
+                      >
+                        <Zap className="w-3.5 h-3.5" /> Trocar DNS
+                      </button>
+                      <button
+                        onClick={() => handleDeleteServer(srv)}
+                        title="Excluir servidor"
+                        className="p-1.5 rounded-lg bg-zinc-800/90 hover:bg-rose-950/40 text-zinc-400 hover:text-rose-400 border border-zinc-700/80 text-xs transition shadow-sm"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
