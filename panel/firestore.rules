@@ -22,5 +22,13 @@ service cloud.firestore {
     match /credit_logs/{logId} {
       allow read, write: if true;
     }
+
+    match /system_config/{configId} {
+      allow read, write: if true;
+    }
+
+    match /app_updates/{updateId} {
+      allow read, write: if true;
+    }
   }
 }
