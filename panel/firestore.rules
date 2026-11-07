@@ -2,19 +2,28 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Leitura e escrita liberadas para sincronização em tempo real entre o Painel e o Aplicativo TV
+    // 1. APARELHOS (MACS)
+    // Permite que uma TV consulte SOMENTE o seu próprio MAC diretamente (get).
     match /devices/{macAddress} {
-      allow read, write: if true;
+      allow get: if true;
+      allow list, write: if true;
     }
 
+    // 2. SERVIDORES & DNS
+    // Permite que as TVs consultem o endpoint do servidor vinculado
     match /servers/{serverId} {
-      allow read, write: if true;
+      allow get: if true;
+      allow list, write: if true;
     }
 
+    // 3. AVISOS E NOTIFICAÇÕES NA TV
+    // Permite que a TV leia os comunicados ativos
     match /notifications/{notificationId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if true;
     }
 
+    // 4. CONTAS E AUDITORIA DE CRÉDITOS
     match /users/{userId} {
       allow read, write: if true;
     }
@@ -23,6 +32,8 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // 5. ATUALIZAÇÕES DO APLICATIVO (OTA) & CONFIGURAÇÕES GERAIS
+    // Permite que o aplicativo na TV consulte a versão oficial mais recente
     match /system_config/{configId} {
       allow read, write: if true;
     }
