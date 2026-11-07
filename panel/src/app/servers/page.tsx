@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { useAuth } from "@/context/AuthContext";
 import { store } from "@/lib/store";
-import { ServerDocument } from "@/types";
+import { ServerDocument, ServerStatus } from "@/types";
 import {
   Server,
   Plus,
@@ -16,7 +16,8 @@ import {
   Tv,
   Globe,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Pencil
 } from "lucide-react";
 
 export default function ServersPage() {
@@ -27,8 +28,19 @@ export default function ServersPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [activeDnsInput, setActiveDnsInput] = useState("");
-  const [fallbackInput, setFallbackInput] = useState("");
+  const [fallback1Input, setFallback1Input] = useState("");
+  const [fallback2Input, setFallback2Input] = useState("");
   const [notesInput, setNotesInput] = useState("");
+
+  // Modal Editar Servidor
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingServer, setEditingServer] = useState<ServerDocument | null>(null);
+  const [editNameInput, setEditNameInput] = useState("");
+  const [editActiveDnsInput, setEditActiveDnsInput] = useState("");
+  const [editFallback1Input, setEditFallback1Input] = useState("");
+  const [editFallback2Input, setEditFallback2Input] = useState("");
+  const [editNotesInput, setEditNotesInput] = useState("");
+  const [editStatusInput, setEditStatusInput] = useState<ServerStatus>("active");
 
   // Modal Troca em Massa de DNS
   const [isDnsModalOpen, setIsDnsModalOpen] = useState(false);
@@ -58,10 +70,7 @@ export default function ServersPage() {
   const handleAddServer = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nameInput.trim() || !activeDnsInput.trim() || !user) return;
-    const fallbacks = fallbackInput
-      .split("\n")
-      .map((f) => f.trim())
-      .filter((f) => f.length > 0);
+    const fallbacks = [fallback1Input.trim(), fallback2Input.trim()].filter((f) => f.length > 0);
 
     store.addServer(
       nameInput.trim(),
@@ -73,8 +82,36 @@ export default function ServersPage() {
     setIsAddModalOpen(false);
     setNameInput("");
     setActiveDnsInput("");
-    setFallbackInput("");
+    setFallback1Input("");
+    setFallback2Input("");
     setNotesInput("");
+    loadData();
+  };
+
+  const handleOpenEditModal = (srv: ServerDocument) => {
+    setEditingServer(srv);
+    setEditNameInput(srv.name);
+    setEditActiveDnsInput(srv.activeDns);
+    setEditFallback1Input(srv.fallbackDns[0] || "");
+    setEditFallback2Input(srv.fallbackDns[1] || "");
+    setEditNotesInput(srv.notes || "");
+    setEditStatusInput(srv.status || "active");
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEditServer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingServer || !editNameInput.trim() || !editActiveDnsInput.trim()) return;
+    const fallbacks = [editFallback1Input.trim(), editFallback2Input.trim()].filter((f) => f.length > 0);
+    store.updateServer(editingServer.id, {
+      name: editNameInput.trim(),
+      activeDns: editActiveDnsInput.trim(),
+      fallbackDns: fallbacks,
+      notes: editNotesInput.trim(),
+      status: editStatusInput
+    });
+    setIsEditModalOpen(false);
+    setEditingServer(null);
     loadData();
   };
 
@@ -248,6 +285,13 @@ export default function ServersPage() {
 
                   <div className="flex items-center gap-1.5">
                     <button
+                      onClick={() => handleOpenEditModal(srv)}
+                      className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium transition flex items-center gap-1"
+                      title="Editar servidor"
+                    >
+                      <Pencil className="w-3.5 h-3.5 text-zinc-400" /> Editar
+                    </button>
+                    <button
                       onClick={() => handleOpenDnsModal(srv)}
                       className="px-3 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs font-bold transition flex items-center gap-1.5"
                     >
@@ -314,9 +358,34 @@ export default function ServersPage() {
                     />
                   </div>
 
+                  {selectedServer.fallbackDns.length > 0 && (
+                    <div>
+                      <label className="block text-zinc-300 font-medium mb-1">
+                        Escolher de uma Contingência já Cadastrada:
+                      </label>
+                      <select
+                        onChange={(e) => {
+                          if (e.target.value) setNewDnsInput(e.target.value);
+                        }}
+                        defaultValue=""
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-sky-500"
+                      >
+                        <option value="">-- Selecione uma contingência para preencher --</option>
+                        {selectedServer.fallbackDns.map((fb, idx) => (
+                          <option key={idx} value={fb}>
+                            Contingência {idx + 1}: {fb}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-zinc-400 mt-1">
+                        Ao selecionar, o campo abaixo será preenchido para substituir o DNS Primário.
+                      </p>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-zinc-300 font-medium mb-1">
-                      Novo Endereço de DNS / URL Xtream *
+                      Novo Endereço de DNS Principal * (ou digite manualmente)
                     </label>
                     <input
                       type="text"
@@ -329,7 +398,7 @@ export default function ServersPage() {
                   </div>
 
                   <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px]">
-                    <span className="font-bold">Aviso importante:</span> A alteração tem efeito imediato. Os aparelhos em execução trocarão para o novo stream na próxima requisição ou troca de canal.
+                    <span className="font-bold">Aviso importante:</span> A alteração atualiza a DNS Primária deste servidor e migra os aparelhos que utilizavam a DNS Primária anterior. Aparelhos configurados em contingência específica são preservados.
                   </div>
 
                   <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2 shrink-0 bg-[#0f1722]">
@@ -404,17 +473,31 @@ export default function ServersPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-zinc-300 font-medium mb-1">
-                    DNSs de Contingência / Backup (1 por linha)
-                  </label>
-                  <textarea
-                    rows={2}
-                    placeholder="http://backup01.zyveronplay.com:8080&#10;http://backup02.zyveronplay.com:8080"
-                    value={fallbackInput}
-                    onChange={(e) => setFallbackInput(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">
+                      DNS Contingência 1 (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="http://backup01.zyveronplay.com:8080"
+                      value={fallback1Input}
+                      onChange={(e) => setFallback1Input(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">
+                      DNS Contingência 2 (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="http://backup02.zyveronplay.com:8080"
+                      value={fallback2Input}
+                      onChange={(e) => setFallback2Input(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -443,6 +526,130 @@ export default function ServersPage() {
                     className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold tracking-tight transition shadow-lg shadow-emerald-950"
                   >
                     Salvar Servidor
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Editar Servidor */}
+        {isEditModalOpen && editingServer && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+            <div className="w-full max-w-lg bg-[#0f1722] border border-zinc-800 rounded-2xl shadow-2xl my-auto max-h-[92vh] flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4 shrink-0 bg-[#0f1722]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 shrink-0">
+                    <Pencil className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Editar Servidor: {editingServer.name}</h3>
+                    <p className="text-[11px] text-zinc-300">Atualize as configurações e rotas deste cluster</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="text-zinc-400 hover:text-white text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditServer} className="overflow-y-auto flex-1 p-5 space-y-4 text-xs">
+                <div>
+                  <label className="block text-zinc-300 font-medium mb-1">
+                    Nome do Servidor *
+                  </label>
+                  <input
+                    type="text"
+                    value={editNameInput}
+                    onChange={(e) => setEditNameInput(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-sky-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-300 font-medium mb-1">
+                    DNS Ativo Principal *
+                  </label>
+                  <input
+                    type="text"
+                    value={editActiveDnsInput}
+                    onChange={(e) => setEditActiveDnsInput(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-sky-500"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">
+                      DNS Contingência 1 (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="http://backup01.zyveronplay.com:8080"
+                      value={editFallback1Input}
+                      onChange={(e) => setEditFallback1Input(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">
+                      DNS Contingência 2 (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="http://backup02.zyveronplay.com:8080"
+                      value={editFallback2Input}
+                      onChange={(e) => setEditFallback2Input(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">
+                      Status Operacional
+                    </label>
+                    <select
+                      value={editStatusInput}
+                      onChange={(e) => setEditStatusInput(e.target.value as ServerStatus)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-sky-500"
+                    >
+                      <option value="active">Ativo</option>
+                      <option value="maintenance">Manutenção</option>
+                      <option value="offline">Offline</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-zinc-300 font-medium mb-1">
+                      Observações Internas
+                    </label>
+                    <input
+                      type="text"
+                      value={editNotesInput}
+                      onChange={(e) => setEditNotesInput(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2 shrink-0 bg-[#0f1722]">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold tracking-tight transition shadow-lg shadow-sky-950"
+                  >
+                    Salvar Alterações
                   </button>
                 </div>
               </form>

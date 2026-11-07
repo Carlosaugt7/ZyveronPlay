@@ -63,6 +63,7 @@ import com.zyveron.play.data.model.EpgProgram
 import com.zyveron.play.data.repository.ZyveronRepository
 import com.zyveron.play.player.PlaybackState
 import com.zyveron.play.player.ZyveronPlayerManager
+import com.zyveron.play.ui.components.AdultPinDialog
 import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.ui.theme.AccentEmerald
 import com.zyveron.play.ui.theme.AccentRose
@@ -74,6 +75,7 @@ import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
 import com.zyveron.play.ui.theme.ZyveronTvBackground
+import com.zyveron.play.util.AdultContentHelper
 import com.zyveron.play.util.CategoryGroup
 import com.zyveron.play.util.CategorySorter
 import kotlinx.coroutines.launch
@@ -107,6 +109,37 @@ fun LiveTvGuideScreen(
 
     val categoryAllFocusRequester = remember { FocusRequester() }
     val channelListFocusRequester = remember { FocusRequester() }
+
+    var showAdultPinDialog by remember { mutableStateOf(false) }
+    var pendingAdultCategoryId by remember { mutableStateOf<String?>(null) }
+
+    // Ação para selecionar categoria e mover foco automaticamente para o 1º canal
+    val onSelectCategory: (String) -> Unit = { catId ->
+        selectedCategoryId = catId
+        selectedChannelIndex = 0
+        scope.launch {
+            try {
+                channelListState.scrollToItem(0)
+            } catch (_: Exception) {}
+            for (attempt in 0..15) {
+                delay(40)
+                try {
+                    channelListFocusRequester.requestFocus()
+                    break
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    val handleCategoryClick: (CategoryEntity) -> Unit = { cat ->
+        val isAdult = AdultContentHelper.isAdultCategory(cat.categoryName)
+        if (isAdult && !AdultContentHelper.isSessionUnlocked()) {
+            pendingAdultCategoryId = cat.categoryId
+            showAdultPinDialog = true
+        } else {
+            onSelectCategory(cat.categoryId)
+        }
+    }
 
     // Quantitativo exato de canais por categoria
     val channelCountByCat = remember(allChannels) {
@@ -148,31 +181,38 @@ fun LiveTvGuideScreen(
         isSearchFocusable = true
     }
 
-    // Agrupamento estrito de categorias: Regionais/Abertos -> Temáticos -> 24 Horas -> Internacionais
+    // Agrupamento estrito de categorias: Regionais/Abertos -> Temáticos -> 24 Horas -> Internacionais -> Adultos (+18)
     val groupedCategories = remember(categories) {
         val regionaisAbertos = mutableListOf<CategoryEntity>()
         val regulares = mutableListOf<CategoryEntity>()
         val vinteQuatroHoras = mutableListOf<CategoryEntity>()
         val internacionais = mutableListOf<CategoryEntity>()
+        val adultos = mutableListOf<CategoryEntity>()
 
         categories.forEach { cat ->
-            when (CategorySorter.classify(cat.categoryName)) {
-                CategoryGroup.REGIONAL_ABERTO -> regionaisAbertos.add(cat)
-                CategoryGroup.REGULAR -> regulares.add(cat)
-                CategoryGroup.VINTE_QUATRO_HORAS -> vinteQuatroHoras.add(cat)
-                CategoryGroup.INTERNACIONAL -> internacionais.add(cat)
+            if (AdultContentHelper.isAdultCategory(cat.categoryName)) {
+                adultos.add(cat)
+            } else {
+                when (CategorySorter.classify(cat.categoryName)) {
+                    CategoryGroup.REGIONAL_ABERTO -> regionaisAbertos.add(cat)
+                    CategoryGroup.REGULAR -> regulares.add(cat)
+                    CategoryGroup.VINTE_QUATRO_HORAS -> vinteQuatroHoras.add(cat)
+                    CategoryGroup.INTERNACIONAL -> internacionais.add(cat)
+                }
             }
         }
         regionaisAbertos.sortBy { it.categoryName.lowercase() }
         regulares.sortBy { it.categoryName.lowercase() }
         vinteQuatroHoras.sortBy { it.categoryName.lowercase() }
         internacionais.sortBy { it.categoryName.lowercase() }
+        adultos.sortBy { it.categoryName.lowercase() }
 
         object {
             val regional = regionaisAbertos
             val regular = regulares
             val vinteQuatro = vinteQuatroHoras
             val internacional = internacionais
+            val adulto = adultos
         }
     }
 
@@ -303,24 +343,6 @@ fun LiveTvGuideScreen(
                             fontWeight = FontWeight.SemiBold,
                             color = if (isFocused) Color.Black else TextPrimary
                         )
-                    }
-                }
-
-                // Ação para selecionar categoria e mover foco automaticamente para o 1º canal
-                val onSelectCategory: (String) -> Unit = { catId ->
-                    selectedCategoryId = catId
-                    selectedChannelIndex = 0
-                    scope.launch {
-                        try {
-                            channelListState.scrollToItem(0)
-                        } catch (_: Exception) {}
-                        for (attempt in 0..15) {
-                            delay(40)
-                            try {
-                                channelListFocusRequester.requestFocus()
-                                break
-                            } catch (_: Exception) {}
-                        }
                     }
                 }
 
@@ -548,6 +570,34 @@ fun LiveTvGuideScreen(
                                         count = channelCountByCat[cat.categoryId] ?: 0,
                                         isSelected = selectedCategoryId == cat.categoryId,
                                         onClick = { onSelectCategory(cat.categoryId) }
+                                    )
+                                }
+                            }
+
+                            // 10. CANAIS ADULTOS (+18) PROTEGIDOS POR PIN (ESTRITAMENTE NO FINAL DE TUDO)
+                            if (groupedCategories.adulto.isNotEmpty()) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 10.dp, bottom = 4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "── 🔒 CONTEÚDO ADULTO (+18) ──",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AccentRose,
+                                            letterSpacing = 0.5.sp
+                                        )
+                                    }
+                                }
+                                items(groupedCategories.adulto) { cat ->
+                                    CategoryItem(
+                                        title = "🔒 ${cat.categoryName}",
+                                        count = channelCountByCat[cat.categoryId] ?: 0,
+                                        isSelected = selectedCategoryId == cat.categoryId,
+                                        onClick = { handleCategoryClick(cat) }
                                     )
                                 }
                             }
@@ -1061,6 +1111,20 @@ fun LiveTvGuideScreen(
                         }
                     }
                 }
+            }
+
+            if (showAdultPinDialog) {
+                AdultPinDialog(
+                    onDismiss = {
+                        showAdultPinDialog = false
+                        pendingAdultCategoryId = null
+                    },
+                    onPinSuccess = {
+                        showAdultPinDialog = false
+                        pendingAdultCategoryId?.let { onSelectCategory(it) }
+                        pendingAdultCategoryId = null
+                    }
+                )
             }
         }
     }

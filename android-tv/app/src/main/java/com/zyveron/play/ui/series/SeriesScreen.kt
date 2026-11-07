@@ -54,6 +54,7 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.zyveron.play.data.local.SeriesEntity
 import com.zyveron.play.data.repository.ZyveronRepository
+import com.zyveron.play.ui.components.AdultPinDialog
 import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.ui.live.CategoryItem
 import com.zyveron.play.ui.theme.AccentEmerald
@@ -64,6 +65,7 @@ import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
 import com.zyveron.play.ui.theme.ZyveronTvBackground
+import com.zyveron.play.util.AdultContentHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -84,6 +86,9 @@ fun SeriesScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isSearchFocusable by remember { mutableStateOf(false) }
 
+    var showAdultPinDialog by remember { mutableStateOf(false) }
+    var pendingAdultCategory by remember { mutableStateOf<String?>(null) }
+
     val gridState = rememberLazyGridState()
     val categoryFocusRequester = remember { FocusRequester() }
     val itemFocusRequester = remember { FocusRequester() }
@@ -91,6 +96,17 @@ fun SeriesScreen(
     // Quantitativo exato de cada categoria
     val seriesCountByCat = remember(allSeries) {
         allSeries.groupingBy { it.categoryId }.eachCount()
+    }
+
+    // Pasta Continue Assistindo (ordem cronológica de progresso)
+    val continueSeriesIds = remember(allSeries) { repository.getContinueWatchingSeriesIds() }
+    val continueSeries = remember(allSeries, continueSeriesIds) {
+        continueSeriesIds.mapNotNull { id -> allSeries.find { it.seriesId == id } }
+    }
+
+    // Categorias ordenadas: conteúdo adulto movido para o final
+    val sortedCategories = remember(categories) {
+        AdultContentHelper.partitionAdultCategories(categories) { it.categoryName }
     }
 
     // Pasta Recém Adicionadas
@@ -112,13 +128,14 @@ fun SeriesScreen(
         }
     }
 
-    val displayedSeries = remember(selectedCategoryId, searchQuery, allSeries, favorites, recentSeries, releaseSeries) {
+    val displayedSeries = remember(selectedCategoryId, searchQuery, allSeries, favorites, continueSeries, recentSeries, releaseSeries) {
         if (searchQuery.isNotBlank()) {
             val q = searchQuery.trim().lowercase()
             allSeries.filter { it.name.lowercase().contains(q) }
         } else {
             when (selectedCategoryId) {
                 "FAV" -> favorites
+                "CONTINUE" -> continueSeries
                 "ALL" -> allSeries
                 "RECENT" -> recentSeries
                 "RELEASES" -> releaseSeries
@@ -294,7 +311,17 @@ fun SeriesScreen(
                                 )
                             }
 
-                            // 2. TODAS AS SÉRIES
+                            // 2. CONTINUE ASSISTINDO (Logo após Favoritos)
+                            item {
+                                CategoryItem(
+                                    title = "▶ Continue Assistindo",
+                                    count = continueSeries.size,
+                                    isSelected = selectedCategoryId == "CONTINUE",
+                                    onClick = { selectedCategoryId = "CONTINUE" }
+                                )
+                            }
+
+                            // 3. TODAS AS SÉRIES
                             item {
                                 CategoryItem(
                                     title = "Todas as Séries",
@@ -305,7 +332,7 @@ fun SeriesScreen(
                                 )
                             }
 
-                            // 3. RECÉM ADICIONADAS (Logo após Todos)
+                            // 4. RECÉM ADICIONADAS (Logo após Todos)
                             item {
                                 CategoryItem(
                                     title = "⏱️ Recém Adicionadas",
@@ -315,7 +342,7 @@ fun SeriesScreen(
                                 )
                             }
 
-                            // 4. LANÇAMENTOS (Logo após Todos)
+                            // 5. LANÇAMENTOS (Logo após Todos)
                             item {
                                 CategoryItem(
                                     title = "✨ Lançamentos",
@@ -325,13 +352,21 @@ fun SeriesScreen(
                                 )
                             }
 
-                            // 5. DEMAIS CATEGORIAS COM QUANTITATIVO REAL
-                            items(categories) { cat ->
+                            // 6. DEMAIS CATEGORIAS COM QUANTITATIVO REAL (Adulto protegido no final)
+                            items(sortedCategories) { cat ->
+                                val isAdult = AdultContentHelper.isAdultCategory(cat.categoryName)
                                 CategoryItem(
-                                    title = cat.categoryName,
+                                    title = if (isAdult) "🔒 ${cat.categoryName}" else cat.categoryName,
                                     count = seriesCountByCat[cat.categoryId] ?: 0,
                                     isSelected = selectedCategoryId == cat.categoryId,
-                                    onClick = { selectedCategoryId = cat.categoryId }
+                                    onClick = {
+                                        if (isAdult && !AdultContentHelper.isSessionUnlocked()) {
+                                            pendingAdultCategory = cat.categoryId
+                                            showAdultPinDialog = true
+                                        } else {
+                                            selectedCategoryId = cat.categoryId
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -350,8 +385,11 @@ fun SeriesScreen(
                         if (displayedSeries.isEmpty()) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = if (selectedCategoryId == "FAV") "Nenhuma série favoritada ainda.\nAperte Amarelo/Menu no controle para favoritar!"
-                                    else "Nenhuma série encontrada",
+                                    text = when (selectedCategoryId) {
+                                        "FAV" -> "Nenhuma série favoritada ainda.\nAperte Amarelo/Menu no controle para favoritar!"
+                                        "CONTINUE" -> "Nenhuma série em andamento.\nQuando você começar a assistir um episódio, a série aparecerá aqui!"
+                                        else -> "Nenhuma série encontrada"
+                                    },
                                     color = TextSecondary,
                                     fontSize = 13.sp
                                 )
@@ -459,6 +497,20 @@ fun SeriesScreen(
                         }
                     }
                 }
+            }
+
+            if (showAdultPinDialog) {
+                AdultPinDialog(
+                    onDismiss = {
+                        showAdultPinDialog = false
+                        pendingAdultCategory = null
+                    },
+                    onPinSuccess = {
+                        showAdultPinDialog = false
+                        pendingAdultCategory?.let { selectedCategoryId = it }
+                        pendingAdultCategory = null
+                    }
+                )
             }
         }
     }

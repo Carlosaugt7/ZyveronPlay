@@ -437,8 +437,8 @@ fun MainContent(
                             streamUrl = streamUrl,
                             playerManager = playerManager,
                             startPositionMs = screen.startPositionMs,
-                            onSaveProgress = { pos, _ ->
-                                repository.saveVodProgress(screen.vod.streamId, pos)
+                            onSaveProgress = { pos, dur ->
+                                repository.saveMovieProgress(screen.vod.streamId, pos, dur)
                             },
                             onBack = { currentScreen = AppScreen.MovieDetail(screen.vod, screen.categoryId) }
                         )
@@ -503,8 +503,8 @@ fun MainContent(
                                     currentScreen = AppScreen.SeriesEpisodePlayer(nextEp, screen.series, epList, epIndex + 1, 0L, screen.categoryId)
                                 }
                             } else null,
-                            onSaveProgress = { pos, _ ->
-                                repository.saveVodProgress(currentEp.id, pos)
+                            onSaveProgress = { pos, dur ->
+                                repository.saveSeriesProgress(screen.series.seriesId, currentEp.id, pos, dur)
                             },
                             onBack = { currentScreen = AppScreen.SeriesDetail(screen.series, screen.categoryId) }
                         )
@@ -542,6 +542,7 @@ fun MainContent(
                             mac = state.mac,
                             deviceKey = deviceManager.deviceKey,
                             expirationDate = state.expirationDate,
+                            repository = repository,
                             onBack = { currentScreen = AppScreen.Home }
                         )
                     }

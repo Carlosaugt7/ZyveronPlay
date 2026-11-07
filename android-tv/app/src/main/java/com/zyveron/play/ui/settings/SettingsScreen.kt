@@ -32,8 +32,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import android.widget.Toast
 import com.zyveron.play.BuildConfig
+import com.zyveron.play.data.repository.ZyveronRepository
+import com.zyveron.play.ui.components.ChangeAdultPinDialog
 import com.zyveron.play.ui.components.TvTouchCard
+import com.zyveron.play.util.AdultContentHelper
 import com.zyveron.play.util.SettingsHelper
 import com.zyveron.play.util.AppUpdateInfo
 import com.zyveron.play.util.AppUpdateManager
@@ -55,11 +59,14 @@ fun SettingsScreen(
     mac: String,
     deviceKey: String,
     expirationDate: String,
+    repository: ZyveronRepository,
     onBack: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var selectedTab by remember { mutableStateOf("MY_APP") }
+
+    var showChangePinDialog by remember { mutableStateOf(false) }
 
     // Estado da Atualização OTA
     var checkResult by remember { mutableStateOf<UpdateCheckResult>(UpdateCheckResult.Idle) }
@@ -498,6 +505,89 @@ fun SettingsScreen(
                                             }
                                         }
                                     }
+
+                                    // Histórico do Continue Assistindo
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(BgSurfaceDark)
+                                            .border(1.dp, BorderDark, RoundedCornerShape(12.dp))
+                                            .padding(16.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(text = "CONTINUE ASSISTINDO", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                Text(
+                                                    text = "Limpa todo o histórico de progresso de filmes e séries salvos neste aparelho.",
+                                                    color = TextSecondary,
+                                                    fontSize = 11.sp
+                                                )
+                                            }
+                                            TvTouchCard(
+                                                onClick = {
+                                                    repository.clearAllContinueWatching()
+                                                    Toast.makeText(context, "Histórico do Continue Assistindo limpo com sucesso!", Toast.LENGTH_SHORT).show()
+                                                },
+                                                containerColor = AccentRose.copy(alpha = 0.2f),
+                                                focusedContainerColor = AccentRose,
+                                                shape = RoundedCornerShape(8.dp),
+                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                            ) { isFocused ->
+                                                Text(
+                                                    text = "Limpar Histórico",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isFocused) Color.White else AccentRose
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // Controle Parental (PIN Adulto +18)
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(BgSurfaceDark)
+                                            .border(1.dp, BorderDark, RoundedCornerShape(12.dp))
+                                            .padding(16.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(text = "CONTROLE PARENTAL (+18)", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                Text(
+                                                    text = "Senha de 4 dígitos para proteger o acesso a categorias adultas. Padrão de fábrica: 0000.",
+                                                    color = TextSecondary,
+                                                    fontSize = 11.sp
+                                                )
+                                            }
+                                            TvTouchCard(
+                                                onClick = {
+                                                    showChangePinDialog = true
+                                                },
+                                                containerColor = AccentSky.copy(alpha = 0.2f),
+                                                focusedContainerColor = AccentSky,
+                                                shape = RoundedCornerShape(8.dp),
+                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                            ) { isFocused ->
+                                                Text(
+                                                    text = "Alterar Senha",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isFocused) Color.Black else AccentSky
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
 
@@ -585,6 +675,17 @@ fun SettingsScreen(
                         }
                     }
                 }
+            }
+
+            // Diálogo Modal para Alterar Senha Parental (+18)
+            if (showChangePinDialog) {
+                ChangeAdultPinDialog(
+                    onDismiss = { showChangePinDialog = false },
+                    onPinChanged = {
+                        showChangePinDialog = false
+                        Toast.makeText(context, "Nova senha parental salva com sucesso!", Toast.LENGTH_SHORT).show()
+                    }
+                )
             }
         }
     }

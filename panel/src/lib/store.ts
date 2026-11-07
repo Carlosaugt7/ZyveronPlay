@@ -1,5 +1,6 @@
 import { 
   ServerDocument, 
+  ServerStatus,
   UserDocument, 
   DeviceDocument, 
   CreditLogDocument, 
@@ -213,24 +214,30 @@ class LocalStore {
     this.init();
     const srv = this.servers.find(s => s.id === serverId);
     if (!srv) throw new Error("Servidor não encontrado.");
+    const oldPrimaryDns = srv.activeDns;
     const cleanDns = normalizeDnsUrl(newDns);
     srv.activeDns = cleanDns;
-    if (fallbacks) srv.fallbackDns = fallbacks.map(normalizeDnsUrl);
+    if (fallbacks) srv.fallbackDns = fallbacks.filter(f => f.trim()).map(normalizeDnsUrl);
     srv.updatedAt = new Date().toISOString();
     this.save();
     FirestoreSync.syncServerToFirestore(srv);
 
-    // Atualiza em massa a DNS em TODOS os aparelhos vinculados a este servidor
+    // Atualiza apenas os aparelhos que estavam usando a DNS Primária anterior (Opção A)
+    // Aparelhos configurados especificamente em contingência permanecem intactos
     let updatedDevicesCount = 0;
     this.devices.forEach(dev => {
       let changed = false;
       if (dev.serverId === serverId) {
-        dev.serverDns = cleanDns;
-        changed = true;
+        if (!dev.serverDns || dev.serverDns === oldPrimaryDns) {
+          dev.serverDns = cleanDns;
+          changed = true;
+        }
       }
       if (dev.serverId2 === serverId) {
-        dev.serverDns2 = cleanDns;
-        changed = true;
+        if (!dev.serverDns2 || dev.serverDns2 === oldPrimaryDns) {
+          dev.serverDns2 = cleanDns;
+          changed = true;
+        }
       }
       if (changed) {
         dev.updatedAt = new Date().toISOString();
@@ -245,6 +252,57 @@ class LocalStore {
     }
 
     return { server: srv, updatedDevicesCount };
+  }
+
+  updateServer(
+    serverId: string,
+    data: {
+      name?: string;
+      activeDns?: string;
+      fallbackDns?: string[];
+      notes?: string;
+      status?: ServerStatus;
+    }
+  ): ServerDocument {
+    this.init();
+    const srv = this.servers.find(s => s.id === serverId);
+    if (!srv) throw new Error("Servidor não encontrado.");
+    
+    if (data.name !== undefined) srv.name = data.name.trim();
+    if (data.notes !== undefined) srv.notes = data.notes.trim();
+    if (data.status !== undefined) srv.status = data.status;
+    if (data.fallbackDns !== undefined) {
+      srv.fallbackDns = data.fallbackDns.filter(f => f.trim()).map(normalizeDnsUrl);
+    }
+
+    if (data.activeDns !== undefined && data.activeDns.trim()) {
+      const cleanDns = normalizeDnsUrl(data.activeDns);
+      const oldPrimaryDns = srv.activeDns;
+      srv.activeDns = cleanDns;
+
+      // Se a DNS primária foi alterada, atualiza aparelhos que usavam o primário antigo
+      this.devices.forEach(dev => {
+        let changed = false;
+        if (dev.serverId === serverId && (!dev.serverDns || dev.serverDns === oldPrimaryDns)) {
+          dev.serverDns = cleanDns;
+          changed = true;
+        }
+        if (dev.serverId2 === serverId && (!dev.serverDns2 || dev.serverDns2 === oldPrimaryDns)) {
+          dev.serverDns2 = cleanDns;
+          changed = true;
+        }
+        if (changed) {
+          dev.updatedAt = new Date().toISOString();
+          FirestoreSync.syncDeviceToFirestore(dev);
+        }
+      });
+    }
+
+    srv.updatedAt = new Date().toISOString();
+    this.save();
+    FirestoreSync.syncServerToFirestore(srv);
+    this.notify();
+    return srv;
   }
 
   addServer(
@@ -351,7 +409,9 @@ class LocalStore {
     serverId2?: string,
     username2?: string,
     password2?: string,
-    months2?: number
+    months2?: number,
+    chosenServerDns?: string,
+    chosenServerDns2?: string
   ): DeviceDocument {
     this.init();
     const cleanMac = mac.trim().toUpperCase();
@@ -365,7 +425,9 @@ class LocalStore {
 
     const server = this.servers.find(s => s.id === serverId);
     const serverName = server ? server.name : "Servidor Padrão";
-    const serverDns = server ? normalizeDnsUrl(server.activeDns) : "http://localhost:8080";
+    const serverDns = chosenServerDns && chosenServerDns.trim()
+      ? normalizeDnsUrl(chosenServerDns)
+      : (server ? normalizeDnsUrl(server.activeDns) : "http://localhost:8080");
 
     // Calcula data de expiração (hoje + 30 dias * meses)
     const exp = new Date();
@@ -378,7 +440,9 @@ class LocalStore {
     if (serverId2 && username2) {
       const s2 = this.servers.find(s => s.id === serverId2);
       serverName2 = s2 ? s2.name : "Servidor 2";
-      serverDns2 = s2 && s2.activeDns ? normalizeDnsUrl(s2.activeDns) : normalizeDnsUrl(serverDns);
+      serverDns2 = chosenServerDns2 && chosenServerDns2.trim()
+        ? normalizeDnsUrl(chosenServerDns2)
+        : (s2 && s2.activeDns ? normalizeDnsUrl(s2.activeDns) : normalizeDnsUrl(serverDns));
       const exp2 = new Date();
       exp2.setDate(exp2.getDate() + (30 * (months2 || months)));
       exp2Str = exp2.toISOString();
@@ -817,34 +881,59 @@ class LocalStore {
     this.notify();
   }
 
-  getResellerStats(uid: string): { activeDevices: number; totalDevices: number; expiredDevices: number; blockedDevices: number } {
+  getResellerStats(uid: string): {
+    activeDevices: number;
+    totalDevices: number;
+    expiredDevices: number;
+    blockedDevices: number;
+    directActiveDevices: number;
+    subActiveDevices: number;
+    subTotalDevices: number;
+    subResellersCount: number;
+  } {
     this.init();
     const now = new Date();
-    // Identifica aparelhos vinculados a esta revenda diretamente
-    const resellerDevices = this.devices.filter(d => d.resellerId === uid);
+    
+    // Identifica sub-revendas deste revendedor
+    const subResellers = this.users.filter(u => u.parentId === uid);
+    const subUids = subResellers.map(u => u.uid);
 
-    let activeDevices = 0;
-    let expiredDevices = 0;
-    let blockedDevices = 0;
+    let directActive = 0;
+    let directExpired = 0;
+    let directBlocked = 0;
+    let directTotal = 0;
 
-    resellerDevices.forEach(d => {
-      if (d.status === "blocked") {
-        blockedDevices++;
-      } else {
-        const isExpired = new Date(d.expirationDate) < now;
-        if (isExpired || d.status === "expired") {
-          expiredDevices++;
-        } else {
-          activeDevices++;
-        }
+    let subActive = 0;
+    let subExpired = 0;
+    let subBlocked = 0;
+    let subTotal = 0;
+
+    this.devices.forEach(d => {
+      const isExpired = new Date(d.expirationDate) < now || d.status === "expired";
+      const isBlocked = d.status === "blocked";
+
+      if (d.resellerId === uid) {
+        directTotal++;
+        if (isBlocked) directBlocked++;
+        else if (isExpired) directExpired++;
+        else directActive++;
+      } else if (subUids.includes(d.resellerId)) {
+        subTotal++;
+        if (isBlocked) subBlocked++;
+        else if (isExpired) subExpired++;
+        else subActive++;
       }
     });
 
     return {
-      activeDevices,
-      totalDevices: resellerDevices.length,
-      expiredDevices,
-      blockedDevices
+      activeDevices: directActive + subActive,
+      totalDevices: directTotal + subTotal,
+      expiredDevices: directExpired + subExpired,
+      blockedDevices: directBlocked + subBlocked,
+      directActiveDevices: directActive,
+      subActiveDevices: subActive,
+      subTotalDevices: subTotal,
+      subResellersCount: subResellers.length
     };
   }
 

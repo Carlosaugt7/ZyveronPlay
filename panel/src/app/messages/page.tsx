@@ -142,11 +142,10 @@ export default function MessagesPage() {
                       setTargetType("all");
                       setTargetId("all");
                     }}
-                    className={`py-2 px-1 text-center rounded-lg border font-medium transition text-[11px] ${
-                      targetType === "all"
-                        ? "bg-sky-500/20 text-sky-300 border-sky-500/40"
-                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
-                    }`}
+                    className={`py-2 px-1 text-center rounded-lg border font-medium transition text-[11px] ${targetType === "all"
+                      ? "bg-sky-500/20 text-sky-300 border-sky-500/40"
+                      : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
+                      }`}
                   >
                     Global (Todos)
                   </button>
@@ -157,11 +156,10 @@ export default function MessagesPage() {
                       setTargetType("server");
                       if (servers.length > 0) setTargetId(servers[0].id);
                     }}
-                    className={`py-2 px-1 text-center rounded-lg border font-medium transition text-[11px] flex items-center justify-center gap-1 ${
-                      targetType === "server"
-                        ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
-                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
-                    }`}
+                    className={`py-2 px-1 text-center rounded-lg border font-medium transition text-[11px] flex items-center justify-center gap-1 ${targetType === "server"
+                      ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
+                      : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
+                      }`}
                   >
                     <Server className="w-3 h-3" /> Por Servidor
                   </button>
@@ -172,11 +170,10 @@ export default function MessagesPage() {
                       setTargetType("reseller");
                       if (users.length > 0) setTargetId(users[0].uid);
                     }}
-                    className={`py-2 px-1 text-center rounded-lg border font-medium transition text-[11px] flex items-center justify-center gap-1 ${
-                      targetType === "reseller"
-                        ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
-                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
-                    }`}
+                    className={`py-2 px-1 text-center rounded-lg border font-medium transition text-[11px] flex items-center justify-center gap-1 ${targetType === "reseller"
+                      ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                      : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
+                      }`}
                   >
                     <Users className="w-3 h-3" /> Por Revenda
                   </button>
@@ -187,11 +184,10 @@ export default function MessagesPage() {
                       setTargetType("device");
                       if (devices.length > 0) setTargetId(devices[0].mac);
                     }}
-                    className={`py-2 px-1 text-center rounded-lg border font-medium transition text-[11px] flex items-center justify-center gap-1 ${
-                      targetType === "device"
-                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
-                    }`}
+                    className={`py-2 px-1 text-center rounded-lg border font-medium transition text-[11px] flex items-center justify-center gap-1 ${targetType === "device"
+                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                      : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
+                      }`}
                   >
                     <Tv className="w-3 h-3" /> 1 Aparelho
                   </button>
@@ -336,23 +332,22 @@ export default function MessagesPage() {
                     <div className="space-y-1 flex-1">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full border ${
-                            notif.targetType === "all"
-                              ? "bg-sky-500/10 text-sky-400 border-sky-500/20"
-                              : notif.targetType === "server"
+                          className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full border ${notif.targetType === "all"
+                            ? "bg-sky-500/10 text-sky-400 border-sky-500/20"
+                            : notif.targetType === "server"
                               ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20"
                               : notif.targetType === "reseller"
-                              ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                              : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                          }`}
+                                ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                                : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                            }`}
                         >
                           {notif.targetType === "all"
                             ? "Global"
                             : notif.targetType === "server"
-                            ? `Servidor: ${notif.targetName || notif.targetId}`
-                            : notif.targetType === "reseller"
-                            ? `Revenda: ${notif.targetName || notif.targetId}`
-                            : `Aparelho: ${notif.targetName || notif.targetId}`}
+                              ? `Servidor: ${notif.targetName || notif.targetId}`
+                              : notif.targetType === "reseller"
+                                ? `Revenda: ${notif.targetName || notif.targetId}`
+                                : `Aparelho: ${notif.targetName || notif.targetId}`}
                         </span>
                         <h4 className="text-xs font-bold text-white">{notif.title}</h4>
                       </div>

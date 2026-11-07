@@ -54,6 +54,7 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.zyveron.play.data.local.VodEntity
 import com.zyveron.play.data.repository.ZyveronRepository
+import com.zyveron.play.ui.components.AdultPinDialog
 import com.zyveron.play.ui.components.TvTouchCard
 import com.zyveron.play.ui.live.CategoryItem
 import com.zyveron.play.ui.theme.AccentEmerald
@@ -64,6 +65,7 @@ import com.zyveron.play.ui.theme.BorderDark
 import com.zyveron.play.ui.theme.TextPrimary
 import com.zyveron.play.ui.theme.TextSecondary
 import com.zyveron.play.ui.theme.ZyveronTvBackground
+import com.zyveron.play.util.AdultContentHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -84,6 +86,9 @@ fun MoviesScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isSearchFocusable by remember { mutableStateOf(false) }
 
+    var showAdultPinDialog by remember { mutableStateOf(false) }
+    var pendingAdultCategory by remember { mutableStateOf<String?>(null) }
+
     val gridState = rememberLazyGridState()
     val categoryFocusRequester = remember { FocusRequester() }
     val itemFocusRequester = remember { FocusRequester() }
@@ -91,6 +96,17 @@ fun MoviesScreen(
     // Quantitativo exato de cada categoria
     val vodCountByCat = remember(allVods) {
         allVods.groupingBy { it.categoryId }.eachCount()
+    }
+
+    // Pasta Continue Assistindo (ordem cronológica de progresso)
+    val continueMovieIds = remember(allVods) { repository.getContinueWatchingMovieIds() }
+    val continueVods = remember(allVods, continueMovieIds) {
+        continueMovieIds.mapNotNull { id -> allVods.find { it.streamId == id } }
+    }
+
+    // Categorias ordenadas: conteúdo adulto movido para o final
+    val sortedCategories = remember(categories) {
+        AdultContentHelper.partitionAdultCategories(categories) { it.categoryName }
     }
 
     // Pasta Recém Adicionados (mais novos cadastrados no servidor)
@@ -112,13 +128,14 @@ fun MoviesScreen(
         }
     }
 
-    val displayedVods = remember(selectedCategoryId, searchQuery, allVods, favorites, recentVods, releaseVods) {
+    val displayedVods = remember(selectedCategoryId, searchQuery, allVods, favorites, continueVods, recentVods, releaseVods) {
         if (searchQuery.isNotBlank()) {
             val q = searchQuery.trim().lowercase()
             allVods.filter { it.name.lowercase().contains(q) }
         } else {
             when (selectedCategoryId) {
                 "FAV" -> favorites
+                "CONTINUE" -> continueVods
                 "ALL" -> allVods
                 "RECENT" -> recentVods
                 "RELEASES" -> releaseVods
@@ -294,7 +311,17 @@ fun MoviesScreen(
                                 )
                             }
 
-                            // 2. TODOS OS FILMES
+                            // 2. CONTINUE ASSISTINDO (Logo após Favoritos)
+                            item {
+                                CategoryItem(
+                                    title = "▶ Continue Assistindo",
+                                    count = continueVods.size,
+                                    isSelected = selectedCategoryId == "CONTINUE",
+                                    onClick = { selectedCategoryId = "CONTINUE" }
+                                )
+                            }
+
+                            // 3. TODOS OS FILMES
                             item {
                                 CategoryItem(
                                     title = "Todos os Filmes",
@@ -305,7 +332,7 @@ fun MoviesScreen(
                                 )
                             }
 
-                            // 3. RECÉM ADICIONADOS (Logo após Todos)
+                            // 4. RECÉM ADICIONADOS (Logo após Todos)
                             item {
                                 CategoryItem(
                                     title = "⏱️ Recém Adicionados",
@@ -315,7 +342,7 @@ fun MoviesScreen(
                                 )
                             }
 
-                            // 4. LANÇAMENTOS (Logo após Todos)
+                            // 5. LANÇAMENTOS (Logo após Todos)
                             item {
                                 CategoryItem(
                                     title = "✨ Lançamentos",
@@ -325,13 +352,21 @@ fun MoviesScreen(
                                 )
                             }
 
-                            // 5. DEMAIS PASTAS / CATEGORIAS COM QUANTITATIVO REAL
-                            items(categories) { cat ->
+                            // 6. DEMAIS PASTAS / CATEGORIAS COM QUANTITATIVO REAL (Adulto protegido no final)
+                            items(sortedCategories) { cat ->
+                                val isAdult = AdultContentHelper.isAdultCategory(cat.categoryName)
                                 CategoryItem(
-                                    title = cat.categoryName,
+                                    title = if (isAdult) "🔒 ${cat.categoryName}" else cat.categoryName,
                                     count = vodCountByCat[cat.categoryId] ?: 0,
                                     isSelected = selectedCategoryId == cat.categoryId,
-                                    onClick = { selectedCategoryId = cat.categoryId }
+                                    onClick = {
+                                        if (isAdult && !AdultContentHelper.isSessionUnlocked()) {
+                                            pendingAdultCategory = cat.categoryId
+                                            showAdultPinDialog = true
+                                        } else {
+                                            selectedCategoryId = cat.categoryId
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -350,8 +385,11 @@ fun MoviesScreen(
                         if (displayedVods.isEmpty()) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = if (selectedCategoryId == "FAV") "Nenhum filme favoritado ainda.\nAperte Amarelo/Menu no controle para favoritar!"
-                                    else "Nenhum filme encontrado",
+                                    text = when (selectedCategoryId) {
+                                        "FAV" -> "Nenhum filme favoritado ainda.\nAperte Amarelo/Menu no controle para favoritar!"
+                                        "CONTINUE" -> "Nenhum filme em andamento.\nQuando você começar a assistir um filme, ele aparecerá aqui!"
+                                        else -> "Nenhum filme encontrado"
+                                    },
                                     color = TextSecondary,
                                     fontSize = 13.sp
                                 )
@@ -459,6 +497,20 @@ fun MoviesScreen(
                         }
                     }
                 }
+            }
+
+            if (showAdultPinDialog) {
+                AdultPinDialog(
+                    onDismiss = {
+                        showAdultPinDialog = false
+                        pendingAdultCategory = null
+                    },
+                    onPinSuccess = {
+                        showAdultPinDialog = false
+                        pendingAdultCategory?.let { selectedCategoryId = it }
+                        pendingAdultCategory = null
+                    }
+                )
             }
         }
     }

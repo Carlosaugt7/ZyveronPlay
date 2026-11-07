@@ -174,7 +174,72 @@ class ZyveronRepository(private val context: Context) {
         return count
     }
 
-    // --- PROGRESSO DE REPRODUÇÃO (VOD / FILMES / SÉRIES) ---
+    // --- PROGRESSO DE REPRODUÇÃO (CONTINUE ASSISTINDO) ---
+    fun saveMovieProgress(streamId: Int, positionMs: Long, durationMs: Long) {
+        val editor = prefs.edit()
+        val isFinished = durationMs > 0 && positionMs >= (durationMs * 0.95)
+        val isEligible = positionMs >= 60_000L && !isFinished
+
+        if (isFinished) {
+            editor.remove("vod_$streamId")
+            val currentList = getContinueWatchingMovieIds().toMutableList()
+            currentList.remove(streamId)
+            editor.putString("continue_movie_ids", currentList.joinToString(","))
+            editor.apply()
+        } else if (isEligible) {
+            editor.putLong("vod_$streamId", positionMs)
+            editor.putLong("vod_dur_$streamId", durationMs)
+
+            val currentList = getContinueWatchingMovieIds().toMutableList()
+            currentList.remove(streamId)
+            currentList.add(0, streamId)
+            val trimmedList = currentList.take(20)
+            editor.putString("continue_movie_ids", trimmedList.joinToString(","))
+            editor.apply()
+        }
+    }
+
+    fun getContinueWatchingMovieIds(): List<Int> {
+        val raw = prefs.getString("continue_movie_ids", "") ?: ""
+        if (raw.isBlank()) return emptyList()
+        return raw.split(",").mapNotNull { it.trim().toIntOrNull() }
+    }
+
+    fun saveSeriesProgress(seriesId: Int, episodeId: String, positionMs: Long, durationMs: Long) {
+        val editor = prefs.edit()
+        val isFinished = durationMs > 0 && positionMs >= (durationMs * 0.95)
+        val isEligible = positionMs >= 60_000L && !isFinished
+
+        if (isFinished) {
+            editor.remove("vod_$episodeId")
+            val currentList = getContinueWatchingSeriesIds().toMutableList()
+            currentList.remove(seriesId)
+            editor.putString("continue_series_ids", currentList.joinToString(","))
+            editor.apply()
+        } else if (isEligible) {
+            editor.putLong("vod_$episodeId", positionMs)
+            editor.putLong("vod_dur_$episodeId", durationMs)
+            editor.putString("series_last_ep_$seriesId", episodeId)
+
+            val currentList = getContinueWatchingSeriesIds().toMutableList()
+            currentList.remove(seriesId)
+            currentList.add(0, seriesId)
+            val trimmedList = currentList.take(20)
+            editor.putString("continue_series_ids", trimmedList.joinToString(","))
+            editor.apply()
+        }
+    }
+
+    fun getContinueWatchingSeriesIds(): List<Int> {
+        val raw = prefs.getString("continue_series_ids", "") ?: ""
+        if (raw.isBlank()) return emptyList()
+        return raw.split(",").mapNotNull { it.trim().toIntOrNull() }
+    }
+
+    fun clearAllContinueWatching() {
+        prefs.edit().clear().apply()
+    }
+
     fun saveVodProgress(contentId: String, positionMs: Long) {
         if (positionMs > 5000) {
             prefs.edit().putLong("vod_$contentId", positionMs).apply()

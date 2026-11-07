@@ -290,11 +290,23 @@ export default function ResellersPage() {
                         </span>
                       </td>
                       <td className="py-3.5 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <Tv className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                          <span className="font-semibold text-emerald-400">{stats.activeDevices}</span>
-                          <span className="text-zinc-500">/</span>
-                          <span className="text-zinc-400 text-[11px]">{stats.totalDevices} tot.</span>
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <Tv className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            <span className="font-bold text-emerald-400 text-sm">{stats.activeDevices}</span>
+                            <span className="text-zinc-400 text-xs">ativos</span>
+                            <span className="text-zinc-600">/</span>
+                            <span className="text-zinc-400 text-[11px]">{stats.totalDevices} tot.</span>
+                          </div>
+                          {stats.subResellersCount > 0 ? (
+                            <div className="text-[10px] text-zinc-400">
+                              <span>Diretos: <strong className="text-zinc-200">{stats.directActiveDevices}</strong></span>
+                              <span className="mx-1">•</span>
+                              <span>Sub-revendas ({stats.subResellersCount}): <strong className="text-sky-400">{stats.subActiveDevices}</strong></span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-zinc-500 block">Todos diretos</span>
+                          )}
                         </div>
                       </td>
                       <td className="py-3.5 px-3">

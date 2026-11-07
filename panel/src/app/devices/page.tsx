@@ -34,6 +34,7 @@ export default function DevicesPage() {
   const [macInput, setMacInput] = useState("");
   const [deviceKeyInput, setDeviceKeyInput] = useState("");
   const [serverIdInput, setServerIdInput] = useState("");
+  const [serverDnsInput, setServerDnsInput] = useState("");
   const [usernameInput, setUsernameInput] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [monthsInput, setMonthsInput] = useState(1);
@@ -43,6 +44,7 @@ export default function DevicesPage() {
   // Lista 2 (Novo Aparelho)
   const [enableSecondList, setEnableSecondList] = useState(false);
   const [serverId2Input, setServerId2Input] = useState("");
+  const [serverDns2Input, setServerDns2Input] = useState("");
   const [username2Input, setUsername2Input] = useState("");
   const [password2Input, setPassword2Input] = useState("");
   const [months2Input, setMonths2Input] = useState(1);
@@ -77,6 +79,23 @@ export default function DevicesPage() {
 
     if (s.length > 0 && !serverIdInput) {
       setServerIdInput(s[0].id);
+      setServerDnsInput(s[0].activeDns);
+    }
+  };
+
+  const handleServerChange = (sid: string) => {
+    setServerIdInput(sid);
+    const s = servers.find((srv) => srv.id === sid);
+    if (s) {
+      setServerDnsInput(s.activeDns);
+    }
+  };
+
+  const handleServer2Change = (sid: string) => {
+    setServerId2Input(sid);
+    const s = servers.find((srv) => srv.id === sid);
+    if (s) {
+      setServerDns2Input(s.activeDns);
     }
   };
 
@@ -126,7 +145,9 @@ export default function DevicesPage() {
         enableSecondList ? serverId2Input : undefined,
         enableSecondList ? username2Input : undefined,
         enableSecondList ? password2Input : undefined,
-        enableSecondList ? months2Input : undefined
+        enableSecondList ? months2Input : undefined,
+        serverDnsInput || undefined,
+        enableSecondList ? (serverDns2Input || undefined) : undefined
       );
       setIsModalOpen(false);
       setMacInput("");
@@ -601,17 +622,46 @@ export default function DevicesPage() {
                     </label>
                     <select
                       value={serverIdInput}
-                      onChange={(e) => setServerIdInput(e.target.value)}
+                      onChange={(e) => handleServerChange(e.target.value)}
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
                     >
                       {servers.map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.name} ({s.activeDns})
+                          {s.name}
                         </option>
                       ))}
                     </select>
                   </div>
                 )}
+
+                {(() => {
+                  const s = servers.find((srv) => srv.id === (serverIdInput || servers[0]?.id));
+                  if (!s) return null;
+                  return (
+                    <div>
+                      <label className="block text-zinc-300 font-medium mb-1">
+                        DNS do Aparelho (Rota de Conexão) *
+                      </label>
+                      <select
+                        value={serverDnsInput || s.activeDns}
+                        onChange={(e) => setServerDnsInput(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value={s.activeDns}>
+                          DNS Principal: {s.activeDns}
+                        </option>
+                        {s.fallbackDns && s.fallbackDns.map((fb, idx) => (
+                          <option key={idx} value={fb}>
+                            DNS Contingência {idx + 1}: {fb}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-zinc-400 mt-1">
+                        O aparelho pode ser configurado com o DNS Principal ou uma das Contingências.
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -697,16 +747,42 @@ export default function DevicesPage() {
                         </label>
                         <select
                           value={serverId2Input || servers[0]?.id || ""}
-                          onChange={(e) => setServerId2Input(e.target.value)}
+                          onChange={(e) => handleServer2Change(e.target.value)}
                           className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-sky-500"
                         >
                           {servers.map((s) => (
                             <option key={s.id} value={s.id}>
-                              {s.name} ({s.activeDns})
+                              {s.name}
                             </option>
                           ))}
                         </select>
                       </div>
+
+                      {(() => {
+                        const s = servers.find((srv) => srv.id === (serverId2Input || servers[0]?.id));
+                        if (!s) return null;
+                        return (
+                          <div>
+                            <label className="block text-zinc-300 font-medium mb-1">
+                              DNS da Lista 2 (Rota de Conexão)
+                            </label>
+                            <select
+                              value={serverDns2Input || s.activeDns}
+                              onChange={(e) => setServerDns2Input(e.target.value)}
+                              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-sky-500"
+                            >
+                              <option value={s.activeDns}>
+                                DNS Principal: {s.activeDns}
+                              </option>
+                              {s.fallbackDns && s.fallbackDns.map((fb, idx) => (
+                                <option key={idx} value={fb}>
+                                  DNS Contingência {idx + 1}: {fb}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })()}
 
                       <div className="grid grid-cols-2 gap-3">
                         <div>
@@ -879,6 +955,32 @@ export default function DevicesPage() {
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-sky-500"
                       required
                     />
+                    {(() => {
+                      const curServer = servers.find((s) => s.id === editServerIdInput);
+                      if (!curServer || (!curServer.activeDns && (!curServer.fallbackDns || curServer.fallbackDns.length === 0))) return null;
+                      return (
+                        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] text-zinc-400">Rotas rápidas:</span>
+                          <button
+                            type="button"
+                            onClick={() => setEditServerDnsInput(curServer.activeDns)}
+                            className="text-[10px] bg-zinc-800 hover:bg-zinc-700 text-sky-400 px-1.5 py-0.5 rounded border border-zinc-700 font-mono"
+                          >
+                            Principal
+                          </button>
+                          {curServer.fallbackDns && curServer.fallbackDns.map((fb, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setEditServerDnsInput(fb)}
+                              className="text-[10px] bg-zinc-800 hover:bg-zinc-700 text-emerald-400 px-1.5 py-0.5 rounded border border-zinc-700 font-mono"
+                            >
+                              Contingência {idx + 1}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
                     <p className="text-[10px] text-zinc-400 mt-1">DNS ativo entregue à TV</p>
                   </div>
                 </div>

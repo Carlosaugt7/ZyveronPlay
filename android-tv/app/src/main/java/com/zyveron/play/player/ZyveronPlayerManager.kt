@@ -76,22 +76,22 @@ class ZyveronPlayerManager(private val context: Context) {
 
     private fun createPlayer(): ExoPlayer {
         try {
-            // 1. Buffer Inteligente para TV: Otimizado para IPTV ao vivo com estabilidade máxima
+            // 1. Buffer Inteligente para TV: Otimizado para IPTV ao vivo com estabilidade máxima e sem lentidão de frame
             val loadControl = DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
-                    5000,   // Mínimo: 5s (absorve oscilações de rede típicas de IPTV)
+                    3500,   // Mínimo: 3.5s (absorve oscilações sem reter frames desnecessários)
                     30000,  // Máximo: 30s (permite buffer maior em redes estáveis)
-                    3000,   // Início: 3s (balance entre velocidade e estabilidade)
-                    5000    // Re-buffer: 5s (evita cascade de rebuffers)
+                    1500,   // Início: 1.5s (início rápido sem efeito de câmera lenta)
+                    3000    // Re-buffer: 3s
                 )
                 .setBackBuffer(15000, true) // Retém 15s para re-seeking instantâneo
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
 
             // 2. Tolerância a falhas MPEG-TS e resets de PCR/PTS em IPTV ao vivo (Multi-PMT padrão)
+            // Removido FLAG_ALLOW_NON_IDR_KEYFRAMES para evitar efeito de câmera lenta/interpolação truncada
             val extractorsFactory = DefaultExtractorsFactory().apply {
                 setTsExtractorFlags(
-                    DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
                     DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or
                     DefaultTsPayloadReaderFactory.FLAG_IGNORE_SPLICE_INFO_STREAM or
                     DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS or
@@ -124,6 +124,7 @@ class ZyveronPlayerManager(private val context: Context) {
                 .setTrackSelector(trackSelector)
                 .setLoadControl(loadControl)
                 .setMediaSourceFactory(mediaSourceFactory)
+                .setSeekParameters(androidx.media3.exoplayer.SeekParameters.CLOSEST_SYNC)
                 .setHandleAudioBecomingNoisy(true)
 
             return builder.build().apply {

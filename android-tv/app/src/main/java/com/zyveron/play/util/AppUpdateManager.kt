@@ -133,11 +133,13 @@ object AppUpdateManager {
         onProgress: (Int) -> Unit
     ): Result<File> = withContext(Dispatchers.IO) {
         try {
-            val destinationDir = File(context.cacheDir, "updates").apply { mkdirs() }
+            // Salva no armazenamento compartilhado do app (acessível sem bloqueio pelo instalador nativo da TV)
+            val baseDir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS) ?: context.cacheDir
+            val destinationDir = File(baseDir, "updates").apply { mkdirs() }
             val apkFile = File(destinationDir, "zyveron-update.apk")
             if (apkFile.exists()) apkFile.delete()
 
-            Log.d(TAG, "Iniciando download do APK: $apkUrl")
+            Log.d(TAG, "Iniciando download do APK para: ${apkFile.absolutePath} ($apkUrl)")
             val request = Request.Builder().url(apkUrl).build()
             val response = httpClient.newCall(request).execute()
 
@@ -182,7 +184,7 @@ object AppUpdateManager {
     }
 
     /**
-     * Aciona o instalador nativo do Android TV com FileProvider.
+     * Aciona o instalador nativo do Android TV com FileProvider e permissão explícita de leitura.
      */
     fun installApk(context: Context, apkFile: File) {
         try {
@@ -195,7 +197,15 @@ object AppUpdateManager {
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(apkUri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            // Concessão explícita para o pacote instalador de APKs do sistema Android
+            val resInfoList = context.packageManager.queryIntentActivities(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
+            for (resolveInfo in resInfoList) {
+                val targetPackage = resolveInfo.activityInfo.packageName
+                context.grantUriPermission(targetPackage, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
 
             Log.d(TAG, "Disparando instalador nativo do pacote: $apkUri")
