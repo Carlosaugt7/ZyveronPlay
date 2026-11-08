@@ -258,12 +258,13 @@ class FirestoreDeviceManager(private val context: Context) {
         )
         saveCachedActiveState(activeState)
 
-        // Se já temos um estado ativo idêntico para a mesma playlist, não gera emissão espúria
+        // Se já temos um estado ativo idêntico para a mesma playlist e a composição das listas não mudou, não gera emissão espúria
         val current = _authState.value
         val shouldEmitDirect = current !is DeviceAuthState.Active ||
                 current.activePlaylistIndex != safeIndex ||
                 current.username != activeAccount.username ||
-                current.serverDns != activeAccount.serverDns
+                current.serverDns != activeAccount.serverDns ||
+                current.playlists != playlists
 
         if (shouldEmitDirect) {
             _authState.value = activeState
@@ -322,7 +323,8 @@ class FirestoreDeviceManager(private val context: Context) {
                     current.serverDns == activeDns &&
                     current.serverName == activeServerName &&
                     current.username == username &&
-                    current.activePlaylistIndex == activePlaylistIndex
+                    current.activePlaylistIndex == activePlaylistIndex &&
+                    current.playlists == playlists
                 ) {
                     return@addSnapshotListener
                 }
@@ -443,14 +445,29 @@ class FirestoreDeviceManager(private val context: Context) {
 
     private fun saveCachedActiveState(state: DeviceAuthState.Active) {
         try {
-            prefs.edit()
+            val editor = prefs.edit()
                 .putString("cached_server_name", state.serverName)
                 .putString("cached_server_dns", state.serverDns)
                 .putString("cached_username", state.username)
                 .putString("cached_password", state.password)
                 .putString("cached_exp_date", state.expirationDate)
                 .putInt("cached_playlist_idx", state.activePlaylistIndex)
-                .apply()
+
+            val p2 = state.playlists.find { it.listIndex == 2 }
+            if (p2 != null && p2.username.isNotBlank()) {
+                editor.putString("cached_server_name2", p2.serverName)
+                    .putString("cached_server_dns2", p2.serverDns)
+                    .putString("cached_username2", p2.username)
+                    .putString("cached_password2", p2.password)
+                    .putString("cached_exp_date2", p2.expirationDate)
+            } else {
+                editor.remove("cached_server_name2")
+                    .remove("cached_server_dns2")
+                    .remove("cached_username2")
+                    .remove("cached_password2")
+                    .remove("cached_exp_date2")
+            }
+            editor.apply()
         } catch (e: Exception) {
             Log.e("FirestoreDeviceManager", "Erro ao salvar cache de autenticacao", e)
         }
@@ -466,7 +483,7 @@ class FirestoreDeviceManager(private val context: Context) {
             val activeIdx = prefs.getInt("cached_playlist_idx", 0)
 
             if (serverDns.isNotBlank() && username.isNotBlank()) {
-                val cachedPlaylist = PlaylistAccount(
+                val p1 = PlaylistAccount(
                     listIndex = 1,
                     serverName = serverName,
                     serverDns = serverDns,
@@ -474,16 +491,39 @@ class FirestoreDeviceManager(private val context: Context) {
                     password = password,
                     expirationDate = expDate
                 )
+                val playlists = mutableListOf(p1)
+
+                val username2 = prefs.getString("cached_username2", "") ?: ""
+                if (username2.isNotBlank()) {
+                    val serverName2 = prefs.getString("cached_server_name2", "Lista 2") ?: "Lista 2"
+                    val serverDns2 = prefs.getString("cached_server_dns2", serverDns) ?: serverDns
+                    val password2 = prefs.getString("cached_password2", "") ?: ""
+                    val expDate2 = prefs.getString("cached_exp_date2", "") ?: ""
+                    playlists.add(
+                        PlaylistAccount(
+                            listIndex = 2,
+                            serverName = serverName2,
+                            serverDns = serverDns2,
+                            username = username2,
+                            password = password2,
+                            expirationDate = expDate2
+                        )
+                    )
+                }
+
+                val safeIdx = if (activeIdx in playlists.indices) activeIdx else 0
+                val activeAccount = playlists[safeIdx]
+
                 _authState.value = DeviceAuthState.Active(
                     mac = virtualMac,
-                    serverName = serverName,
-                    serverDns = serverDns,
+                    serverName = activeAccount.serverName,
+                    serverDns = activeAccount.serverDns,
                     fallbackDns = emptyList(),
-                    username = username,
-                    password = password,
-                    expirationDate = expDate,
-                    playlists = listOf(cachedPlaylist),
-                    activePlaylistIndex = activeIdx
+                    username = activeAccount.username,
+                    password = activeAccount.password,
+                    expirationDate = activeAccount.expirationDate,
+                    playlists = playlists,
+                    activePlaylistIndex = safeIdx
                 )
                 return true
             }
@@ -501,6 +541,12 @@ class FirestoreDeviceManager(private val context: Context) {
                 .remove("cached_username")
                 .remove("cached_password")
                 .remove("cached_exp_date")
+                .remove("cached_playlist_idx")
+                .remove("cached_server_name2")
+                .remove("cached_server_dns2")
+                .remove("cached_username2")
+                .remove("cached_password2")
+                .remove("cached_exp_date2")
                 .apply()
         } catch (_: Exception) {}
     }

@@ -362,7 +362,10 @@ fun MainContent(
                             },
                             onPlayVod = { vod -> currentScreen = AppScreen.MovieDetail(vod) },
                             onSelectSeries = { series -> currentScreen = AppScreen.SeriesDetail(series) },
-                            isSyncing = isSyncing
+                            isSyncing = isSyncing,
+                            playlists = state.playlists,
+                            activePlaylistIndex = state.activePlaylistIndex,
+                            serverName = state.serverName
                         )
                     }
 

@@ -1,0 +1,8 @@
+{
+  "versionCode": 17,
+  "versionName": "2.9.2",
+  "apkUrl": "https://github.com/Carlosaugt7/ZyveronPlay/raw/main/zyveron-play-tv.apk",
+  "releaseNotes": "Otimizações de performance para TV Box e Mi Stick (eliminação de micro-travamentos e uso de RAM), suporte offline e visualização direta de múltiplas listas/contas na tela inicial, e atualizações OTA resilientes.",
+  "isMandatory": false
+}
+

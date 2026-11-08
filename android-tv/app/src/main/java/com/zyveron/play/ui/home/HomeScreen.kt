@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -74,7 +75,10 @@ fun HomeScreen(
     onRefreshCatalog: () -> Unit,
     onPlayVod: (VodEntity) -> Unit,
     onSelectSeries: (SeriesEntity) -> Unit,
-    isSyncing: Boolean = false
+    isSyncing: Boolean = false,
+    playlists: List<com.zyveron.play.data.remote.PlaylistAccount> = emptyList(),
+    activePlaylistIndex: Int = 0,
+    serverName: String = ""
 ) {
     val liveCount by repository.liveCount.collectAsState()
     val vodCount by repository.vodCount.collectAsState()
@@ -236,21 +240,54 @@ fun HomeScreen(
                             }
                         }
 
-                        // Indicador de Sinal Real (Dinâmico)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(statusColor)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = networkStatus.label,
-                                color = statusColor,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                        // Indicador de Sinal Real & Multi-Lista
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            // Seletor/Indicador de Lista Ativa (se houver mais de 1)
+                            if (playlists.size > 1) {
+                                Row(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(AccentEmerald.copy(alpha = 0.15f))
+                                        .border(1.dp, AccentEmerald.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                        .clickable { onNavigateAccounts() }
+                                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "📋 Lista ${activePlaylistIndex + 1}/${playlists.size}: ${serverName.ifBlank { "Servidor ${activePlaylistIndex + 1}" }}",
+                                        fontSize = 11.sp,
+                                        color = AccentEmerald,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "[Alternar]",
+                                        fontSize = 10.sp,
+                                        color = TextSecondary,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+
+                            // Indicador de Sinal Real (Dinâmico)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(statusColor)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = networkStatus.label,
+                                    color = statusColor,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
                 }
@@ -488,7 +525,7 @@ fun HomeScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         // Contas
                         FooterPillButton(
-                            text = "Contas",
+                            text = if (playlists.size > 1) "Contas (${activePlaylistIndex + 1}/${playlists.size})" else "Contas",
                             onClick = onNavigateAccounts
                         )
 

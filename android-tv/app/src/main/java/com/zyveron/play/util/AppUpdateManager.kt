@@ -50,44 +50,91 @@ object AppUpdateManager {
 
     /**
      * Consulta o Cloud Firestore na coleção 'system_config', documento 'app_update'.
-     * Compara o versionCode remoto com o do app instalado.
+     * Caso o Firestore falhe por permissão (PERMISSION_DENIED) ou rede, realiza
+     * fallback transparente e imediato via HTTP direto (GitHub / CDN).
      */
     suspend fun checkForUpdates(): UpdateCheckResult = withContext(Dispatchers.IO) {
+        // 1. Tenta consulta primária via Cloud Firestore
         try {
             val firestore = FirebaseFirestore.getInstance()
             val doc = firestore.collection("system_config").document("app_update").get().await()
 
-            if (!doc.exists()) {
-                Log.d(TAG, "Documento 'app_update' não encontrado no Firestore. Aplicativo já na versão padrão.")
-                return@withContext UpdateCheckResult.UpToDate(BuildConfig.VERSION_NAME)
-            }
+            if (doc.exists()) {
+                val remoteVersionCode = doc.getLong("versionCode")?.toInt() ?: 0
+                val remoteVersionName = doc.getString("versionName")?.trim() ?: ""
+                val apkUrl = doc.getString("apkUrl")?.trim() ?: DEFAULT_FALLBACK_APK_URL
+                val releaseNotes = doc.getString("releaseNotes")?.trim() ?: "Melhorias gerais e correções de estabilidade."
+                val isMandatory = doc.getBoolean("isMandatory") ?: false
 
-            val remoteVersionCode = doc.getLong("versionCode")?.toInt() ?: 0
-            val remoteVersionName = doc.getString("versionName")?.trim() ?: ""
-            val apkUrl = doc.getString("apkUrl")?.trim() ?: DEFAULT_FALLBACK_APK_URL
-            val releaseNotes = doc.getString("releaseNotes")?.trim() ?: "Melhorias gerais e correções de estabilidade."
-            val isMandatory = doc.getBoolean("isMandatory") ?: false
+                val currentCode = BuildConfig.VERSION_CODE
+                val currentName = BuildConfig.VERSION_NAME
 
-            val currentCode = BuildConfig.VERSION_CODE
-            val currentName = BuildConfig.VERSION_NAME
+                Log.d(TAG, "[Firestore] Versão instalada: $currentName ($currentCode) | Remota: $remoteVersionName ($remoteVersionCode)")
 
-            Log.d(TAG, "Versão instalada: $currentName ($currentCode) | Versão remota: $remoteVersionName ($remoteVersionCode)")
-
-            if (remoteVersionCode > currentCode && apkUrl.isNotBlank()) {
-                UpdateCheckResult.UpdateAvailable(
-                    AppUpdateInfo(
-                        versionCode = remoteVersionCode,
-                        versionName = remoteVersionName.ifBlank { "Nova Versão" },
-                        apkUrl = apkUrl,
-                        releaseNotes = releaseNotes,
-                        isMandatory = isMandatory
+                if (remoteVersionCode > currentCode && apkUrl.isNotBlank()) {
+                    return@withContext UpdateCheckResult.UpdateAvailable(
+                        AppUpdateInfo(
+                            versionCode = remoteVersionCode,
+                            versionName = remoteVersionName.ifBlank { "Nova Versão" },
+                            apkUrl = apkUrl,
+                            releaseNotes = releaseNotes,
+                            isMandatory = isMandatory
+                        )
                     )
-                )
-            } else {
-                UpdateCheckResult.UpToDate(currentName)
+                } else if (remoteVersionCode > 0) {
+                    return@withContext UpdateCheckResult.UpToDate(currentName)
+                }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Erro ao consultar atualização no Firestore", e)
+            Log.w(TAG, "Consulta via Firestore falhou (${e.message}). Acionando fallback direto via HTTP...", e)
+        }
+
+        // 2. Fallback resiliente via HTTP direto (GitHub / CDN)
+        try {
+            val fallbackUrls = listOf(
+                "https://raw.githubusercontent.com/Carlosaugt7/ZyveronPlay/main/app-update.json"
+            )
+            for (url in fallbackUrls) {
+                try {
+                    val request = Request.Builder().url(url).build()
+                    val response = httpClient.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        val bodyStr = response.body?.string() ?: ""
+                        if (bodyStr.isNotBlank()) {
+                            val json = org.json.JSONObject(bodyStr)
+                            val remoteCode = json.optInt("versionCode", 0)
+                            val remoteName = json.optString("versionName", "")
+                            val apkUrl = json.optString("apkUrl", DEFAULT_FALLBACK_APK_URL)
+                            val notes = json.optString("releaseNotes", "Melhorias gerais e estabilidade.")
+                            val mandatory = json.optBoolean("isMandatory", false)
+
+                            val currentCode = BuildConfig.VERSION_CODE
+                            val currentName = BuildConfig.VERSION_NAME
+
+                            Log.d(TAG, "[HTTP Fallback] Versão instalada: $currentCode | Remota: $remoteCode")
+
+                            if (remoteCode > currentCode && apkUrl.isNotBlank()) {
+                                return@withContext UpdateCheckResult.UpdateAvailable(
+                                    AppUpdateInfo(
+                                        versionCode = remoteCode,
+                                        versionName = remoteName.ifBlank { "Nova Versão" },
+                                        apkUrl = apkUrl,
+                                        releaseNotes = notes,
+                                        isMandatory = mandatory
+                                    )
+                                )
+                            } else if (remoteCode > 0) {
+                                return@withContext UpdateCheckResult.UpToDate(currentName)
+                            }
+                        }
+                    }
+                } catch (httpEx: Exception) {
+                    Log.w(TAG, "Falha no fallback HTTP $url: ${httpEx.message}")
+                }
+            }
+            UpdateCheckResult.UpToDate(BuildConfig.VERSION_NAME)
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro geral ao verificar atualizações", e)
             UpdateCheckResult.Error("Não foi possível verificar atualizações: ${e.localizedMessage ?: "Falha de conexão"}")
         }
     }

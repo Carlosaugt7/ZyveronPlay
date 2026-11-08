@@ -76,23 +76,30 @@ class ZyveronPlayerManager(private val context: Context) {
 
     private fun createPlayer(): ExoPlayer {
         try {
-            // 1. Buffer Inteligente para TV: Otimizado para IPTV ao vivo com estabilidade máxima e sem lentidão de frame
+            // Renderizador com fallback de hardware acelerado, otimizado para TV Boxes / Mi Stick
+            val renderersFactory = androidx.media3.exoplayer.DefaultRenderersFactory(context.applicationContext).apply {
+                setEnableDecoderFallback(true)
+                setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+            }
+
+            // 1. Buffer Inteligente para TV: Otimizado para TV Boxes e Mi Sticks (1GB-2GB RAM)
+            // Elimina pausas de Garbage Collector e micro-travamentos descartando back-buffer desnecessário
             val loadControl = DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
-                    3500,   // Mínimo: 3.5s (absorve oscilações sem reter frames desnecessários)
-                    30000,  // Máximo: 30s (permite buffer maior em redes estáveis)
-                    1500,   // Início: 1.5s (início rápido sem efeito de câmera lenta)
-                    3000    // Re-buffer: 3s
+                    2500,   // Mínimo: 2.5s (absorve oscilações sem saturar a memória)
+                    12000,  // Máximo: 12s (teto seguro para evitar acúmulo de frames no heap)
+                    1500,   // Início: 1.5s (início instantâneo sem delay de áudio/vídeo)
+                    2500    // Re-buffer: 2.5s
                 )
-                .setBackBuffer(15000, true) // Retém 15s para re-seeking instantâneo
+                .setBackBuffer(0, false) // 0s de back-buffer: poupa 50-80MB de RAM imediata no Mi Stick
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
 
             // 2. Tolerância a falhas MPEG-TS e resets de PCR/PTS em IPTV ao vivo (Multi-PMT padrão)
-            // Removido FLAG_ALLOW_NON_IDR_KEYFRAMES para evitar efeito de câmera lenta/interpolação truncada
+            // Sem FLAG_DETECT_ACCESS_UNITS e sem FLAG_ALLOW_NON_IDR_KEYFRAMES:
+            // evita consumo excessivo de CPU em decodificação de software e travamentos momentâneos
             val extractorsFactory = DefaultExtractorsFactory().apply {
                 setTsExtractorFlags(
-                    DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or
                     DefaultTsPayloadReaderFactory.FLAG_IGNORE_SPLICE_INFO_STREAM or
                     DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS or
                     DefaultTsPayloadReaderFactory.FLAG_OVERRIDE_CAPTION_DESCRIPTORS
@@ -109,7 +116,7 @@ class ZyveronPlayerManager(private val context: Context) {
 
             val mediaSourceFactory = DefaultMediaSourceFactory(defaultDataSourceFactory, extractorsFactory)
 
-            // 3. ABR (Adaptive Bitrate) ativo por padrão para melhor experiência em redes variáveis
+            // 4. ABR (Adaptive Bitrate) ativo por padrão para melhor experiência em redes variáveis
             val isAdaptive = SettingsHelper.isAdaptiveQualityEnabled(context.applicationContext)
             val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context.applicationContext).apply {
                 parameters = buildUponParameters()
@@ -120,7 +127,7 @@ class ZyveronPlayerManager(private val context: Context) {
                     .build()
             }
 
-            val builder = ExoPlayer.Builder(context.applicationContext)
+            val builder = ExoPlayer.Builder(context.applicationContext, renderersFactory)
                 .setTrackSelector(trackSelector)
                 .setLoadControl(loadControl)
                 .setMediaSourceFactory(mediaSourceFactory)

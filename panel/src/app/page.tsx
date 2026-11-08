@@ -36,10 +36,10 @@ export default function DashboardPage() {
   const [quickDnsSuccess, setQuickDnsSuccess] = useState(false);
 
   // Estado para Atualização OTA do APK da TV
-  const [otaVersionCode, setOtaVersionCode] = useState(16);
-  const [otaVersionName, setOtaVersionName] = useState("2.9.1");
+  const [otaVersionCode, setOtaVersionCode] = useState(17);
+  const [otaVersionName, setOtaVersionName] = useState("2.9.2");
   const [otaApkUrl, setOtaApkUrl] = useState("https://github.com/Carlosaugt7/ZyveronPlay/raw/main/zyveron-play-tv.apk");
-  const [otaNotes, setOtaNotes] = useState("Versão 2.9.1: Correção de movimentação/slow-motion em frames, pasta Continue Assistindo, controle parental de conteúdo adulto (+18) com PIN e melhorias de usabilidade.");
+  const [otaNotes, setOtaNotes] = useState("Versão 2.9.2: Otimização extrema para Mi Stick e TV Boxes (eliminação de micro-travamentos e economia de RAM), sincronização em tempo real de múltiplas listas de IPTV e atualização direta via OTA.");
   const [otaSavedSuccess, setOtaSavedSuccess] = useState(false);
   const [publishedOta, setPublishedOta] = useState<{ versionCode: number; versionName: string } | null>(null);
 
@@ -80,11 +80,11 @@ export default function DashboardPage() {
     FirestoreSync.fetchAppUpdate().then((info) => {
       if (info) {
         setPublishedOta(info);
-        // Se a versão cadastrada for menor que a atual compilada (16), preenche com a 2.9.1
-        if (info.versionCode < 16) {
-          setOtaVersionCode(16);
-          setOtaVersionName("2.9.1");
-          setOtaNotes("Versão 2.9.1: Correção de movimentação/slow-motion em frames, pasta Continue Assistindo, controle parental de conteúdo adulto (+18) com PIN e melhorias de usabilidade.");
+        // Se a versão cadastrada for menor que a atual compilada (17), preenche com a 2.9.2
+        if (info.versionCode < 17) {
+          setOtaVersionCode(17);
+          setOtaVersionName("2.9.2");
+          setOtaNotes("Versão 2.9.2: Otimização extrema para Mi Stick e TV Boxes (eliminação de micro-travamentos e economia de RAM), sincronização em tempo real de múltiplas listas de IPTV e atualização direta via OTA.");
         } else {
           setOtaVersionCode(info.versionCode);
           setOtaVersionName(info.versionName);
