@@ -1,7 +1,7 @@
 {
-  "versionCode": 18,
-  "versionName": "2.9.3",
+  "versionCode": 19,
+  "versionName": "2.9.4",
   "apkUrl": "https://github.com/Carlosaugt7/ZyveronPlay/raw/main/zyveron-play-tv.apk",
-  "releaseNotes": "Versão 2.9.3: Correção do instalador nativo OTA com feedback em tempo real, Modo Soneca (Sleep Timer 30-120 min), Zapping veloz no player de TV (Cima/Baixo e CH+/CH-), cobrança WhatsApp em 1 clique e exportação de clientes em CSV.",
+  "releaseNotes": "Versão 2.9.4: Confirmação permanente de avisos na TV (ao clicar em 'OK, Entendido' o aviso é memorizado localmente e não reaparece ao reabrir o app).",
   "isMandatory": false
 }

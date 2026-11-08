@@ -557,7 +557,7 @@ fun MainContent(
         activeBroadcast?.let { broadcast ->
             TvNotificationOverlay(
                 broadcast = broadcast,
-                onDismiss = { deviceManager.dismissBroadcast() }
+                onDismiss = { deviceManager.dismissBroadcast(broadcast.id) }
             )
         }
     }

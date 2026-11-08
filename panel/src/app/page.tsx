@@ -36,10 +36,10 @@ export default function DashboardPage() {
   const [quickDnsSuccess, setQuickDnsSuccess] = useState(false);
 
   // Estado para Atualização OTA do APK da TV
-  const [otaVersionCode, setOtaVersionCode] = useState(18);
-  const [otaVersionName, setOtaVersionName] = useState("2.9.3");
+  const [otaVersionCode, setOtaVersionCode] = useState(19);
+  const [otaVersionName, setOtaVersionName] = useState("2.9.4");
   const [otaApkUrl, setOtaApkUrl] = useState("https://github.com/Carlosaugt7/ZyveronPlay/raw/main/zyveron-play-tv.apk");
-  const [otaNotes, setOtaNotes] = useState("Versão 2.9.3: Correção do instalador nativo OTA com feedback em tempo real, Modo Soneca (Sleep Timer 30-120 min), Zapping veloz no player de TV (Cima/Baixo e CH+/CH-), cobrança WhatsApp em 1 clique e exportação de clientes em CSV.");
+  const [otaNotes, setOtaNotes] = useState("Versão 2.9.4: Confirmação permanente de avisos na TV (ao clicar em 'OK, Entendido' o aviso é memorizado localmente e não reaparece ao reabrir o app).");
   const [otaSavedSuccess, setOtaSavedSuccess] = useState(false);
   const [publishedOta, setPublishedOta] = useState<{ versionCode: number; versionName: string } | null>(null);
 
@@ -80,11 +80,11 @@ export default function DashboardPage() {
     FirestoreSync.fetchAppUpdate().then((info) => {
       if (info) {
         setPublishedOta(info);
-        // Se a versão cadastrada for menor que a atual compilada (18), preenche com a 2.9.3
-        if (info.versionCode < 18) {
-          setOtaVersionCode(18);
-          setOtaVersionName("2.9.3");
-          setOtaNotes("Versão 2.9.3: Correção do instalador nativo OTA com feedback em tempo real, Modo Soneca (Sleep Timer 30-120 min), Zapping veloz no player de TV (Cima/Baixo e CH+/CH-), cobrança WhatsApp em 1 clique e exportação de clientes em CSV.");
+        // Se a versão cadastrada for menor que a atual compilada (19), preenche com a 2.9.4
+        if (info.versionCode < 19) {
+          setOtaVersionCode(19);
+          setOtaVersionName("2.9.4");
+          setOtaNotes("Versão 2.9.4: Confirmação permanente de avisos na TV (ao clicar em 'OK, Entendido' o aviso é memorizado localmente e não reaparece ao reabrir o app).");
         } else {
           setOtaVersionCode(info.versionCode);
           setOtaVersionName(info.versionName);

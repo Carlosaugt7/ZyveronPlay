@@ -14,8 +14,8 @@ android {
         applicationId = "com.zyveron.play"
         minSdk = 24
         targetSdk = 34
-        versionCode = 18
-        versionName = "2.9.3"
+        versionCode = 19
+        versionName = "2.9.4"
 
         vectorDrawables {
             useSupportLibrary = true

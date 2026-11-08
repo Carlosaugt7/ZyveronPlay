@@ -366,6 +366,9 @@ class FirestoreDeviceManager(private val context: Context) {
                     // Se o aviso já expirou pelo horário limite, ignora
                     if (expiresAt.isNotBlank() && expiresAt < nowIso) continue
 
+                    // Se este aparelho específico já confirmou a leitura ('OK, Entendido'), não reexibe
+                    if (isNotificationDismissed(doc.id)) continue
+
                     val targetType = doc.getString("targetType") ?: "all"
                     val targetId = doc.getString("targetId") ?: "all"
                     val title = doc.getString("title") ?: "Aviso"
@@ -431,8 +434,32 @@ class FirestoreDeviceManager(private val context: Context) {
         }
     }
 
-    fun dismissBroadcast() {
+    fun dismissBroadcast(messageId: String? = null) {
+        val targetId = messageId ?: _activeBroadcast.value?.id
+        if (!targetId.isNullOrBlank()) {
+            markNotificationAsDismissed(targetId)
+        }
         _activeBroadcast.value = null
+    }
+
+    private fun isNotificationDismissed(id: String): Boolean {
+        return try {
+            val set = prefs.getStringSet("dismissed_notification_ids", emptySet()) ?: emptySet()
+            set.contains(id)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun markNotificationAsDismissed(id: String) {
+        try {
+            val set = prefs.getStringSet("dismissed_notification_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+            set.add(id)
+            prefs.edit().putStringSet("dismissed_notification_ids", set).apply()
+            Log.d("FirestoreDeviceManager", "Aviso $id marcado como lido e salvo no armazenamento local.")
+        } catch (e: Exception) {
+            Log.e("FirestoreDeviceManager", "Erro ao salvar aviso como lido", e)
+        }
     }
 
     fun stopListening() {
