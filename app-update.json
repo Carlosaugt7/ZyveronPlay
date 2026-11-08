@@ -1,8 +1,7 @@
 {
-  "versionCode": 17,
-  "versionName": "2.9.2",
+  "versionCode": 18,
+  "versionName": "2.9.3",
   "apkUrl": "https://github.com/Carlosaugt7/ZyveronPlay/raw/main/zyveron-play-tv.apk",
-  "releaseNotes": "Otimizações de performance para TV Box e Mi Stick (eliminação de micro-travamentos e uso de RAM), suporte offline e visualização direta de múltiplas listas/contas na tela inicial, e atualizações OTA resilientes.",
+  "releaseNotes": "Versão 2.9.3: Correção do instalador nativo OTA com feedback em tempo real, Modo Soneca (Sleep Timer 30-120 min), Zapping veloz no player de TV (Cima/Baixo e CH+/CH-), cobrança WhatsApp em 1 clique e exportação de clientes em CSV.",
   "isMandatory": false
 }
-

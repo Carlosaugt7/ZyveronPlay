@@ -284,8 +284,8 @@ fun LivePlayerScreen(
                                 true
                             }
                         }
-                        // Zapping com UM clique: setas Cima/Baixo trocam canal DIRETAMENTE
-                        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> {
+                        // Zapping com UM clique: setas Cima/Baixo ou CH+/CH- trocam canal DIRETAMENTE
+                        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_PAGE_UP -> {
                             if (!showChannelList) {
                                 if (channels.isNotEmpty()) {
                                     currentChannelIndex = if (currentChannelIndex > 0) currentChannelIndex - 1 else channels.size - 1
@@ -294,7 +294,7 @@ fun LivePlayerScreen(
                                 true
                             } else false
                         }
-                        KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
+                        KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_PAGE_DOWN -> {
                             if (!showChannelList) {
                                 if (channels.isNotEmpty()) {
                                     currentChannelIndex = (currentChannelIndex + 1) % channels.size

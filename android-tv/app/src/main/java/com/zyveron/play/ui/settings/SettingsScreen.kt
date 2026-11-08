@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -335,10 +336,11 @@ fun SettingsScreen(
                                                                                 pendingUpdateInfo = res.info
                                                                                 showPermissionDialog = true
                                                                             } else {
-                                                                                // Inicia download
+                                                                                // Inicia download com feedback imediato
                                                                                 isDownloading = true
                                                                                 downloadProgress = 0
                                                                                 downloadError = null
+                                                                                android.widget.Toast.makeText(context, "📥 Conectando ao servidor e iniciando download...", android.widget.Toast.LENGTH_SHORT).show()
                                                                                 coroutineScope.launch {
                                                                                     val dlResult = AppUpdateManager.downloadApk(context, res.info.apkUrl) { p ->
                                                                                         downloadProgress = p
@@ -346,9 +348,18 @@ fun SettingsScreen(
                                                                                     isDownloading = false
                                                                                     if (dlResult.isSuccess) {
                                                                                         val file = dlResult.getOrThrow()
-                                                                                        AppUpdateManager.installApk(context, file)
+                                                                                        try {
+                                                                                            android.widget.Toast.makeText(context, "📦 Abrindo instalador do sistema...", android.widget.Toast.LENGTH_SHORT).show()
+                                                                                            AppUpdateManager.installApk(context, file)
+                                                                                        } catch (e: Exception) {
+                                                                                            val err = "Erro ao acionar instalador: ${e.localizedMessage ?: "Permissão negada"}"
+                                                                                            downloadError = err
+                                                                                            android.widget.Toast.makeText(context, "⚠️ $err", android.widget.Toast.LENGTH_LONG).show()
+                                                                                        }
                                                                                     } else {
-                                                                                        downloadError = dlResult.exceptionOrNull()?.message ?: "Falha ao baixar atualização"
+                                                                                        val err = dlResult.exceptionOrNull()?.message ?: "Falha ao baixar atualização"
+                                                                                        downloadError = err
+                                                                                        android.widget.Toast.makeText(context, "⚠️ $err", android.widget.Toast.LENGTH_LONG).show()
                                                                                     }
                                                                                 }
                                                                             }
@@ -584,6 +595,63 @@ fun SettingsScreen(
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = if (isFocused) Color.Black else AccentSky
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // Modo Soneca / Temporizador de Suspensão (Sleep Timer)
+                                    val sleepMinutes by com.zyveron.play.util.SleepTimerManager.remainingMinutes.collectAsState()
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(BgSurfaceDark)
+                                            .border(1.dp, BorderDark, RoundedCornerShape(12.dp))
+                                            .padding(16.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(text = "MODO SONECA (SLEEP TIMER)", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                Text(
+                                                    text = if (sleepMinutes > 0) "Desligamento automático programado em $sleepMinutes min." else "Desliga o app automaticamente para poupar dados caso durma assistindo.",
+                                                    color = if (sleepMinutes > 0) AccentEmerald else TextSecondary,
+                                                    fontSize = 11.sp
+                                                )
+                                            }
+                                            TvTouchCard(
+                                                onClick = {
+                                                    val nextTime = when (sleepMinutes) {
+                                                        0 -> 30
+                                                        in 1..30 -> 60
+                                                        in 31..60 -> 90
+                                                        in 61..90 -> 120
+                                                        else -> 0
+                                                    }
+                                                    if (nextTime > 0) {
+                                                        com.zyveron.play.util.SleepTimerManager.setTimer(nextTime) {
+                                                            (context as? android.app.Activity)?.finishAffinity()
+                                                        }
+                                                        Toast.makeText(context, "⏰ Modo Soneca programado para $nextTime minutos!", Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        com.zyveron.play.util.SleepTimerManager.cancelTimer()
+                                                        Toast.makeText(context, "⏰ Modo Soneca desativado.", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                },
+                                                containerColor = if (sleepMinutes > 0) AccentEmerald.copy(alpha = 0.2f) else BgCardDark,
+                                                focusedContainerColor = AccentEmerald,
+                                                shape = RoundedCornerShape(8.dp),
+                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                            ) { isFocused ->
+                                                Text(
+                                                    text = if (sleepMinutes > 0) "⏰ $sleepMinutes min" else "Desativado",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isFocused) Color.Black else (if (sleepMinutes > 0) AccentEmerald else TextSecondary)
                                                 )
                                             }
                                         }

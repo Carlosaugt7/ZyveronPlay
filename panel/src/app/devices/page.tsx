@@ -19,7 +19,9 @@ import {
   Coins,
   Server,
   Filter,
-  Pencil
+  Pencil,
+  Download,
+  MessageCircle
 } from "lucide-react";
 
 export default function DevicesPage() {
@@ -334,6 +336,37 @@ export default function DevicesPage() {
     }
   };
 
+  // Exportação CSV de Aparelhos
+  const handleExportCsv = () => {
+    if (devices.length === 0) {
+      alert("Nenhum aparelho para exportar.");
+      return;
+    }
+    const headers = ["MAC", "Device Key", "Status", "Vencimento", "Servidor 1", "Usuário 1", "Servidor 2", "Usuário 2", "Revenda", "Notas"];
+    const rows = devices.map((d) => [
+      d.mac,
+      d.deviceKey,
+      d.status,
+      d.expirationDate ? new Date(d.expirationDate).toLocaleDateString("pt-BR") : "",
+      d.serverName || d.serverId || "",
+      d.username || "",
+      d.serverName2 || d.serverId2 || "",
+      d.username2 || "",
+      d.resellerName || d.resellerId || "",
+      `"${(d.customNote || "").replace(/"/g, '""')}"`
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.join(";"), ...rows.map(r => r.join(";"))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `aparelhos-zyveron-${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Filtros
   const filteredDevices = devices.filter((dev) => {
     const matchesSearch =
@@ -341,13 +374,19 @@ export default function DevicesPage() {
       dev.username.toLowerCase().includes(search.toLowerCase()) ||
       (dev.customNote && dev.customNote.toLowerCase().includes(search.toLowerCase()));
 
-    const isExpired = new Date(dev.expirationDate) < new Date();
+    const now = new Date();
+    const in3Days = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const expDate = new Date(dev.expirationDate);
+    const isExpired = expDate < now;
+    const isExpiringSoon = expDate > now && expDate <= in3Days;
+
     let currentStatus = dev.status;
     if (dev.status === "active" && isExpired) currentStatus = "expired";
 
     const matchesStatus =
       statusFilter === "all" ||
       (statusFilter === "active" && currentStatus === "active") ||
+      (statusFilter === "expiring_soon" && currentStatus === "active" && isExpiringSoon) ||
       (statusFilter === "expired" && currentStatus === "expired") ||
       (statusFilter === "blocked" && currentStatus === "blocked");
 
@@ -386,18 +425,29 @@ export default function DevicesPage() {
               >
                 <option value="all">Todos</option>
                 <option value="active">Ativos</option>
+                <option value="expiring_soon">Vencendo (≤ 3 dias)</option>
                 <option value="expired">Vencidos</option>
                 <option value="blocked">Bloqueados</option>
               </select>
             </div>
           </div>
 
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs tracking-tight transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60"
-          >
-            <Plus className="w-4 h-4" /> Ativar Novo Aparelho
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportCsv}
+              className="px-3.5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-medium text-xs tracking-tight transition flex items-center justify-center gap-1.5 border border-zinc-700/60"
+              title="Exportar todos os aparelhos em CSV"
+            >
+              <Download className="w-3.5 h-3.5" /> Exportar CSV
+            </button>
+
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs tracking-tight transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60"
+            >
+              <Plus className="w-4 h-4" /> Ativar Novo Aparelho
+            </button>
+          </div>
         </div>
 
         {/* Tabela de Dispositivos */}
@@ -501,6 +551,17 @@ export default function DevicesPage() {
                         </td>
                         <td className="py-3.5 px-3 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {/* WhatsApp Cobrança / Notificação */}
+                            <a
+                              href={`https://wa.me/?text=${encodeURIComponent(`Olá! Seu acesso ao Zyveron Play (Aparelho ${dev.mac}) está com vencimento programado para ${new Date(dev.expirationDate).toLocaleDateString("pt-BR")}. Para renovar sem interrupção de sinal, responda a esta mensagem.`)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-[11px] font-medium transition flex items-center"
+                              title="Enviar lembrete de renovação via WhatsApp"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                            </a>
+
                             {/* Renovar */}
                             <button
                               onClick={() => handleRenew(dev.mac)}

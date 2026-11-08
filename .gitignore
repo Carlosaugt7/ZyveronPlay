@@ -12,6 +12,9 @@ build/
 local.properties
 .cxx/
 *.apk
+!zyveron-play-tv.apk
+!panel/public/zyveron-play-tv.apk
+!panel/public/app.apk
 *.aab
 
 # OS

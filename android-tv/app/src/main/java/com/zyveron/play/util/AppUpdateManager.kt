@@ -144,7 +144,11 @@ object AppUpdateManager {
      */
     fun hasInstallPermission(context: Context): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.packageManager.canRequestPackageInstalls()
+            try {
+                context.packageManager.canRequestPackageInstalls()
+            } catch (_: Exception) {
+                true
+            }
         } else {
             true
         }
@@ -172,7 +176,8 @@ object AppUpdateManager {
     }
 
     /**
-     * Realiza o download do arquivo .apk em segundo plano, reportando o progresso percentual (0 a 100).
+     * Realiza o download do arquivo .apk em segundo plano com suporte a mirrors de contingência
+     * e cabeçalhos apropriados para evitar bloqueios de CDN / GitHub.
      */
     suspend fun downloadApk(
         context: Context,
@@ -180,52 +185,97 @@ object AppUpdateManager {
         onProgress: (Int) -> Unit
     ): Result<File> = withContext(Dispatchers.IO) {
         try {
-            // Salva no armazenamento compartilhado do app (acessível sem bloqueio pelo instalador nativo da TV)
             val baseDir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS) ?: context.cacheDir
             val destinationDir = File(baseDir, "updates").apply { mkdirs() }
             val apkFile = File(destinationDir, "zyveron-update.apk")
             if (apkFile.exists()) apkFile.delete()
 
-            Log.d(TAG, "Iniciando download do APK para: ${apkFile.absolutePath} ($apkUrl)")
-            val request = Request.Builder().url(apkUrl).build()
-            val response = httpClient.newCall(request).execute()
+            // Lista de URLs candidatas para resiliência máxima (URL informada + mirrors)
+            val urlsToTry = mutableListOf<String>()
+            val cleanUrl = apkUrl.trim()
+            if (cleanUrl.isNotBlank()) urlsToTry.add(cleanUrl)
 
-            if (!response.isSuccessful) {
-                return@withContext Result.failure(Exception("Falha no download (HTTP ${response.code})"))
+            if (cleanUrl.contains("github.com") && cleanUrl.contains("/raw/")) {
+                val rawUrl = cleanUrl.replace("github.com", "raw.githubusercontent.com").replace("/raw/", "/")
+                if (!urlsToTry.contains(rawUrl)) urlsToTry.add(rawUrl)
+            } else if (cleanUrl.contains("raw.githubusercontent.com")) {
+                val ghUrl = cleanUrl.replace("raw.githubusercontent.com", "github.com").replace("/main/", "/raw/main/")
+                if (!urlsToTry.contains(ghUrl)) urlsToTry.add(ghUrl)
             }
 
-            val body = response.body ?: return@withContext Result.failure(Exception("Arquivo vazio recebido do servidor."))
-            val contentLength = body.contentLength()
+            var lastException: Exception? = null
+            var downloadSuccess = false
 
-            val inputStream = body.byteStream()
-            val outputStream = FileOutputStream(apkFile)
+            for (targetUrl in urlsToTry) {
+                try {
+                    Log.d(TAG, "Tentando baixar APK de: $targetUrl")
+                    val request = Request.Builder()
+                        .url(targetUrl)
+                        .header("User-Agent", "Mozilla/5.0 (Linux; Android 10; TV Box) ZyveronPlay/2.9.2")
+                        .header("Accept", "application/vnd.android.package-archive, */*")
+                        .build()
 
-            val buffer = ByteArray(8192)
-            var bytesRead: Int
-            var totalBytesRead = 0L
-            var lastReportedProgress = -1
+                    val response = httpClient.newCall(request).execute()
+                    if (!response.isSuccessful) {
+                        Log.w(TAG, "Falha HTTP ${response.code} ao baixar de $targetUrl")
+                        lastException = Exception("Falha no download (HTTP ${response.code}): O link do APK não está acessível publicamente.")
+                        continue
+                    }
 
-            inputStream.use { input ->
-                outputStream.use { output ->
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                        totalBytesRead += bytesRead
-                        if (contentLength > 0) {
-                            val progress = ((totalBytesRead * 100) / contentLength).toInt()
-                            if (progress != lastReportedProgress) {
-                                lastReportedProgress = progress
-                                onProgress(progress)
+                    val body = response.body
+                    if (body == null) {
+                        lastException = Exception("Arquivo vazio recebido do servidor.")
+                        continue
+                    }
+
+                    val contentLength = body.contentLength()
+                    val inputStream = body.byteStream()
+                    val outputStream = FileOutputStream(apkFile)
+
+                    val buffer = ByteArray(8192)
+                    var bytesRead: Int
+                    var totalBytesRead = 0L
+                    var lastReportedProgress = -1
+
+                    inputStream.use { input ->
+                        outputStream.use { output ->
+                            while (input.read(buffer).also { bytesRead = it } != -1) {
+                                output.write(buffer, 0, bytesRead)
+                                totalBytesRead += bytesRead
+                                if (contentLength > 0) {
+                                    val progress = ((totalBytesRead * 100) / contentLength).toInt().coerceIn(0, 100)
+                                    if (progress != lastReportedProgress) {
+                                        lastReportedProgress = progress
+                                        onProgress(progress)
+                                    }
+                                }
                             }
                         }
                     }
+
+                    if (apkFile.length() > 100_000) { // Garante que o arquivo baixado é um binário APK real e não página HTML de erro
+                        Log.d(TAG, "Download concluído com sucesso: ${apkFile.absolutePath} (${apkFile.length()} bytes)")
+                        onProgress(100)
+                        downloadSuccess = true
+                        break
+                    } else {
+                        Log.w(TAG, "Arquivo baixado é muito pequeno (${apkFile.length()} bytes), provavelmente erro HTML.")
+                        lastException = Exception("Arquivo baixado inválido ou corrompido (${apkFile.length()} bytes).")
+                        if (apkFile.exists()) apkFile.delete()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Erro ao baixar de $targetUrl", e)
+                    lastException = e
                 }
             }
 
-            Log.d(TAG, "Download concluído com sucesso: ${apkFile.absolutePath} (${apkFile.length()} bytes)")
-            onProgress(100)
-            Result.success(apkFile)
+            if (downloadSuccess) {
+                Result.success(apkFile)
+            } else {
+                Result.failure(lastException ?: Exception("Falha de conexão ao baixar atualização."))
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Erro durante download do APK", e)
+            Log.e(TAG, "Erro geral durante download do APK", e)
             Result.failure(e)
         }
     }
@@ -246,6 +296,8 @@ object AppUpdateManager {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
             }
 
             // Concessão explícita para o pacote instalador de APKs do sistema Android
