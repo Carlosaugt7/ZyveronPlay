@@ -78,7 +78,9 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({
             ZYVERON <span className="text-emerald-400">PLAY</span>
           </h1>
           <p className="text-xs tracking-widest text-emerald-500 uppercase font-semibold">
-            SMART TV EDITION • SAMSUNG & LG
+            {typeof window !== 'undefined' && window.electronAPI?.isElectron
+              ? 'DESKTOP EDITION • WINDOWS & LINUX'
+              : 'SMART TV EDITION • SAMSUNG & LG'}
           </p>
         </div>
       </div>
@@ -212,7 +214,9 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({
       </div>
 
       <div className="mt-8 text-xs text-slate-500">
-        Zyveron Smart TV Engine v1.0.0 • Compatível com Samsung Tizen, LG webOS e Navegadores Modernos
+        {typeof window !== 'undefined' && window.electronAPI?.isElectron
+          ? 'Zyveron Desktop Engine v1.0.0 • Compatível com Windows 10/11 e Distribuições Linux (x64)'
+          : 'Zyveron Smart TV Engine v1.0.0 • Compatível com Samsung Tizen, LG webOS e Navegadores Modernos'}
       </div>
     </div>
   );

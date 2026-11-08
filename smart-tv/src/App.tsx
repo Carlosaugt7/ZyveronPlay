@@ -9,6 +9,7 @@ import { LiveTvView } from './views/LiveTvView';
 import { MoviesView } from './views/MoviesView';
 import { SeriesView } from './views/SeriesView';
 import { SettingsView } from './views/SettingsView';
+import { TitleBar } from './components/TitleBar';
 import { useSpatialNav } from './hooks/useSpatialNav';
 import { Loader2 } from 'lucide-react';
 
@@ -29,6 +30,18 @@ export default function App() {
   // Chaves de controle para revalidação reativa sem travamento
   const [authReloadKey, setAuthReloadKey] = useState<number>(0);
   const [contentReloadKey, setContentReloadKey] = useState<number>(0);
+
+  // Escuta alteração de tela cheia disparada pelo Electron (F11 ou botão da TitleBar)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.electronAPI?.onFullScreenChange) {
+      const unsub = window.electronAPI.onFullScreenChange((full) => {
+        setIsFullScreen(full);
+      });
+      return () => {
+        unsub?.();
+      };
+    }
+  }, []);
 
   // Inicializa e escuta em tempo real no Firestore para este MAC
   useEffect(() => {
@@ -111,10 +124,15 @@ export default function App() {
   // 1. Tela de Carregamento Inicial
   if (activationStatus === 'loading') {
     return (
-      <div className="w-screen h-screen bg-[#0a0d14] flex flex-col items-center justify-center text-white select-none">
-        <Loader2 className="w-16 h-16 text-emerald-400 animate-spin mb-4" />
-        <h2 className="text-xl font-bold tracking-wide">Iniciando Zyveron Smart TV...</h2>
-        <p className="text-sm text-slate-400 mt-1">Conectando ao serviço de validação segura</p>
+      <div className="w-screen h-screen bg-[#0a0d14] flex flex-col text-white select-none overflow-hidden">
+        <TitleBar isFullScreen={isFullScreen} />
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <Loader2 className="w-16 h-16 text-emerald-400 animate-spin mb-4" />
+          <h2 className="text-xl font-bold tracking-wide">
+            Iniciando Zyveron {typeof window !== 'undefined' && window.electronAPI?.isElectron ? 'Desktop' : 'Smart TV'}...
+          </h2>
+          <p className="text-sm text-slate-400 mt-1">Conectando ao serviço de validação segura</p>
+        </div>
       </div>
     );
   }
@@ -122,37 +140,44 @@ export default function App() {
   // 2. Tela de Ativação / Mensalidade Vencida / Bloqueio
   if (activationStatus !== 'active' || !activeDevice || !xtreamClient) {
     return (
-      <ActivationScreen
-        mac={identity.mac}
-        deviceKey={identity.deviceKey}
-        status={activationStatus}
-        message={statusMessage}
-        onRefresh={handleRefreshActivation}
-        onIdentityChanged={() => {
-          saveCachedDevice(null);
-          setActiveDevice(null);
-          setIdentity(getOrCreateDeviceIdentity());
-          setActivationStatus('loading');
-          setAuthReloadKey((k) => k + 1);
-        }}
-      />
+      <div className="w-screen h-screen bg-[#0a0d14] flex flex-col overflow-hidden select-none">
+        <TitleBar isFullScreen={isFullScreen} />
+        <div className="flex-1 overflow-hidden relative">
+          <ActivationScreen
+            mac={identity.mac}
+            deviceKey={identity.deviceKey}
+            status={activationStatus}
+            message={statusMessage}
+            onRefresh={handleRefreshActivation}
+            onIdentityChanged={() => {
+              saveCachedDevice(null);
+              setActiveDevice(null);
+              setIdentity(getOrCreateDeviceIdentity());
+              setActivationStatus('loading');
+              setAuthReloadKey((k) => k + 1);
+            }}
+          />
+        </div>
+      </div>
     );
   }
 
   // 3. Aplicação Principal Ativa (TV Ao Vivo, Filmes, Séries, Ajustes)
   return (
-    <div className="w-screen h-screen flex bg-[#0a0d14] overflow-hidden relative">
-      {/* Barra de Menu Lateral - Ocultada completamente quando o vídeo estiver em tela cheia */}
-      {!isFullScreen && (
-        <NavigationBar
-          currentSection={currentSection}
-          onSelectSection={(sec) => {
-            setCurrentSection(sec);
-            setFocusZone('content');
-          }}
-          isFocused={focusZone === 'sidebar'}
-        />
-      )}
+    <div className="w-screen h-screen flex flex-col bg-[#0a0d14] overflow-hidden select-none">
+      <TitleBar isFullScreen={isFullScreen} />
+      <div className="flex-1 flex bg-[#0a0d14] overflow-hidden relative">
+        {/* Barra de Menu Lateral - Ocultada completamente quando o vídeo estiver em tela cheia */}
+        {!isFullScreen && (
+          <NavigationBar
+            currentSection={currentSection}
+            onSelectSection={(sec) => {
+              setCurrentSection(sec);
+              setFocusZone('content');
+            }}
+            isFocused={focusZone === 'sidebar'}
+          />
+        )}
 
       <main className="flex-1 h-full overflow-hidden">
         {currentSection === 'live' && (
@@ -190,6 +215,7 @@ export default function App() {
           />
         )}
       </main>
+      </div>
     </div>
   );
 }

@@ -1,0 +1,23 @@
+{
+  "name": "zyveron-play-desktop",
+  "version": "1.0.0",
+  "description": "Zyveron Play Player para Windows e Linux",
+  "main": "src/main.cjs",
+  "author": "Zyveron Play",
+  "license": "UNLICENSED",
+  "scripts": {
+    "build:ico": "node scripts/generate-ico.cjs",
+    "build:ui": "npm run build --prefix ../smart-tv",
+    "copy:ui": "node scripts/copy-ui.cjs",
+    "prepare:app": "npm run build:ico && npm run build:ui && npm run copy:ui",
+    "start": "electron .",
+    "dist:win": "npm run prepare:app && electron-builder --win",
+    "dist:win:portable": "npm run prepare:app && electron-builder --win portable",
+    "dist:linux": "npm run prepare:app && electron-builder --linux AppImage",
+    "dist:all": "npm run prepare:app && electron-builder -wl"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  }
+}

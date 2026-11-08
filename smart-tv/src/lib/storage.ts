@@ -36,13 +36,18 @@ export function generateDeviceKey(): string {
 }
 
 /**
- * Obtém ou inicializa a identidade única da Smart TV
+ * Obtém ou inicializa a identidade única do Aparelho (Smart TV ou Desktop Windows/Linux)
  */
 export function getOrCreateDeviceIdentity(): { mac: string; deviceKey: string } {
   let mac = localStorage.getItem(STORAGE_KEYS.MAC);
   let deviceKey = localStorage.getItem(STORAGE_KEYS.DEVICE_KEY);
 
-  if (!mac || !/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(mac)) {
+  // Se estiver executando no Desktop (Electron) e possuir MAC físico do PC:
+  const desktopMac = typeof window !== 'undefined' ? window.electronAPI?.hardwareMac : null;
+  if (desktopMac && /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(desktopMac)) {
+    mac = desktopMac.toUpperCase();
+    localStorage.setItem(STORAGE_KEYS.MAC, mac);
+  } else if (!mac || !/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(mac)) {
     mac = generateVirtualMac();
     localStorage.setItem(STORAGE_KEYS.MAC, mac);
   }

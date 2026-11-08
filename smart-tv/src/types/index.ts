@@ -84,3 +84,24 @@ export interface XtreamSeason {
   overview?: string;
 }
 
+export interface ElectronAPI {
+  isElectron: boolean;
+  platform: string;
+  hardwareMac: string | null;
+  getHardwareMac: () => Promise<string | null>;
+  minimize: () => void;
+  maximize: () => void;
+  close: () => void;
+  toggleFullScreen: () => void;
+  isFullScreen: () => boolean;
+  isMaximized: () => boolean;
+  onFullScreenChange: (callback: (isFull: boolean) => void) => () => void;
+  onMaximizeChange: (callback: (isMax: boolean) => void) => () => void;
+}
+
+declare global {
+  interface Window {
+    electronAPI?: ElectronAPI;
+  }
+}
+
