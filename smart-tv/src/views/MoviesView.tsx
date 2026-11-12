@@ -58,12 +58,47 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   const [pendingAdultCategory, setPendingAdultCategory] = useState<{ id: string; idx: number } | null>(null);
 
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
+  const backHomeBtnRef = useRef<HTMLButtonElement>(null);
   const activeMovieBtnRef = useRef<HTMLButtonElement>(null);
   const activeDetailBtnRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Pastas Especiais Fixas e Categorias (Fiel ao APK Android TV: Favoritos, Últimos Assistidos, Todos os Filmes, Recém Adicionados)
+  const specialCats = useMemo(() => [
+    { id: 'favorites', name: 'Meus Favoritos', count: favorites.length, icon: Star },
+    { id: 'recently_watched', name: 'Últimos Assistidos', count: recentMovieIds.length, icon: History },
+    { id: 'all', name: 'Todos os Filmes', count: totalMoviesCount, icon: Film },
+    { id: 'recently_added', name: 'Recém Adicionados', count: Math.min(100, totalMoviesCount), icon: Sparkles },
+  ], [favorites.length, recentMovieIds.length, totalMoviesCount]);
+
+  const selectableCategories = useMemo(() => {
+    const list: {
+      id: string;
+      name: string;
+      count: number;
+      isSpecial?: boolean;
+      isAdult?: boolean;
+      icon?: any;
+    }[] = [];
+
+    specialCats.forEach((c) => {
+      list.push({ ...c, isSpecial: true });
+    });
+
+    categories.forEach((cat) => {
+      list.push({
+        id: cat.category_id,
+        name: cat.category_name,
+        count: categoryCounts[cat.category_id] ?? 0,
+        isAdult: AdultContentHelper.isAdultCategory(cat.category_name)
+      });
+    });
+
+    return list;
+  }, [specialCats, categories, categoryCounts]);
 
   // Filmes atualmente renderizados no DOM (paginação progressiva leve + filtro de pesquisa)
   const displayedMovies = useMemo(() => {
@@ -89,8 +124,8 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
             setSelectedCategory('favorites');
             setSelectedCategoryIdx(0);
           } else {
-            setSelectedCategory('recently_watched');
-            setSelectedCategoryIdx(1);
+            setSelectedCategory('all');
+            setSelectedCategoryIdx(2);
           }
         } else {
           setCategories([]);
@@ -180,17 +215,56 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
             if (tB !== tA) return tB - tA;
             return Number(b.stream_id) - Number(a.stream_id);
           });
-          setAllMovies(all.slice(0, 100));
+          const seen = new Set<number>();
+          const uniqueList: XtreamVod[] = [];
+          all.forEach((m) => {
+            const sid = Number(m.stream_id);
+            if (!seen.has(sid)) {
+              seen.add(sid);
+              uniqueList.push(m);
+            }
+          });
+          setAllMovies(uniqueList.slice(0, 100));
         })
         .catch((err) => {
           console.error("[Movies] Erro ao carregar recém adicionados:", err);
           setAllMovies([]);
         })
         .finally(() => setIsLoadingMovies(false));
+    } else if (selectedCategory === 'all') {
+      client.getVodStreams()
+        .then((data) => {
+          const all = data || [];
+          const seen = new Set<number>();
+          const uniqueList: XtreamVod[] = [];
+          all.forEach((m) => {
+            const sid = Number(m.stream_id);
+            if (!seen.has(sid)) {
+              seen.add(sid);
+              uniqueList.push(m);
+            }
+          });
+          setAllMovies(uniqueList);
+        })
+        .catch((err) => {
+          console.error("[Movies] Erro ao carregar todos os filmes:", err);
+          setAllMovies([]);
+        })
+        .finally(() => setIsLoadingMovies(false));
     } else {
       client.getVodStreams(selectedCategory)
         .then((data) => {
-          setAllMovies(data || []);
+          const all = data || [];
+          const seen = new Set<number>();
+          const uniqueList: XtreamVod[] = [];
+          all.forEach((m) => {
+            const sid = Number(m.stream_id);
+            if (!seen.has(sid)) {
+              seen.add(sid);
+              uniqueList.push(m);
+            }
+          });
+          setAllMovies(uniqueList);
         })
         .catch((err) => {
           console.error("[Movies] Erro ao carregar filmes da categoria:", err);
@@ -231,9 +305,13 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   // Sincroniza o foco real do DOM na Smart TV para navegação com D-Pad
   useEffect(() => {
     if (!isPlaying && isFocusedContent) {
-      if (activeFocusColumn === 'categories' && activeCategoryBtnRef.current) {
-        activeCategoryBtnRef.current.focus();
-        activeCategoryBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (activeFocusColumn === 'categories') {
+        if (selectedCategoryIdx === -1 && backHomeBtnRef.current) {
+          backHomeBtnRef.current.focus();
+        } else if (activeCategoryBtnRef.current) {
+          activeCategoryBtnRef.current.focus();
+          activeCategoryBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
       } else if (activeFocusColumn === 'grid' && activeMovieBtnRef.current) {
         activeMovieBtnRef.current.focus();
         activeMovieBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -245,11 +323,11 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     }
   }, [selectedCategoryIdx, selectedMovieIdx, detailsButtonIdx, activeFocusColumn, isFocusedContent, isPlaying, displayedMovies.length]);
 
-  // Tecla de atalho 'F' para favoritar no controle remoto
+  // Tecla de atalho 'F' para favoritar no controle remoto (tecla física Yellow é tratada pelo useSpatialNav)
   useEffect(() => {
     const handleFavKey = (e: KeyboardEvent) => {
       if (isPlaying) return;
-      if (e.key === 'f' || e.key === 'F' || e.key === 'Yellow' || e.key === 'y' || e.key === 'Y') {
+      if (e.key === 'f' || e.key === 'F') {
         const targetMovie = selectedMovieForDetails || displayedMovies[selectedMovieIdx];
         if (targetMovie) {
           handleToggleFav(targetMovie.stream_id);
@@ -318,7 +396,10 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     onUp: () => {
       if (isPlaying) return;
       if (activeFocusColumn === 'categories') {
-        setSelectedCategoryIdx((prev) => Math.max(0, prev - 1));
+        setSelectedCategoryIdx((prev) => {
+          if (prev <= 0) return -1;
+          return prev - 1;
+        });
       } else if (activeFocusColumn === 'grid') {
         if (selectedMovieIdx < 5) {
           setActiveFocusColumn('search');
@@ -334,8 +415,10 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         setActiveFocusColumn('grid');
         searchInputRef.current?.blur();
       } else if (activeFocusColumn === 'categories') {
-        // total = 3 especiais (Favoritos, Últimos Assistidos, Recém Adicionados) + categories.length
-        setSelectedCategoryIdx((prev) => Math.min(categories.length + 2, prev + 1));
+        setSelectedCategoryIdx((prev) => {
+          if (prev === -1) return 0;
+          return Math.min(selectableCategories.length - 1, prev + 1);
+        });
       } else if (activeFocusColumn === 'grid') {
         setSelectedMovieIdx((prev) => {
           const nextIdx = Math.min(allMovies.length - 1, prev + 5);
@@ -350,6 +433,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       if (isPlaying) return;
       if (activeFocusColumn === 'search') {
         setActiveFocusColumn('categories');
+        setSelectedCategoryIdx(-1);
         searchInputRef.current?.blur();
       } else if (activeFocusColumn === 'details') {
         setDetailsButtonIdx((prev) => Math.max(0, prev - 1));
@@ -366,6 +450,11 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       if (activeFocusColumn === 'details') {
         setDetailsButtonIdx((prev) => Math.min(2, prev + 1));
       } else if (activeFocusColumn === 'categories') {
+        if (selectedCategoryIdx === -1) {
+          setActiveFocusColumn('search');
+          searchInputRef.current?.focus();
+          return;
+        }
         if (displayedMovies.length > 0) {
           setActiveFocusColumn('grid');
           setSelectedMovieIdx(0);
@@ -395,18 +484,18 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
           closeMovieDetails();
         }
       } else if (activeFocusColumn === 'categories') {
-        if (selectedCategoryIdx === 0) {
-          setSelectedCategory('favorites');
-          setActiveFocusColumn('grid');
-        } else if (selectedCategoryIdx === 1) {
-          setSelectedCategory('recently_watched');
-          setActiveFocusColumn('grid');
-        } else if (selectedCategoryIdx === 2) {
-          setSelectedCategory('recently_added');
-          setActiveFocusColumn('grid');
-        } else if (categories[selectedCategoryIdx - 3]) {
-          const cat = categories[selectedCategoryIdx - 3];
-          handleCategoryClick(cat.category_id, selectedCategoryIdx, cat.category_name);
+        if (selectedCategoryIdx === -1) {
+          onBackToHome?.();
+          return;
+        }
+        const item = selectableCategories[selectedCategoryIdx];
+        if (item) {
+          if (item.isSpecial) {
+            setSelectedCategory(item.id);
+            setActiveFocusColumn('grid');
+          } else {
+            handleCategoryClick(item.id, selectedCategoryIdx, item.name);
+          }
         }
       } else if (activeFocusColumn === 'grid' && displayedMovies[selectedMovieIdx]) {
         openMovieDetails(displayedMovies[selectedMovieIdx]);
@@ -500,9 +589,14 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
           </h2>
           {onBackToHome && (
             <button
+              ref={backHomeBtnRef}
               type="button"
               onClick={onBackToHome}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-sky-600 text-xs font-black text-slate-200 hover:text-white transition cursor-pointer border border-slate-700 shadow"
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition cursor-pointer border shadow ${
+                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === -1
+                  ? 'bg-rose-600 text-white font-black ring-4 ring-rose-400 scale-105 border-white shadow-xl'
+                  : 'bg-slate-800 hover:bg-sky-600 text-xs font-black text-slate-200 hover:text-white border-slate-700'
+              }`}
               title="Voltar para a Home"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -518,128 +612,67 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
-            {/* Categoria 1: Meus Favoritos */}
-            <button
-              ref={selectedCategoryIdx === 0 ? activeCategoryBtnRef : null}
-              tabIndex={0}
-              onClick={() => {
-                setSelectedCategory('favorites');
-                setSelectedCategoryIdx(0);
-                setActiveFocusColumn('grid');
-              }}
-              className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
-                selectedCategory === 'favorites'
-                  ? 'bg-amber-400 text-black shadow font-black'
-                  : 'text-amber-300 hover:bg-[#1b2234]'
-              } ${
-                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 0
-                  ? 'ring-4 ring-amber-300 shadow-2xl scale-102 font-black outline-none bg-amber-400 text-black'
-                  : ''
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Star className="w-6 h-6 fill-current text-amber-400" />
-                <span>Meus Favoritos</span>
-              </div>
-              <span className="font-mono text-sm px-3 py-1 rounded-lg bg-black/40 font-black">
-                {favorites.length}
-              </span>
-            </button>
-
-            {/* Categoria 2: Últimos Assistidos */}
-            <button
-              ref={selectedCategoryIdx === 1 ? activeCategoryBtnRef : null}
-              tabIndex={0}
-              onClick={() => {
-                setSelectedCategory('recently_watched');
-                setSelectedCategoryIdx(1);
-                setActiveFocusColumn('grid');
-              }}
-              className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
-                selectedCategory === 'recently_watched'
-                  ? 'bg-sky-400 text-black shadow font-black'
-                  : 'text-sky-300 hover:bg-[#1b2234]'
-              } ${
-                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 1
-                  ? 'ring-4 ring-sky-300 shadow-2xl scale-102 font-black outline-none bg-sky-400 text-black'
-                  : ''
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <History className="w-6 h-6 text-sky-400" />
-                <span>Últimos Assistidos</span>
-              </div>
-              <span className="font-mono text-sm px-3 py-1 rounded-lg bg-black/40 font-black">
-                {recentMovieIds.length}
-              </span>
-            </button>
-
-            {/* Categoria 3: Recém Adicionados */}
-            <button
-              ref={selectedCategoryIdx === 2 ? activeCategoryBtnRef : null}
-              tabIndex={0}
-              onClick={() => {
-                setSelectedCategory('recently_added');
-                setSelectedCategoryIdx(2);
-                setActiveFocusColumn('grid');
-              }}
-              className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
-                selectedCategory === 'recently_added'
-                  ? 'bg-emerald-400 text-black shadow font-black'
-                  : 'text-emerald-300 hover:bg-[#1b2234]'
-              } ${
-                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 2
-                  ? 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
-                  : ''
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-6 h-6 text-emerald-400" />
-                <span>Recém Adicionados</span>
-              </div>
-              <span className="font-mono text-sm px-3 py-1 rounded-lg bg-black/40 font-black">
-                {Math.min(100, totalMoviesCount)}
-              </span>
-            </button>
-
-            {/* Categorias da API Xtream */}
-            {categories.map((cat, catIdx) => {
-              const thisIdx = catIdx + 3;
-              const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === thisIdx;
-              const isSelected = selectedCategory === cat.category_id;
-              const isAdult = AdultContentHelper.isAdultCategory(cat.category_name);
+            {selectableCategories.map((item, idx) => {
+              const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === idx;
+              const isSelected = selectedCategory === item.id;
+              const Icon = item.icon;
 
               return (
                 <button
                   type="button"
-                  key={cat.category_id}
+                  key={`${item.id}-${idx}`}
                   ref={isCatFocused ? activeCategoryBtnRef : null}
                   tabIndex={0}
-                  onClick={() => handleCategoryClick(cat.category_id, thisIdx, cat.category_name)}
+                  onClick={() => {
+                    setSelectedCategoryIdx(idx);
+                    if (item.isSpecial) {
+                      setSelectedCategory(item.id);
+                      setActiveFocusColumn('grid');
+                    } else {
+                      handleCategoryClick(item.id, idx, item.name);
+                    }
+                  }}
                   className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition truncate cursor-pointer flex items-center justify-between ${
                     isSelected
-                      ? isAdult ? 'bg-rose-500 text-white font-black shadow' : 'bg-emerald-500 text-black font-black shadow'
-                      : isAdult ? 'text-rose-400 hover:bg-rose-950/30' : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
+                      ? item.isAdult
+                        ? 'bg-rose-500 text-white font-black shadow'
+                        : item.id === 'favorites'
+                        ? 'bg-amber-400 text-black shadow font-black'
+                        : item.id === 'recently_watched'
+                        ? 'bg-sky-400 text-black shadow font-black'
+                        : 'bg-emerald-500 text-black font-black shadow'
+                      : item.isAdult
+                      ? 'text-rose-400 hover:bg-rose-950/30'
+                      : item.id === 'favorites'
+                      ? 'text-amber-300 hover:bg-[#1b2234]'
+                      : item.id === 'recently_watched'
+                      ? 'text-sky-300 hover:bg-[#1b2234]'
+                      : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
                   } ${
                     isCatFocused
-                      ? isAdult
+                      ? item.isAdult
                         ? 'ring-4 ring-rose-400 shadow-2xl scale-102 font-black outline-none bg-rose-500 text-white'
+                        : item.id === 'favorites'
+                        ? 'ring-4 ring-amber-300 shadow-2xl scale-102 font-black outline-none bg-amber-400 text-black'
+                        : item.id === 'recently_watched'
+                        ? 'ring-4 ring-sky-300 shadow-2xl scale-102 font-black outline-none bg-sky-400 text-black'
                         : 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
                       : ''
                   }`}
                 >
-                  <div className="flex items-center gap-2 truncate">
-                    <span className="truncate">{cat.category_name}</span>
-                    {isAdult && <Lock className="w-4 h-4 ml-1 shrink-0 opacity-80" />}
+                  <div className="flex items-center gap-2.5 truncate">
+                    {Icon && <Icon className="w-6 h-6 shrink-0" />}
+                    <span className="truncate">{item.name}</span>
+                    {item.isAdult && <Lock className="w-4 h-4 ml-1 shrink-0 opacity-80" />}
                   </div>
                   <span className={`font-mono text-xs md:text-sm px-2.5 py-0.5 rounded-lg ml-2 shrink-0 ${
                     isCatFocused
-                      ? 'bg-black/30 text-black'
+                      ? 'bg-black/30 text-black font-black'
                       : isSelected
-                      ? 'bg-black/40 text-white'
+                      ? 'bg-black/40 text-white font-black'
                       : 'bg-slate-800/80 text-slate-400'
                   }`}>
-                    {categoryCounts[cat.category_id] ?? 0}
+                    {item.count}
                   </span>
                 </button>
               );

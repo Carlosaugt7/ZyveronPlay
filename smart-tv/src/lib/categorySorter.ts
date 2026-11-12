@@ -86,25 +86,58 @@ export function getCategoryPriority(categoryName: string): number {
   return 2; // Temáticos / Nacionais normais
 }
 
+export function isSportsCategory(name: string): boolean {
+  const n = (name || '').toLowerCase().trim();
+  return (
+    n.includes('esporte') ||
+    n.includes('sport') ||
+    n.includes('futebol') ||
+    n.includes('combate') ||
+    n.includes('premiere') ||
+    n.includes('espn') ||
+    n.includes('dazn') ||
+    n.includes('conmebol')
+  );
+}
+
+export interface GroupedLiveCategories<T> {
+  regional: T[];
+  regular: T[];
+  vinteQuatro: T[];
+  internacional: T[];
+  adulto: T[];
+}
+
+export function groupLiveCategories<T extends { category_name: string }>(categories: T[]): GroupedLiveCategories<T> {
+  const regional: T[] = [];
+  const regular: T[] = [];
+  const vinteQuatro: T[] = [];
+  const internacional: T[] = [];
+  const adulto: T[] = [];
+
+  categories.forEach((cat) => {
+    const priority = getCategoryPriority(cat.category_name);
+    if (priority === 1) regional.push(cat);
+    else if (priority === 3) vinteQuatro.push(cat);
+    else if (priority === 4) internacional.push(cat);
+    else if (priority === 5) adulto.push(cat);
+    else regular.push(cat);
+  });
+
+  regional.sort((a, b) => a.category_name.localeCompare(b.category_name, 'pt-BR'));
+  regular.sort((a, b) => a.category_name.localeCompare(b.category_name, 'pt-BR'));
+  vinteQuatro.sort((a, b) => a.category_name.localeCompare(b.category_name, 'pt-BR'));
+  internacional.sort((a, b) => a.category_name.localeCompare(b.category_name, 'pt-BR'));
+  adulto.sort((a, b) => a.category_name.localeCompare(b.category_name, 'pt-BR'));
+
+  return { regional, regular, vinteQuatro, internacional, adulto };
+}
+
 /**
  * Ordena as categorias de TV seguindo a divisão oficial do APK:
  * Regionais & Abertos -> Temáticos -> 24 Horas -> Internacionais -> Adultos (+18)
  */
 export function sortLiveCategories<T extends { category_name: string }>(categories: T[]): T[] {
-  const regionais: T[] = [];
-  const regulares: T[] = [];
-  const vinteQuatro: T[] = [];
-  const internacionais: T[] = [];
-  const adultos: T[] = [];
-
-  categories.forEach((cat) => {
-    const priority = getCategoryPriority(cat.category_name);
-    if (priority === 1) regionais.push(cat);
-    else if (priority === 3) vinteQuatro.push(cat);
-    else if (priority === 4) internacionais.push(cat);
-    else if (priority === 5) adultos.push(cat);
-    else regulares.push(cat);
-  });
-
-  return [...regionais, ...regulares, ...vinteQuatro, ...internacionais, ...adultos];
+  const groups = groupLiveCategories(categories);
+  return [...groups.regional, ...groups.regular, ...groups.vinteQuatro, ...groups.internacional, ...groups.adulto];
 }

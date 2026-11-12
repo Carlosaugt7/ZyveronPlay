@@ -90,6 +90,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   const [pendingAdultCategory, setPendingAdultCategory] = useState<{ id: string; idx: number } | null>(null);
 
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
+  const backHomeBtnRef = useRef<HTMLButtonElement>(null);
   const activeSeriesBtnRef = useRef<HTMLButtonElement>(null);
   const activeSeasonBtnRef = useRef<HTMLButtonElement>(null);
   const activeEpBtnRef = useRef<HTMLButtonElement>(null);
@@ -97,6 +98,40 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Pastas Especiais Fixas e Categorias de Séries (Fiel ao APK: Favoritos, Últimos Assistidos, Todas as Séries, Recém Adicionados)
+  const specialCats = useMemo(() => [
+    { id: 'favorites', name: 'Meus Favoritos', count: favorites.length, icon: Star },
+    { id: 'recently_watched', name: 'Últimos Assistidos', count: recentSeriesIds.length, icon: History },
+    { id: 'all', name: 'Todas as Séries', count: totalSeriesCount, icon: Clapperboard },
+    { id: 'recently_added', name: 'Recém Adicionados', count: Math.min(100, totalSeriesCount), icon: Sparkles },
+  ], [favorites.length, recentSeriesIds.length, totalSeriesCount]);
+
+  const selectableCategories = useMemo(() => {
+    const list: {
+      id: string;
+      name: string;
+      count: number;
+      isSpecial?: boolean;
+      isAdult?: boolean;
+      icon?: any;
+    }[] = [];
+
+    specialCats.forEach((c) => {
+      list.push({ ...c, isSpecial: true });
+    });
+
+    categories.forEach((cat) => {
+      list.push({
+        id: cat.category_id,
+        name: cat.category_name,
+        count: categoryCounts[cat.category_id] ?? 0,
+        isAdult: AdultContentHelper.isAdultCategory(cat.category_name)
+      });
+    });
+
+    return list;
+  }, [specialCats, categories, categoryCounts]);
 
   const displayedSeries = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -125,8 +160,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
             setSelectedCategory('favorites');
             setSelectedCategoryIdx(0);
           } else {
-            setSelectedCategory('recently_watched');
-            setSelectedCategoryIdx(1);
+            setSelectedCategory('all');
+            setSelectedCategoryIdx(2);
           }
         } else {
           setCategories([]);
@@ -216,17 +251,56 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
             if (tB !== tA) return tB - tA;
             return Number(b.series_id) - Number(a.series_id);
           });
-          setAllSeries(all.slice(0, 100));
+          const seen = new Set<number>();
+          const uniqueList: XtreamSeries[] = [];
+          all.forEach((s) => {
+            const sid = Number(s.series_id);
+            if (!seen.has(sid)) {
+              seen.add(sid);
+              uniqueList.push(s);
+            }
+          });
+          setAllSeries(uniqueList.slice(0, 100));
         })
         .catch((err) => {
           console.error("[Series] Erro ao carregar séries recém adicionadas:", err);
           setAllSeries([]);
         })
         .finally(() => setIsLoadingSeries(false));
+    } else if (selectedCategory === 'all') {
+      client.getSeries()
+        .then((data) => {
+          const all = data || [];
+          const seen = new Set<number>();
+          const uniqueList: XtreamSeries[] = [];
+          all.forEach((s) => {
+            const sid = Number(s.series_id);
+            if (!seen.has(sid)) {
+              seen.add(sid);
+              uniqueList.push(s);
+            }
+          });
+          setAllSeries(uniqueList);
+        })
+        .catch((err) => {
+          console.error("[Series] Erro ao carregar todas as séries:", err);
+          setAllSeries([]);
+        })
+        .finally(() => setIsLoadingSeries(false));
     } else {
       client.getSeries(selectedCategory)
         .then((data) => {
-          setAllSeries(data || []);
+          const all = data || [];
+          const seen = new Set<number>();
+          const uniqueList: XtreamSeries[] = [];
+          all.forEach((s) => {
+            const sid = Number(s.series_id);
+            if (!seen.has(sid)) {
+              seen.add(sid);
+              uniqueList.push(s);
+            }
+          });
+          setAllSeries(uniqueList);
         })
         .catch((err) => {
           console.error("[Series] Erro ao carregar séries da categoria:", err);
@@ -274,9 +348,13 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   // Força foco real no DOM
   useEffect(() => {
     if (!playingEpisode && isFocusedContent) {
-      if (activeFocusColumn === 'categories' && activeCategoryBtnRef.current) {
-        activeCategoryBtnRef.current.focus();
-        activeCategoryBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (activeFocusColumn === 'categories') {
+        if (selectedCategoryIdx === -1 && backHomeBtnRef.current) {
+          backHomeBtnRef.current.focus();
+        } else if (activeCategoryBtnRef.current) {
+          activeCategoryBtnRef.current.focus();
+          activeCategoryBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
       } else if (activeFocusColumn === 'grid' && activeSeriesBtnRef.current) {
         activeSeriesBtnRef.current.focus();
         activeSeriesBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -298,10 +376,10 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   useEffect(() => {
     const handleFavKey = (e: KeyboardEvent) => {
       if (playingEpisode) return;
-      if (e.key === 'f' || e.key === 'F' || e.key === 'Yellow' || e.key === 'y' || e.key === 'Y') {
+      if (e.key === 'f' || e.key === 'F') {
         const target = selectedSeries || displayedSeries[selectedSeriesIdx];
         if (target) {
-          handleToggleFav(target.series_id);
+          handleToggleFav(Number(target.series_id));
         }
       }
     };
@@ -321,8 +399,10 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     setActiveFocusColumn('grid');
   };
 
-  const handleToggleFav = (seriesId: number) => {
-    toggleFavorite(seriesId, 'series');
+  const handleToggleFav = (seriesId: number | string) => {
+    const numId = Number(seriesId);
+    if (isNaN(numId)) return;
+    toggleFavorite(numId, 'series');
     setFavorites(getFavorites('series'));
   };
 
@@ -458,7 +538,10 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     onUp: () => {
       if (playingEpisode) return;
       if (activeFocusColumn === 'categories') {
-        setSelectedCategoryIdx((prev) => Math.max(0, prev - 1));
+        setSelectedCategoryIdx((prev) => {
+          if (prev <= 0) return -1;
+          return prev - 1;
+        });
       } else if (activeFocusColumn === 'grid') {
         if (selectedSeriesIdx < 5) {
           setActiveFocusColumn('search');
@@ -490,12 +573,15 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       if (playingEpisode) return;
       if (activeFocusColumn === 'search') {
         setActiveFocusColumn('grid');
+        setSelectedSeriesIdx(0);
         searchInputRef.current?.blur();
       } else if (activeFocusColumn === 'details-header') {
         setActiveFocusColumn('seasons');
       } else if (activeFocusColumn === 'categories') {
-        // total = 3 especiais (Favoritos, Últimos Assistidos, Recém Adicionados) + categories.length
-        setSelectedCategoryIdx((prev) => Math.min(categories.length + 2, prev + 1));
+        setSelectedCategoryIdx((prev) => {
+          if (prev === -1) return 0;
+          return Math.min(selectableCategories.length - 1, prev + 1);
+        });
       } else if (activeFocusColumn === 'grid') {
         setSelectedSeriesIdx((prev) => {
           const nextIdx = Math.min(allSeries.length - 1, prev + 5);
@@ -519,6 +605,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       if (playingEpisode) return;
       if (activeFocusColumn === 'search') {
         setActiveFocusColumn('categories');
+        setSelectedCategoryIdx(-1);
         searchInputRef.current?.blur();
       } else if (activeFocusColumn === 'details-header') {
         setHeaderBtnIdx(0); // Favoritar
@@ -537,6 +624,11 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       if (activeFocusColumn === 'details-header') {
         setHeaderBtnIdx(1); // Fechar
       } else if (activeFocusColumn === 'categories') {
+        if (selectedCategoryIdx === -1) {
+          setActiveFocusColumn('search');
+          searchInputRef.current?.focus();
+          return;
+        }
         if (displayedSeries.length > 0) {
           setActiveFocusColumn('grid');
           setSelectedSeriesIdx(0);
@@ -561,23 +653,23 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       }
       if (activeFocusColumn === 'details-header') {
         if (headerBtnIdx === 0 && selectedSeries) {
-          handleToggleFav(selectedSeries.series_id);
+          handleToggleFav(Number(selectedSeries.series_id));
         } else if (headerBtnIdx === 1) {
           closeSeriesDetails();
         }
       } else if (activeFocusColumn === 'categories') {
-        if (selectedCategoryIdx === 0) {
-          setSelectedCategory('favorites');
-          setActiveFocusColumn('grid');
-        } else if (selectedCategoryIdx === 1) {
-          setSelectedCategory('recently_watched');
-          setActiveFocusColumn('grid');
-        } else if (selectedCategoryIdx === 2) {
-          setSelectedCategory('recently_added');
-          setActiveFocusColumn('grid');
-        } else if (categories[selectedCategoryIdx - 3]) {
-          const cat = categories[selectedCategoryIdx - 3];
-          handleCategoryClick(cat.category_id, selectedCategoryIdx, cat.category_name);
+        if (selectedCategoryIdx === -1) {
+          onBackToHome?.();
+          return;
+        }
+        const item = selectableCategories[selectedCategoryIdx];
+        if (item) {
+          if (item.isSpecial) {
+            setSelectedCategory(item.id);
+            setActiveFocusColumn('grid');
+          } else {
+            handleCategoryClick(item.id, selectedCategoryIdx, item.name);
+          }
         }
       } else if (activeFocusColumn === 'grid' && displayedSeries[selectedSeriesIdx]) {
         handleOpenSeries(displayedSeries[selectedSeriesIdx]);
@@ -598,24 +690,21 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       }
     },
     onGreen: () => {
-      if (selectedSeries) {
-        handleToggleFav(selectedSeries.series_id);
-      } else if (displayedSeries[selectedSeriesIdx]) {
-        handleToggleFav(displayedSeries[selectedSeriesIdx].series_id);
+      const target = selectedSeries || displayedSeries[selectedSeriesIdx];
+      if (target) {
+        handleToggleFav(Number(target.series_id));
       }
     },
     onYellow: () => {
-      if (selectedSeries) {
-        handleToggleFav(selectedSeries.series_id);
-      } else if (displayedSeries[selectedSeriesIdx]) {
-        handleToggleFav(displayedSeries[selectedSeriesIdx].series_id);
+      const target = selectedSeries || displayedSeries[selectedSeriesIdx];
+      if (target) {
+        handleToggleFav(Number(target.series_id));
       }
     },
     onLongSelect: () => {
-      if (selectedSeries) {
-        handleToggleFav(selectedSeries.series_id);
-      } else if (displayedSeries[selectedSeriesIdx]) {
-        handleToggleFav(displayedSeries[selectedSeriesIdx].series_id);
+      const target = selectedSeries || displayedSeries[selectedSeriesIdx];
+      if (target) {
+        handleToggleFav(Number(target.series_id));
       }
     },
     onBack: () => {
@@ -655,7 +744,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     displayedSeries,
     allSeries.length,
     displayedCount,
-    categories,
+    selectableCategories,
     selectedSeries,
     seriesDetails,
     selectedSeason,
@@ -688,7 +777,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     );
   }
 
-  const isCurrentSeriesFav = selectedSeries ? favorites.includes(selectedSeries.series_id) : false;
+  const isCurrentSeriesFav = selectedSeries ? favorites.includes(Number(selectedSeries.series_id)) : false;
 
   return (
     <div className="w-full h-full flex bg-[#0a0d14] overflow-hidden select-none relative">
@@ -699,13 +788,18 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         <div className="flex items-center justify-between mb-4 px-1">
           <h2 className="text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
             <span>GÊNEROS SÉRIES</span>
-            <span className="text-sky-400 font-mono text-sm">({categories.length + 3})</span>
+            <span className="text-sky-400 font-mono text-sm">({selectableCategories.length})</span>
           </h2>
           {onBackToHome && (
             <button
+              ref={backHomeBtnRef}
               type="button"
               onClick={onBackToHome}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-sky-600 text-xs font-black text-slate-200 hover:text-white transition cursor-pointer border border-slate-700 shadow"
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition cursor-pointer border shadow ${
+                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === -1
+                  ? 'bg-rose-600 text-white font-black ring-4 ring-rose-400 scale-105 border-white shadow-xl'
+                  : 'bg-slate-800 hover:bg-sky-600 text-xs font-black text-slate-200 hover:text-white border-slate-700'
+              }`}
               title="Voltar para a Home"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -721,128 +815,75 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
-            {/* Categoria 1: Meus Favoritos */}
-            <button
-              ref={selectedCategoryIdx === 0 ? activeCategoryBtnRef : null}
-              tabIndex={0}
-              onClick={() => {
-                setSelectedCategory('favorites');
-                setSelectedCategoryIdx(0);
-                setActiveFocusColumn('grid');
-              }}
-              className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
-                selectedCategory === 'favorites'
-                  ? 'bg-amber-400 text-black shadow font-black'
-                  : 'text-amber-300 hover:bg-[#1b2234]'
-              } ${
-                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 0
-                  ? 'ring-4 ring-amber-300 shadow-2xl scale-102 font-black outline-none bg-amber-400 text-black'
-                  : ''
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Star className="w-6 h-6 fill-current text-amber-400" />
-                <span>Meus Favoritos</span>
-              </div>
-              <span className="font-mono text-sm px-3 py-1 rounded-lg bg-black/40 font-black">
-                {favorites.length}
-              </span>
-            </button>
-
-            {/* Categoria 2: Últimos Assistidos */}
-            <button
-              ref={selectedCategoryIdx === 1 ? activeCategoryBtnRef : null}
-              tabIndex={0}
-              onClick={() => {
-                setSelectedCategory('recently_watched');
-                setSelectedCategoryIdx(1);
-                setActiveFocusColumn('grid');
-              }}
-              className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
-                selectedCategory === 'recently_watched'
-                  ? 'bg-sky-400 text-black shadow font-black'
-                  : 'text-sky-300 hover:bg-[#1b2234]'
-              } ${
-                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 1
-                  ? 'ring-4 ring-sky-300 shadow-2xl scale-102 font-black outline-none bg-sky-400 text-black'
-                  : ''
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <History className="w-6 h-6 text-sky-400" />
-                <span>Últimos Assistidos</span>
-              </div>
-              <span className="font-mono text-sm px-3 py-1 rounded-lg bg-black/40 font-black">
-                {recentSeriesIds.length}
-              </span>
-            </button>
-
-            {/* Categoria 3: Recém Adicionados */}
-            <button
-              ref={selectedCategoryIdx === 2 ? activeCategoryBtnRef : null}
-              tabIndex={0}
-              onClick={() => {
-                setSelectedCategory('recently_added');
-                setSelectedCategoryIdx(2);
-                setActiveFocusColumn('grid');
-              }}
-              className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
-                selectedCategory === 'recently_added'
-                  ? 'bg-emerald-400 text-black shadow font-black'
-                  : 'text-emerald-300 hover:bg-[#1b2234]'
-              } ${
-                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 2
-                  ? 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
-                  : ''
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-6 h-6 text-emerald-400" />
-                <span>Recém Adicionados</span>
-              </div>
-              <span className="font-mono text-sm px-3 py-1 rounded-lg bg-black/40 font-black">
-                {Math.min(100, totalSeriesCount)}
-              </span>
-            </button>
-
-            {/* Categorias da API Xtream */}
-            {categories.map((cat, catIdx) => {
-              const thisIdx = catIdx + 3;
-              const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === thisIdx;
-              const isSelected = selectedCategory === cat.category_id;
-              const isAdult = AdultContentHelper.isAdultCategory(cat.category_name);
+            {selectableCategories.map((item, idx) => {
+              const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === idx;
+              const isSelected = selectedCategory === item.id;
+              const Icon = item.icon;
 
               return (
                 <button
                   type="button"
-                  key={cat.category_id}
+                  key={`${item.id}-${idx}`}
                   ref={isCatFocused ? activeCategoryBtnRef : null}
                   tabIndex={0}
-                  onClick={() => handleCategoryClick(cat.category_id, thisIdx, cat.category_name)}
+                  onClick={() => {
+                    setSelectedCategoryIdx(idx);
+                    if (item.isSpecial) {
+                      setSelectedCategory(item.id);
+                      setActiveFocusColumn('grid');
+                    } else {
+                      handleCategoryClick(item.id, idx, item.name);
+                    }
+                  }}
                   className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition truncate cursor-pointer flex items-center justify-between ${
                     isSelected
-                      ? isAdult ? 'bg-rose-500 text-white font-black shadow' : 'bg-emerald-500 text-black font-black shadow'
-                      : isAdult ? 'text-rose-400 hover:bg-rose-950/30' : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
+                      ? item.isAdult
+                        ? 'bg-rose-500 text-white font-black shadow'
+                        : item.id === 'favorites'
+                        ? 'bg-amber-400 text-black shadow font-black'
+                        : item.id === 'recently_watched'
+                        ? 'bg-sky-400 text-black shadow font-black'
+                        : 'bg-emerald-500 text-black font-black shadow'
+                      : item.isAdult
+                      ? 'text-rose-400 hover:bg-rose-950/30'
+                      : item.id === 'favorites'
+                      ? 'text-amber-300 hover:bg-[#1b2234]'
+                      : item.id === 'recently_watched'
+                      ? 'text-sky-300 hover:bg-[#1b2234]'
+                      : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
                   } ${
                     isCatFocused
-                      ? isAdult
+                      ? item.isAdult
                         ? 'ring-4 ring-rose-400 shadow-2xl scale-102 font-black outline-none bg-rose-500 text-white'
+                        : item.id === 'favorites'
+                        ? 'ring-4 ring-amber-300 shadow-2xl scale-102 font-black outline-none bg-amber-400 text-black'
+                        : item.id === 'recently_watched'
+                        ? 'ring-4 ring-sky-300 shadow-2xl scale-102 font-black outline-none bg-sky-400 text-black'
                         : 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
                       : ''
                   }`}
                 >
                   <div className="flex items-center gap-2 truncate">
-                    <span className="truncate">{cat.category_name}</span>
-                    {isAdult && <Lock className="w-4 h-4 ml-1 shrink-0 opacity-80" />}
+                    {Icon ? (
+                      <Icon className={`w-6 h-6 shrink-0 ${
+                        item.id === 'favorites'
+                          ? isSelected || isCatFocused ? 'fill-current text-black' : 'text-amber-400'
+                          : item.id === 'recently_watched'
+                          ? isSelected || isCatFocused ? 'text-black' : 'text-sky-400'
+                          : isSelected || isCatFocused ? 'text-black' : 'text-emerald-400'
+                      }`} />
+                    ) : null}
+                    <span className="truncate">{item.name}</span>
+                    {item.isAdult && <Lock className="w-4 h-4 ml-1 shrink-0 opacity-80" />}
                   </div>
                   <span className={`font-mono text-xs md:text-sm px-2.5 py-0.5 rounded-lg ml-2 shrink-0 ${
                     isCatFocused
-                      ? 'bg-black/30 text-black'
+                      ? 'bg-black/30 text-black font-bold'
                       : isSelected
-                      ? 'bg-black/40 text-white'
+                      ? 'bg-black/40 text-white font-bold'
                       : 'bg-slate-800/80 text-slate-400'
                   }`}>
-                    {categoryCounts[cat.category_id] ?? 0}
+                    {item.count}
                   </span>
                 </button>
               );

@@ -231,12 +231,52 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
       return;
     }
 
-    if (isInput) {
-      return;
-    }
-
     const code = e.keyCode || e.which;
     const key = e.key;
+
+    // Se estiver em input/textarea, permitir navegação espacial do D-Pad para não prender o foco na Smart TV
+    if (isInput) {
+      if (key === 'ArrowDown' || code === 40 || key === 'Down') {
+        target.blur();
+        e.preventDefault();
+        handlers.onDown?.();
+        return;
+      }
+      if (key === 'ArrowUp' || code === 38 || key === 'Up') {
+        target.blur();
+        e.preventDefault();
+        handlers.onUp?.();
+        return;
+      }
+      if (key === 'Enter' || code === 13 || key === 'Ok' || key === 'OK' || key === 'Select') {
+        target.blur();
+        e.preventDefault();
+        handlers.onSelect?.();
+        return;
+      }
+      if (key === 'Escape' || code === 27) {
+        target.blur();
+        e.preventDefault();
+        handlers.onBack?.();
+        return;
+      }
+      const inputEl = target as HTMLInputElement;
+      if (inputEl && inputEl.value === '') {
+        if (key === 'ArrowRight' || code === 39 || key === 'Right') {
+          target.blur();
+          e.preventDefault();
+          handlers.onRight?.();
+          return;
+        }
+        if (key === 'ArrowLeft' || code === 37 || key === 'Left') {
+          target.blur();
+          e.preventDefault();
+          handlers.onLeft?.();
+          return;
+        }
+      }
+      return;
+    }
     let handled = false;
 
     // Seta para Cima (38)

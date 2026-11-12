@@ -4,11 +4,11 @@ import { XtreamCategory, XtreamStream } from '../types';
 import { VirtualList } from '../components/VirtualList';
 import { Player } from '../components/Player';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Star, Tv, Maximize2, Loader2, AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, X, List, Layers, Search, Lock } from 'lucide-react';
+import { Star, Tv, Maximize2, Loader2, AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, X, List, Layers, Search, Lock, Clock, Trophy } from 'lucide-react';
 import { getFavorites, toggleFavorite } from '../lib/storage';
 import { AdultContentHelper } from '../lib/adultContent';
 import { AdultPinModal } from '../components/AdultPinModal';
-import { sortLiveCategories } from '../lib/categorySorter';
+import { sortLiveCategories, groupLiveCategories, isSportsCategory } from '../lib/categorySorter';
 
 interface LiveTvViewProps {
   client: XtreamClient;
@@ -30,10 +30,11 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   onBackToHome
 }) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedCategoryIdx, setSelectedCategoryIdx] = useState<number>(0);
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => (initialCategoryId === 'sports' ? 'sports' : 'all'));
+  const [selectedCategoryIdx, setSelectedCategoryIdx] = useState<number>(() => (initialCategoryId === 'sports' ? 3 : 0));
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [totalLiveCount, setTotalLiveCount] = useState<number>(0);
+  const [sportsCount, setSportsCount] = useState<number>(0);
   const [channels, setChannels] = useState<XtreamStream[]>([]);
   const [filteredChannels, setFilteredChannels] = useState<XtreamStream[]>([]);
   const [selectedChannelIdx, setSelectedChannelIdx] = useState<number>(0);
@@ -62,6 +63,90 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       c.name.toLowerCase().includes(q) || (c.num && String(c.num).includes(q))
     );
   }, [filteredChannels, searchQuery]);
+
+  // Pastas Especiais Fixas e Categorias Agrupadas (Fiel à divisão do APK Android TV)
+  const specialCats = useMemo(() => [
+    { id: 'all', name: 'Todos os Canais', count: totalLiveCount, icon: Tv },
+    { id: 'favorites', name: 'Meus Favoritos', count: favorites.length, icon: Star },
+    { id: 'recent', name: 'Recém Adicionados', count: Math.min(50, totalLiveCount), icon: Clock },
+    { id: 'sports', name: 'Guia de Jogos / Esportes', count: sportsCount, icon: Trophy },
+  ], [totalLiveCount, favorites.length, sportsCount]);
+
+  const groupedCats = useMemo(() => groupLiveCategories(categories), [categories]);
+
+  const selectableCategories = useMemo(() => {
+    const list: {
+      id: string;
+      name: string;
+      count: number;
+      isSpecial?: boolean;
+      isAdult?: boolean;
+      groupHeader?: string;
+      icon?: any;
+    }[] = [];
+
+    specialCats.forEach((c) => {
+      list.push({ ...c, isSpecial: true });
+    });
+
+    if (groupedCats.regional.length > 0) {
+      groupedCats.regional.forEach((c, idx) => {
+        list.push({
+          id: c.category_id,
+          name: c.category_name,
+          count: categoryCounts[c.category_id] ?? 0,
+          groupHeader: idx === 0 ? 'REGIONAIS & ABERTOS' : undefined
+        });
+      });
+    }
+
+    if (groupedCats.regular.length > 0) {
+      groupedCats.regular.forEach((c, idx) => {
+        list.push({
+          id: c.category_id,
+          name: c.category_name,
+          count: categoryCounts[c.category_id] ?? 0,
+          groupHeader: idx === 0 ? 'CANAIS TEMÁTICOS' : undefined
+        });
+      });
+    }
+
+    if (groupedCats.vinteQuatro.length > 0) {
+      groupedCats.vinteQuatro.forEach((c, idx) => {
+        list.push({
+          id: c.category_id,
+          name: c.category_name,
+          count: categoryCounts[c.category_id] ?? 0,
+          groupHeader: idx === 0 ? '── CANAIS 24 HORAS ──' : undefined
+        });
+      });
+    }
+
+    if (groupedCats.internacional.length > 0) {
+      groupedCats.internacional.forEach((c, idx) => {
+        list.push({
+          id: c.category_id,
+          name: c.category_name,
+          count: categoryCounts[c.category_id] ?? 0,
+          groupHeader: idx === 0 ? '── CANAIS INTERNACIONAIS ──' : undefined
+        });
+      });
+    }
+
+    if (groupedCats.adulto.length > 0) {
+      groupedCats.adulto.forEach((c, idx) => {
+        list.push({
+          id: c.category_id,
+          name: c.category_name,
+          count: categoryCounts[c.category_id] ?? 0,
+          isAdult: true,
+          groupHeader: idx === 0 ? '── 🔒 CONTEÚDO ADULTO (+18) ──' : undefined
+        });
+      });
+    }
+
+    return list;
+  }, [specialCats, groupedCats, categoryCounts]);
 
   // Sistema de Notificação Toast (Feedback visual de favoritos na TV)
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -146,47 +231,47 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     setFavorites(getFavorites('live'));
     client.getLiveCategories()
       .then((rawCats) => {
-        // Ordena fiel ao APK Android TV: Regionais & Abertos -> Temáticos -> 24 Horas -> Internacionais -> Adultos (+18)
         const sortedCats = sortLiveCategories(rawCats || []);
         setCategories(sortedCats);
-        if (initialCategoryId && sortedCats && sortedCats.length > 0) {
-          if (initialCategoryId === 'sports') {
-            const sportsCatIdx = sortedCats.findIndex((c) => {
-              const name = c.category_name.toLowerCase();
-              return name.includes('esporte') || name.includes('sport') || name.includes('futebol') || name.includes('combate');
-            });
-            if (sportsCatIdx !== -1) {
-              setSelectedCategory(sortedCats[sportsCatIdx].category_id);
-              setSelectedCategoryIdx(sportsCatIdx + 2);
-            }
-          } else {
-            const targetIdx = sortedCats.findIndex((c) => c.category_id === initialCategoryId);
-            if (targetIdx !== -1) {
-              setSelectedCategory(sortedCats[targetIdx].category_id);
-              setSelectedCategoryIdx(targetIdx + 2);
-            }
-          }
-        }
       })
       .catch((err) => console.error("Erro ao carregar categorias:", err));
 
-    // Carrega contagens de canais por categoria
+    // Carrega contagens de canais por categoria e total de esportes
     client.getLiveStreams()
       .then((allStreams) => {
         if (allStreams && Array.isArray(allStreams)) {
           const counts: Record<string, number> = {};
+          let spCount = 0;
           allStreams.forEach((s) => {
             const cid = String(s.category_id);
             counts[cid] = (counts[cid] || 0) + 1;
+            const n = (s.name || '').toLowerCase();
+            if (isSportsCategory(n)) spCount++;
           });
           setCategoryCounts(counts);
           setTotalLiveCount(allStreams.length);
+          setSportsCount(spCount);
         }
       })
       .catch((err) => console.warn("Erro ao buscar contagens de canais:", err));
-  }, [client, reloadKey, initialCategoryId]);
+  }, [client, reloadKey]);
 
-  // Carrega canais da categoria selecionada ou filtra por favoritos
+  // Se receber initialCategoryId vindo da Home
+  useEffect(() => {
+    if (!initialCategoryId) return;
+    if (initialCategoryId === 'sports') {
+      setSelectedCategory('sports');
+      setSelectedCategoryIdx(3);
+    } else {
+      const idx = selectableCategories.findIndex((c) => c.id === initialCategoryId);
+      if (idx !== -1) {
+        setSelectedCategory(selectableCategories[idx].id);
+        setSelectedCategoryIdx(idx);
+      }
+    }
+  }, [initialCategoryId, selectableCategories.length]);
+
+  // Carrega canais da categoria selecionada ou filtra por favoritos/recentes/esportes
   useEffect(() => {
     setIsLoadingChannels(true);
 
@@ -204,6 +289,36 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           }
         })
         .catch((err) => console.error("Erro ao carregar favoritos:", err))
+        .finally(() => setIsLoadingChannels(false));
+    } else if (selectedCategory === 'recent') {
+      client.getLiveStreams()
+        .then((streams) => {
+          const all = streams || [];
+          setChannels(all);
+          const recentStreams = [...all].reverse().slice(0, 50);
+          setFilteredChannels(recentStreams);
+          setSelectedChannelIdx(0);
+          setPreviewConfirmedChannelId(null);
+          if (recentStreams.length > 0 && !currentPlayingChannel) {
+            setCurrentPlayingChannel(recentStreams[0]);
+          }
+        })
+        .catch((err) => console.error("Erro ao carregar recentes:", err))
+        .finally(() => setIsLoadingChannels(false));
+    } else if (selectedCategory === 'sports') {
+      client.getLiveStreams()
+        .then((streams) => {
+          const all = streams || [];
+          setChannels(all);
+          const sportsStreams = all.filter((s) => isSportsCategory((s.name || '').toLowerCase()));
+          setFilteredChannels(sportsStreams);
+          setSelectedChannelIdx(0);
+          setPreviewConfirmedChannelId(null);
+          if (sportsStreams.length > 0 && !currentPlayingChannel) {
+            setCurrentPlayingChannel(sportsStreams[0]);
+          }
+        })
+        .catch((err) => console.error("Erro ao carregar esportes:", err))
         .finally(() => setIsLoadingChannels(false));
     } else {
       client.getLiveStreams(selectedCategory === 'all' ? undefined : selectedCategory)
@@ -285,9 +400,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
             } else {
               setSelectedCategoryIdx((prev) => {
                 const next = Math.max(0, prev - 1);
-                if (next === 0) setSelectedCategory('all');
-                else if (next === 1) setSelectedCategory('favorites');
-                else if (categories[next - 2]) setSelectedCategory(categories[next - 2].category_id);
+                const item = selectableCategories[next];
+                if (item) setSelectedCategory(item.id);
                 return next;
               });
             }
@@ -327,10 +441,9 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
             guideSearchInputRef.current?.blur();
           } else if (guideFocusColumn === 'categories') {
             setSelectedCategoryIdx((prev) => {
-              const next = Math.min(categories.length + 1, prev + 1);
-              if (next === 0) setSelectedCategory('all');
-              else if (next === 1) setSelectedCategory('favorites');
-              else if (categories[next - 2]) setSelectedCategory(categories[next - 2].category_id);
+              const next = Math.min(selectableCategories.length - 1, prev + 1);
+              const item = selectableCategories[next];
+              if (item) setSelectedCategory(item.id);
               return next;
             });
           } else {
@@ -354,7 +467,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       } else if (activeFocusColumn === 'categories') {
         setSelectedCategoryIdx((prev) => {
           if (prev === -1) return 0;
-          return Math.min(categories.length + 1, prev + 1);
+          return Math.min(selectableCategories.length - 1, prev + 1);
         });
       }
     },
@@ -371,6 +484,9 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       }
       if (activeFocusColumn === 'channels' || activeFocusColumn === 'search') {
         setActiveFocusColumn('categories');
+        if (activeFocusColumn === 'search') {
+          setSelectedCategoryIdx(-1);
+        }
         searchInputRef.current?.blur();
       }
     },
@@ -385,6 +501,11 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         return;
       }
       if (activeFocusColumn === 'categories') {
+        if (selectedCategoryIdx === -1) {
+          setActiveFocusColumn('search');
+          searchInputRef.current?.focus();
+          return;
+        }
         setActiveFocusColumn('channels');
       } else if (activeFocusColumn === 'channels' && displayedChannels[selectedChannelIdx]) {
         handleChannelSelectOrPlay(displayedChannels[selectedChannelIdx], selectedChannelIdx);
@@ -402,12 +523,9 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           return;
         }
         if (guideFocusColumn === 'categories') {
-          if (selectedCategoryIdx === 0) {
-            setSelectedCategory('all');
-          } else if (selectedCategoryIdx === 1) {
-            setSelectedCategory('favorites');
-          } else if (categories[selectedCategoryIdx - 2]) {
-            setSelectedCategory(categories[selectedCategoryIdx - 2].category_id);
+          const item = selectableCategories[selectedCategoryIdx];
+          if (item) {
+            setSelectedCategory(item.id);
           }
           setGuideFocusColumn('channels');
         } else if (guideFocusColumn === 'channels' && displayedChannels[selectedChannelIdx]) {
@@ -425,15 +543,14 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           onBackToHome?.();
           return;
         }
-        if (selectedCategoryIdx === 0) {
-          setSelectedCategory('all');
-          setActiveFocusColumn('channels');
-        } else if (selectedCategoryIdx === 1) {
-          setSelectedCategory('favorites');
-          setActiveFocusColumn('channels');
-        } else if (categories[selectedCategoryIdx - 2]) {
-          const cat = categories[selectedCategoryIdx - 2];
-          handleCategoryClick(cat.category_id, selectedCategoryIdx, cat.category_name);
+        const item = selectableCategories[selectedCategoryIdx];
+        if (item) {
+          if (item.isSpecial) {
+            setSelectedCategory(item.id);
+            setActiveFocusColumn('channels');
+          } else {
+            handleCategoryClick(item.id, selectedCategoryIdx, item.name);
+          }
         }
       } else if (activeFocusColumn === 'channels' && displayedChannels[selectedChannelIdx]) {
         handleChannelSelectOrPlay(displayedChannels[selectedChannelIdx], selectedChannelIdx);
@@ -840,104 +957,77 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         </div>
 
         <div ref={categoriesContainerRef} className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
-          {/* 1. Todos os Canais */}
-          <button
-            ref={selectedCategoryIdx === 0 ? activeCategoryBtnRef : null}
-            onClick={() => {
-              setSelectedCategory('all');
-              setSelectedCategoryIdx(0);
-              setActiveFocusColumn('channels');
-            }}
-            tabIndex={0}
-            className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
-              selectedCategory === 'all'
-                ? 'bg-emerald-500 text-black shadow font-black'
-                : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
-            } ${
-              isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 0
-                ? 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
-                : ''
-            }`}
-          >
-            <span>★ Todos os Canais</span>
-            <span className={`font-mono text-xs md:text-sm px-2.5 py-0.5 rounded-lg ${
-              isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 0
-                ? 'bg-black/30 text-black'
-                : selectedCategory === 'all'
-                ? 'bg-black/40 text-white'
-                : 'bg-slate-800/80 text-slate-400'
-            }`}>
-              {totalLiveCount}
-            </span>
-          </button>
-
-          {/* 2. Meus Favoritos */}
-          <button
-            ref={selectedCategoryIdx === 1 ? activeCategoryBtnRef : null}
-            onClick={() => {
-              setSelectedCategory('favorites');
-              setSelectedCategoryIdx(1);
-              setActiveFocusColumn('channels');
-            }}
-            tabIndex={0}
-            className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
-              selectedCategory === 'favorites'
-                ? 'bg-amber-400 text-black shadow font-black'
-                : 'text-amber-300 hover:bg-[#1b2234]'
-            } ${
-              isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 1
-                ? 'ring-4 ring-amber-300 shadow-2xl scale-102 font-black outline-none bg-amber-400 text-black'
-                : ''
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Star className="w-6 h-6 fill-current text-amber-400" />
-              <span>Meus Favoritos</span>
-            </div>
-            <span className="font-mono text-sm px-3 py-1 rounded-lg bg-black/40 font-black">
-              {favorites.length}
-            </span>
-          </button>
-
-          {/* 3. Categorias da API Xtream */}
-          {categories.map((cat, catIdx) => {
-            const thisIdx = catIdx + 2;
-            const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === thisIdx;
-            const isSelected = selectedCategory === cat.category_id;
-            const isAdult = AdultContentHelper.isAdultCategory(cat.category_name);
+          {selectableCategories.map((item, idx) => {
+            const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === idx;
+            const isSelected = selectedCategory === item.id;
+            const Icon = item.icon;
 
             return (
-              <button
-                key={cat.category_id}
-                ref={isCatFocused ? activeCategoryBtnRef : null}
-                onClick={() => handleCategoryClick(cat.category_id, thisIdx, cat.category_name)}
-                tabIndex={0}
-                className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition truncate cursor-pointer flex items-center justify-between ${
-                  isSelected
-                    ? isAdult ? 'bg-rose-500 text-white font-black shadow' : 'bg-emerald-500 text-black font-black shadow'
-                    : isAdult ? 'text-rose-400 hover:bg-rose-950/30' : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
-                } ${
-                  isCatFocused
-                    ? isAdult
-                      ? 'ring-4 ring-rose-400 shadow-2xl scale-102 font-black outline-none bg-rose-500 text-white'
-                      : 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
-                    : ''
-                }`}
-              >
-                <div className="flex items-center gap-2 truncate">
-                  <span className="truncate">{cat.category_name}</span>
-                  {isAdult && <Lock className="w-4 h-4 ml-1 shrink-0 opacity-80" />}
-                </div>
-                <span className={`font-mono text-xs md:text-sm px-2.5 py-0.5 rounded-lg ml-2 shrink-0 ${
-                  isCatFocused
-                    ? 'bg-black/30 text-black'
-                    : isSelected
-                    ? 'bg-black/40 text-white'
-                    : 'bg-slate-800/80 text-slate-400'
-                }`}>
-                  {categoryCounts[cat.category_id] ?? 0}
-                </span>
-              </button>
+              <React.Fragment key={`${item.id}-${idx}`}>
+                {item.groupHeader && (
+                  <div className="pt-4 pb-1.5 px-3 text-xs font-black tracking-wider text-slate-400 uppercase flex items-center gap-2">
+                    <span className="h-px bg-slate-700/60 flex-1"></span>
+                    <span>{item.groupHeader}</span>
+                    <span className="h-px bg-slate-700/60 flex-1"></span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  ref={isCatFocused ? activeCategoryBtnRef : null}
+                  onClick={() => {
+                    setSelectedCategoryIdx(idx);
+                    if (item.isSpecial) {
+                      setSelectedCategory(item.id);
+                      setActiveFocusColumn('channels');
+                    } else {
+                      handleCategoryClick(item.id, idx, item.name);
+                    }
+                  }}
+                  tabIndex={0}
+                  className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition truncate cursor-pointer flex items-center justify-between ${
+                    isSelected
+                      ? item.isAdult
+                        ? 'bg-rose-500 text-white font-black shadow'
+                        : item.id === 'favorites'
+                        ? 'bg-amber-400 text-black shadow font-black'
+                        : item.id === 'sports'
+                        ? 'bg-sky-500 text-black font-black shadow'
+                        : 'bg-emerald-500 text-black font-black shadow'
+                      : item.isAdult
+                      ? 'text-rose-400 hover:bg-rose-950/30'
+                      : item.id === 'favorites'
+                      ? 'text-amber-300 hover:bg-[#1b2234]'
+                      : item.id === 'sports'
+                      ? 'text-sky-300 hover:bg-[#1b2234]'
+                      : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
+                  } ${
+                    isCatFocused
+                      ? item.isAdult
+                        ? 'ring-4 ring-rose-400 shadow-2xl scale-102 font-black outline-none bg-rose-500 text-white'
+                        : item.id === 'favorites'
+                        ? 'ring-4 ring-amber-300 shadow-2xl scale-102 font-black outline-none bg-amber-400 text-black'
+                        : item.id === 'sports'
+                        ? 'ring-4 ring-sky-300 shadow-2xl scale-102 font-black outline-none bg-sky-400 text-black'
+                        : 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
+                      : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 truncate">
+                    {Icon && <Icon className="w-6 h-6 shrink-0" />}
+                    <span className="truncate">{item.name}</span>
+                    {item.isAdult && <Lock className="w-4 h-4 ml-1 shrink-0 opacity-80" />}
+                  </div>
+                  <span className={`font-mono text-xs md:text-sm px-2.5 py-0.5 rounded-lg ml-2 shrink-0 ${
+                    isCatFocused
+                      ? 'bg-black/30 text-black font-black'
+                      : isSelected
+                      ? 'bg-black/40 text-white font-black'
+                      : 'bg-slate-800/80 text-slate-400'
+                  }`}>
+                    {item.count}
+                  </span>
+                </button>
+              </React.Fragment>
             );
           })}
         </div>
