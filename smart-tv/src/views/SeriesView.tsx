@@ -3,7 +3,8 @@ import { XtreamClient } from '../lib/xtream';
 import { XtreamCategory, XtreamSeries, XtreamSeason, XtreamEpisode } from '../types';
 import { Player } from '../components/Player';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Clapperboard, Play, Star, Loader2, X, ArrowLeft, Calendar, Info } from 'lucide-react';
+import { Clapperboard, Play, Star, Loader2, X, ArrowLeft, Calendar, Info, Heart } from 'lucide-react';
+import { getFavorites, toggleFavorite } from '../lib/storage';
 
 interface SeriesViewProps {
   client: XtreamClient;
@@ -25,13 +26,14 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   initialStreamId
 }) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('favorites');
   const [selectedCategoryIdx, setSelectedCategoryIdx] = useState<number>(0);
   const [allSeries, setAllSeries] = useState<XtreamSeries[]>([]);
   const [displayedCount, setDisplayedCount] = useState<number>(BATCH_SIZE);
   const [selectedSeriesIdx, setSelectedSeriesIdx] = useState<number>(0);
   const [isLoadingCats, setIsLoadingCats] = useState<boolean>(true);
   const [isLoadingSeries, setIsLoadingSeries] = useState<boolean>(false);
+  const [favorites, setFavorites] = useState<number[]>(() => getFavorites('series'));
 
   // Detalhes da Série
   const [selectedSeries, setSelectedSeries] = useState<XtreamSeries | null>(null);
@@ -71,12 +73,19 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   // Carrega categorias ao iniciar
   useEffect(() => {
     setIsLoadingCats(true);
+    setFavorites(getFavorites('series'));
     client.getSeriesCategories()
       .then((cats) => {
         if (cats && cats.length > 0) {
           setCategories(cats);
-          setSelectedCategory(cats[0].category_id);
-          setSelectedCategoryIdx(0);
+          const currentFavs = getFavorites('series');
+          if (currentFavs.length > 0) {
+            setSelectedCategory('favorites');
+            setSelectedCategoryIdx(0);
+          } else {
+            setSelectedCategory(cats[0].category_id);
+            setSelectedCategoryIdx(1);
+          }
         } else {
           setCategories([]);
         }
@@ -88,7 +97,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       .finally(() => setIsLoadingCats(false));
   }, [client]);
 
-  // Carrega séries da categoria selecionada
+  // Carrega séries da categoria selecionada ou filtra por favoritos
   useEffect(() => {
     if (!selectedCategory) return;
     
@@ -96,16 +105,30 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     setDisplayedCount(BATCH_SIZE);
     setSelectedSeriesIdx(0);
 
-    client.getSeries(selectedCategory)
-      .then((data) => {
-        setAllSeries(data || []);
-      })
-      .catch((err) => {
-        console.error("[Series] Erro ao carregar séries da categoria:", err);
-        setAllSeries([]);
-      })
-      .finally(() => setIsLoadingSeries(false));
-  }, [client, selectedCategory]);
+    if (selectedCategory === 'favorites') {
+      client.getSeries()
+        .then((data) => {
+          const all = data || [];
+          const favs = all.filter((s) => favorites.includes(s.series_id));
+          setAllSeries(favs);
+        })
+        .catch((err) => {
+          console.error("[Series] Erro ao carregar séries favoritas:", err);
+          setAllSeries([]);
+        })
+        .finally(() => setIsLoadingSeries(false));
+    } else {
+      client.getSeries(selectedCategory)
+        .then((data) => {
+          setAllSeries(data || []);
+        })
+        .catch((err) => {
+          console.error("[Series] Erro ao carregar séries da categoria:", err);
+          setAllSeries([]);
+        })
+        .finally(() => setIsLoadingSeries(false));
+    }
+  }, [client, selectedCategory, favorites.length]);
 
   // Se receber initialStreamId (vindo da Home), abre direto a série
   useEffect(() => {
@@ -142,7 +165,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       .catch((err) => console.warn('[Series] Erro ao carregar série inicial:', err));
   }, [initialStreamId, client]);
 
-  // Força foco real no DOM para desativar cursor na TV LG
+  // Força foco real no DOM
   useEffect(() => {
     if (!playingEpisode && isFocusedContent) {
       if (activeFocusColumn === 'categories' && activeCategoryBtnRef.current) {
@@ -160,6 +183,26 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       }
     }
   }, [selectedCategoryIdx, selectedSeriesIdx, selectedSeasonIdx, selectedEpisodeIdx, activeFocusColumn, isFocusedContent, playingEpisode, displayedSeries.length]);
+
+  // Tecla 'F' para favoritar no controle remoto
+  useEffect(() => {
+    const handleFavKey = (e: KeyboardEvent) => {
+      if (playingEpisode) return;
+      if (e.key === 'f' || e.key === 'F' || e.key === 'Yellow' || e.key === 'y' || e.key === 'Y') {
+        const target = selectedSeries || displayedSeries[selectedSeriesIdx];
+        if (target) {
+          handleToggleFav(target.series_id);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleFavKey);
+    return () => window.removeEventListener('keydown', handleFavKey);
+  }, [selectedSeries, displayedSeries, selectedSeriesIdx, playingEpisode]);
+
+  const handleToggleFav = (seriesId: number) => {
+    toggleFavorite(seriesId, 'series');
+    setFavorites(getFavorites('series'));
+  };
 
   const handleOpenSeries = async (series: XtreamSeries) => {
     setSelectedSeries(series);
@@ -218,7 +261,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     onDown: () => {
       if (playingEpisode) return;
       if (activeFocusColumn === 'categories') {
-        setSelectedCategoryIdx((prev) => Math.min(categories.length - 1, prev + 1));
+        // total = 1 (Favoritos) + categories.length
+        setSelectedCategoryIdx((prev) => Math.min(categories.length, prev + 1));
       } else if (activeFocusColumn === 'grid') {
         setSelectedSeriesIdx((prev) => {
           const nextIdx = Math.min(allSeries.length - 1, prev + 5);
@@ -247,10 +291,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
           setSelectedSeriesIdx((prev) => Math.max(0, prev - 1));
         }
       } else if (activeFocusColumn === 'episodes') {
-        // Da lista de episódios move para a lista de temporadas
         setActiveFocusColumn('seasons');
       }
-      // Seta para esquerda nas categorias ou temporadas não faz nada indesejado
     },
     onRight: () => {
       if (playingEpisode) return;
@@ -268,17 +310,18 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
           return nextIdx;
         });
       } else if (activeFocusColumn === 'seasons') {
-        // Da aba de temporadas move para os episódios
         setActiveFocusColumn('episodes');
       }
     },
     onSelect: () => {
       if (playingEpisode) return;
       if (activeFocusColumn === 'categories') {
-        if (categories[selectedCategoryIdx]) {
-          setSelectedCategory(categories[selectedCategoryIdx].category_id);
-          setActiveFocusColumn('grid');
+        if (selectedCategoryIdx === 0) {
+          setSelectedCategory('favorites');
+        } else if (categories[selectedCategoryIdx - 1]) {
+          setSelectedCategory(categories[selectedCategoryIdx - 1].category_id);
         }
+        setActiveFocusColumn('grid');
       } else if (activeFocusColumn === 'grid' && displayedSeries[selectedSeriesIdx]) {
         handleOpenSeries(displayedSeries[selectedSeriesIdx]);
       } else if (activeFocusColumn === 'seasons') {
@@ -328,7 +371,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     isFocusedContent
   ]);
 
-  // Player de Vídeo do Episódio (VOD com barra de tempo e retrocesso/avanço)
+  // Player de Episódio (VOD com Seekbar)
   if (playingEpisode) {
     return (
       <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black">
@@ -344,6 +387,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     );
   }
 
+  const isCurrentSeriesFav = selectedSeries ? favorites.includes(selectedSeries.series_id) : false;
+
   return (
     <div className="w-full h-full flex bg-[#0a0d14] overflow-hidden select-none relative">
       {/* Coluna de Categorias */}
@@ -353,7 +398,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         <div className="flex items-center justify-between mb-3 px-1">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
             <span>Gêneros Séries</span>
-            <span className="text-sky-400 font-mono">({categories.length})</span>
+            <span className="text-sky-400 font-mono">({categories.length + 1})</span>
           </h2>
           {onBackToHome && (
             <button
@@ -374,9 +419,39 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
             <span className="text-xs">Carregando gêneros...</span>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+            {/* Categoria 1: Meus Favoritos */}
+            <button
+              ref={selectedCategoryIdx === 0 ? activeCategoryBtnRef : null}
+              tabIndex={0}
+              onClick={() => {
+                setSelectedCategory('favorites');
+                setSelectedCategoryIdx(0);
+                setActiveFocusColumn('grid');
+              }}
+              className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer flex items-center justify-between ${
+                selectedCategory === 'favorites'
+                  ? 'bg-amber-400 text-black shadow font-bold'
+                  : 'text-amber-300/90 hover:bg-[#1b2234] hover:text-amber-300'
+              } ${
+                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 0
+                  ? 'ring-4 ring-amber-300 shadow-xl scale-102 font-extrabold outline-none bg-amber-400 text-black'
+                  : ''
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 fill-current text-amber-400" />
+                <span>Meus Favoritos</span>
+              </div>
+              <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-black/30 font-bold">
+                {favorites.length}
+              </span>
+            </button>
+
+            {/* Categorias da API Xtream */}
             {categories.map((cat, catIdx) => {
-              const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === catIdx;
+              const thisIdx = catIdx + 1;
+              const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === thisIdx;
               const isSelected = selectedCategory === cat.category_id;
 
               return (
@@ -387,15 +462,17 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                   tabIndex={0}
                   onClick={() => {
                     setSelectedCategory(cat.category_id);
-                    setSelectedCategoryIdx(catIdx);
+                    setSelectedCategoryIdx(thisIdx);
                     setActiveFocusColumn('grid');
                   }}
                   className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium transition truncate cursor-pointer ${
-                    isCatFocused
-                      ? 'bg-emerald-400 text-black font-extrabold shadow-xl scale-102 ring-4 ring-emerald-300 outline-none'
-                      : isSelected
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold'
+                    isSelected
+                      ? 'bg-emerald-500 text-black font-bold shadow'
                       : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
+                  } ${
+                    isCatFocused
+                      ? 'ring-4 ring-emerald-300 shadow-xl scale-102 font-extrabold outline-none bg-emerald-400 text-black'
+                      : ''
                   }`}
                 >
                   {cat.category_name}
@@ -438,15 +515,26 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
             <span className="text-sm">Carregando catálogo de séries...</span>
           </div>
         ) : allSeries.length === 0 ? (
-          <div className="w-full h-80 flex flex-col items-center justify-center text-slate-500">
-            <Clapperboard className="w-16 h-16 mb-3 text-slate-600" />
-            <p className="text-base font-semibold text-slate-400">Nenhuma série disponível nesta categoria.</p>
-            <p className="text-xs text-slate-500 mt-1">Selecione outro gênero no menu à esquerda.</p>
+          <div className="w-full h-80 flex flex-col items-center justify-center text-slate-500 p-6 text-center">
+            {selectedCategory === 'favorites' ? (
+              <>
+                <Star className="w-16 h-16 mb-3 text-amber-500/40" />
+                <p className="text-base font-semibold text-slate-300">Nenhuma série favoritada ainda.</p>
+                <p className="text-xs text-slate-500 mt-1 max-w-sm">Abra qualquer série e clique no botão [Favoritar] ou aperte a tecla 'F' no controle.</p>
+              </>
+            ) : (
+              <>
+                <Clapperboard className="w-16 h-16 mb-3 text-slate-600" />
+                <p className="text-base font-semibold text-slate-400">Nenhuma série disponível nesta categoria.</p>
+                <p className="text-xs text-slate-500 mt-1">Selecione outro gênero no menu à esquerda.</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {displayedSeries.map((series, seriesIdx) => {
               const isSeriesFocused = isFocusedContent && activeFocusColumn === 'grid' && selectedSeriesIdx === seriesIdx;
+              const isFav = favorites.includes(series.series_id);
 
               return (
                 <button
@@ -478,6 +566,13 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                         <Clapperboard className="w-12 h-12" />
                       </div>
                     )}
+
+                    {isFav && (
+                      <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-amber-400 z-10">
+                        <Star className="w-3.5 h-3.5 fill-current" />
+                      </div>
+                    )}
+
                     <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition ${
                       isSeriesFocused ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                     }`}>
@@ -508,7 +603,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-6 md:p-10 animate-in fade-in duration-200">
           <div className="w-full max-w-5xl max-h-[90vh] bg-[#121722] border border-[#2a3449] rounded-3xl flex flex-col overflow-hidden shadow-2xl">
             
-            {/* Header da Série: Capa + Sinopse + Botão Fechar */}
+            {/* Header da Série: Capa + Sinopse + Botão Favoritar + Botão Fechar */}
             <div className="p-6 border-b border-[#2a3449] flex items-start gap-6 bg-gradient-to-r from-[#161f30] to-[#121722]">
               {selectedSeries.cover && (
                 <div className="w-20 md:w-24 aspect-[2/3] rounded-xl overflow-hidden shrink-0 border border-slate-700 shadow-lg">
@@ -518,14 +613,29 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
               <div className="flex-1">
                 <div className="flex items-center justify-between">
                   <h3 className="text-2xl md:text-3xl font-black text-white">{selectedSeries.name}</h3>
-                  <button
-                    type="button"
-                    tabIndex={0}
-                    onClick={closeSeriesDetails}
-                    className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      tabIndex={0}
+                      onClick={() => handleToggleFav(selectedSeries.series_id)}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border transition cursor-pointer ${
+                        isCurrentSeriesFav
+                          ? 'bg-amber-400/20 text-amber-300 border-amber-400/50 hover:bg-amber-400/30'
+                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                      }`}
+                    >
+                      <Star className={`w-3.5 h-3.5 ${isCurrentSeriesFav ? 'fill-amber-400 text-amber-400' : ''}`} />
+                      <span>{isCurrentSeriesFav ? 'Favoritada' : 'Favoritar'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      tabIndex={0}
+                      onClick={closeSeriesDetails}
+                      className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      <X className="w-6 h-6" />
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="flex items-center gap-3 mt-2 text-xs text-slate-300">

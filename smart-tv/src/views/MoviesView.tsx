@@ -3,7 +3,8 @@ import { XtreamClient } from '../lib/xtream';
 import { XtreamCategory, XtreamVod } from '../types';
 import { Player } from '../components/Player';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Film, Play, Star, Loader2, ArrowLeft, Heart, Clock, Calendar, Check, Info } from 'lucide-react';
+import { Film, Play, Star, Loader2, ArrowLeft, Heart, Clock, Calendar, Info } from 'lucide-react';
+import { getFavorites, toggleFavorite } from '../lib/storage';
 
 interface MoviesViewProps {
   client: XtreamClient;
@@ -25,7 +26,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   initialStreamId
 }) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('favorites');
   const [selectedCategoryIdx, setSelectedCategoryIdx] = useState<number>(0);
   const [allMovies, setAllMovies] = useState<XtreamVod[]>([]);
   const [displayedCount, setDisplayedCount] = useState<number>(BATCH_SIZE);
@@ -38,14 +39,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   const [movieDetails, setMovieDetails] = useState<any | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState<boolean>(false);
   const [detailsButtonIdx, setDetailsButtonIdx] = useState<number>(0); // 0: Assistir, 1: Favorito, 2: Voltar
-  const [favorites, setFavorites] = useState<number[]>(() => {
-    try {
-      const saved = localStorage.getItem('zyveron_vod_favs');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [favorites, setFavorites] = useState<number[]>(() => getFavorites('vod'));
 
   // Player de Vídeo
   const [selectedMovie, setSelectedMovie] = useState<XtreamVod | null>(null);
@@ -67,12 +61,20 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   // Carrega categorias ao iniciar
   useEffect(() => {
     setIsLoadingCats(true);
+    setFavorites(getFavorites('vod'));
     client.getVodCategories()
       .then((cats) => {
         if (cats && cats.length > 0) {
           setCategories(cats);
-          setSelectedCategory(cats[0].category_id);
-          setSelectedCategoryIdx(0);
+          // Se tiver favoritos, abre neles; senão abre na 1ª categoria
+          const currentFavs = getFavorites('vod');
+          if (currentFavs.length > 0) {
+            setSelectedCategory('favorites');
+            setSelectedCategoryIdx(0);
+          } else {
+            setSelectedCategory(cats[0].category_id);
+            setSelectedCategoryIdx(1);
+          }
         } else {
           setCategories([]);
         }
@@ -84,7 +86,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       .finally(() => setIsLoadingCats(false));
   }, [client]);
 
-  // Carrega filmes da categoria selecionada
+  // Carrega filmes da categoria selecionada ou filtra favoritos
   useEffect(() => {
     if (!selectedCategory) return;
     
@@ -92,22 +94,35 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     setDisplayedCount(BATCH_SIZE);
     setSelectedMovieIdx(0);
 
-    client.getVodStreams(selectedCategory)
-      .then((data) => {
-        setAllMovies(data || []);
-      })
-      .catch((err) => {
-        console.error("[Movies] Erro ao carregar filmes da categoria:", err);
-        setAllMovies([]);
-      })
-      .finally(() => setIsLoadingMovies(false));
-  }, [client, selectedCategory]);
+    if (selectedCategory === 'favorites') {
+      client.getVodStreams()
+        .then((data) => {
+          const all = data || [];
+          const favs = all.filter((m) => favorites.includes(m.stream_id));
+          setAllMovies(favs);
+        })
+        .catch((err) => {
+          console.error("[Movies] Erro ao carregar filmes favoritos:", err);
+          setAllMovies([]);
+        })
+        .finally(() => setIsLoadingMovies(false));
+    } else {
+      client.getVodStreams(selectedCategory)
+        .then((data) => {
+          setAllMovies(data || []);
+        })
+        .catch((err) => {
+          console.error("[Movies] Erro ao carregar filmes da categoria:", err);
+          setAllMovies([]);
+        })
+        .finally(() => setIsLoadingMovies(false));
+    }
+  }, [client, selectedCategory, favorites.length]);
 
   // Se receber initialStreamId (vindo dos destaques da Home), abre direto os detalhes
   useEffect(() => {
     if (!initialStreamId) return;
 
-    // Busca dados diretos via getVodInfo
     client.getVodInfo(initialStreamId)
       .then((infoData) => {
         if (infoData?.info) {
@@ -147,6 +162,21 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     }
   }, [selectedCategoryIdx, selectedMovieIdx, detailsButtonIdx, activeFocusColumn, isFocusedContent, isPlaying, displayedMovies.length]);
 
+  // Tecla de atalho 'F' para favoritar no controle remoto
+  useEffect(() => {
+    const handleFavKey = (e: KeyboardEvent) => {
+      if (isPlaying) return;
+      if (e.key === 'f' || e.key === 'F' || e.key === 'Yellow' || e.key === 'y' || e.key === 'Y') {
+        const targetMovie = selectedMovieForDetails || displayedMovies[selectedMovieIdx];
+        if (targetMovie) {
+          handleToggleFav(targetMovie.stream_id);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleFavKey);
+    return () => window.removeEventListener('keydown', handleFavKey);
+  }, [selectedMovieForDetails, displayedMovies, selectedMovieIdx, isPlaying]);
+
   const openMovieDetails = async (movie: XtreamVod) => {
     setSelectedMovieForDetails(movie);
     setActiveFocusColumn('details');
@@ -170,16 +200,9 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     setActiveFocusColumn('grid');
   };
 
-  const toggleFavorite = (streamId: number) => {
-    setFavorites((prev) => {
-      const next = prev.includes(streamId)
-        ? prev.filter((id) => id !== streamId)
-        : [...prev, streamId];
-      try {
-        localStorage.setItem('zyveron_vod_favs', JSON.stringify(next));
-      } catch {}
-      return next;
-    });
+  const handleToggleFav = (streamId: number) => {
+    toggleFavorite(streamId, 'vod');
+    setFavorites(getFavorites('vod'));
   };
 
   const startPlaying = (movie: XtreamVod) => {
@@ -206,7 +229,8 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     onDown: () => {
       if (isPlaying) return;
       if (activeFocusColumn === 'categories') {
-        setSelectedCategoryIdx((prev) => Math.min(categories.length - 1, prev + 1));
+        // total = 1 (Favoritos) + categories.length
+        setSelectedCategoryIdx((prev) => Math.min(categories.length, prev + 1));
       } else if (activeFocusColumn === 'grid') {
         setSelectedMovieIdx((prev) => {
           const nextIdx = Math.min(allMovies.length - 1, prev + 5);
@@ -220,7 +244,6 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     onLeft: () => {
       if (isPlaying) return;
       if (activeFocusColumn === 'details') {
-        // Alterna entre botões de ação na tela de detalhes
         setDetailsButtonIdx((prev) => Math.max(0, prev - 1));
       } else if (activeFocusColumn === 'grid') {
         if (selectedMovieIdx % 5 === 0 || displayedMovies.length === 0) {
@@ -229,7 +252,6 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
           setSelectedMovieIdx((prev) => Math.max(0, prev - 1));
         }
       }
-      // Seta para esquerda nas categorias NÃO faz nada (evita sair ou bugar o menu)
     },
     onRight: () => {
       if (isPlaying) return;
@@ -256,17 +278,18 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         if (detailsButtonIdx === 0 && selectedMovieForDetails) {
           startPlaying(selectedMovieForDetails);
         } else if (detailsButtonIdx === 1 && selectedMovieForDetails) {
-          toggleFavorite(selectedMovieForDetails.stream_id);
+          handleToggleFav(selectedMovieForDetails.stream_id);
         } else if (detailsButtonIdx === 2) {
           closeMovieDetails();
         }
       } else if (activeFocusColumn === 'categories') {
-        if (categories[selectedCategoryIdx]) {
-          setSelectedCategory(categories[selectedCategoryIdx].category_id);
-          setActiveFocusColumn('grid');
+        if (selectedCategoryIdx === 0) {
+          setSelectedCategory('favorites');
+        } else if (categories[selectedCategoryIdx - 1]) {
+          setSelectedCategory(categories[selectedCategoryIdx - 1].category_id);
         }
+        setActiveFocusColumn('grid');
       } else if (activeFocusColumn === 'grid' && displayedMovies[selectedMovieIdx]) {
-        // Abre primeiro a tela de detalhes com sinopse e capa
         openMovieDetails(displayedMovies[selectedMovieIdx]);
       }
     },
@@ -280,7 +303,6 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       } else if (activeFocusColumn === 'grid') {
         setActiveFocusColumn('categories');
       } else if (activeFocusColumn === 'categories') {
-        // Botão Físico VOLTAR retorna para o Menu Principal
         if (onBackToHome) {
           onBackToHome();
         }
@@ -301,7 +323,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     isFocusedContent
   ]);
 
-  // Player de Vídeo em Tela Cheia (Modo VOD com Barra de Avanço / Retrocesso)
+  // Player de Vídeo em Tela Cheia (VOD com Seekbar)
   if (isPlaying && selectedMovie) {
     const vodInfo = movieDetails?.info;
     const movieGenre = vodInfo?.genre || 'Filme On Demand';
@@ -331,7 +353,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         <div className="flex items-center justify-between mb-3 px-1">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
             <span>Gêneros VOD</span>
-            <span className="text-sky-400 font-mono">({categories.length})</span>
+            <span className="text-sky-400 font-mono">({categories.length + 1})</span>
           </h2>
           {onBackToHome && (
             <button
@@ -352,9 +374,39 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
             <span className="text-xs">Carregando gêneros...</span>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+            {/* Categoria 1: Meus Favoritos */}
+            <button
+              ref={selectedCategoryIdx === 0 ? activeCategoryBtnRef : null}
+              tabIndex={0}
+              onClick={() => {
+                setSelectedCategory('favorites');
+                setSelectedCategoryIdx(0);
+                setActiveFocusColumn('grid');
+              }}
+              className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer flex items-center justify-between ${
+                selectedCategory === 'favorites'
+                  ? 'bg-amber-400 text-black shadow font-bold'
+                  : 'text-amber-300/90 hover:bg-[#1b2234] hover:text-amber-300'
+              } ${
+                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 0
+                  ? 'ring-4 ring-amber-300 shadow-xl scale-102 font-extrabold outline-none bg-amber-400 text-black'
+                  : ''
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 fill-current text-amber-400" />
+                <span>Meus Favoritos</span>
+              </div>
+              <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-black/30 font-bold">
+                {favorites.length}
+              </span>
+            </button>
+
+            {/* Categorias da API Xtream */}
             {categories.map((cat, catIdx) => {
-              const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === catIdx;
+              const thisIdx = catIdx + 1;
+              const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === thisIdx;
               const isSelected = selectedCategory === cat.category_id;
 
               return (
@@ -365,15 +417,17 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                   tabIndex={0}
                   onClick={() => {
                     setSelectedCategory(cat.category_id);
-                    setSelectedCategoryIdx(catIdx);
+                    setSelectedCategoryIdx(thisIdx);
                     setActiveFocusColumn('grid');
                   }}
                   className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium transition truncate cursor-pointer ${
+                    isSelected
+                      ? 'bg-emerald-500 text-black font-bold shadow'
+                      : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
+                  } ${
                     isCatFocused
                       ? 'bg-emerald-400 text-black font-extrabold shadow-xl scale-102 ring-4 ring-emerald-300 outline-none'
-                      : isSelected
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold'
-                      : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
+                      : ''
                   }`}
                 >
                   {cat.category_name}
@@ -417,10 +471,20 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
             <span className="text-sm">Carregando catálogo de filmes...</span>
           </div>
         ) : allMovies.length === 0 ? (
-          <div className="w-full h-80 flex flex-col items-center justify-center text-slate-500">
-            <Film className="w-16 h-16 mb-3 text-slate-600" />
-            <p className="text-base font-semibold text-slate-400">Nenhum filme disponível nesta categoria.</p>
-            <p className="text-xs text-slate-500 mt-1">Selecione outro gênero no menu à esquerda.</p>
+          <div className="w-full h-80 flex flex-col items-center justify-center text-slate-500 p-6 text-center">
+            {selectedCategory === 'favorites' ? (
+              <>
+                <Heart className="w-16 h-16 mb-3 text-red-500/40" />
+                <p className="text-base font-semibold text-slate-300">Nenhum filme favoritado ainda.</p>
+                <p className="text-xs text-slate-500 mt-1 max-w-sm">Abra qualquer filme no catálogo e selecione o botão [Favorito] para salvá-lo nesta lista.</p>
+              </>
+            ) : (
+              <>
+                <Film className="w-16 h-16 mb-3 text-slate-600" />
+                <p className="text-base font-semibold text-slate-400">Nenhum filme disponível nesta categoria.</p>
+                <p className="text-xs text-slate-500 mt-1">Selecione outro gênero no menu à esquerda.</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -490,10 +554,9 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         )}
       </div>
 
-      {/* MODAL / TELA DE DETALHES DO FILME (SINOPSE + CAPA + BOTÕES DE AÇÃO) */}
+      {/* MODAL / TELA DE DETALHES DO FILME */}
       {selectedMovieForDetails && (
         <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-6 md:p-12 animate-in fade-in duration-200">
-          {/* Backdrop de Fundo com Blur */}
           {movieDetails?.info?.backdrop_path?.[0] && (
             <div 
               className="absolute inset-0 bg-cover bg-center opacity-20 filter blur-xl"
@@ -604,7 +667,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                   type="button"
                   tabIndex={0}
                   ref={detailsButtonIdx === 1 ? activeDetailBtnRef : null}
-                  onClick={() => toggleFavorite(selectedMovieForDetails.stream_id)}
+                  onClick={() => handleToggleFav(selectedMovieForDetails.stream_id)}
                   className={`flex items-center gap-2 px-5 py-3.5 rounded-2xl font-bold text-sm cursor-pointer transition-all duration-200 border ${
                     detailsButtonIdx === 1
                       ? 'bg-white text-black scale-105 shadow-xl ring-4 ring-sky-400 border-white'
