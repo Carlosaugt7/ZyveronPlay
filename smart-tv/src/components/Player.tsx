@@ -31,16 +31,39 @@ export const Player: React.FC<PlayerProps> = ({
   const [showOsd, setShowOsd] = useState(true);
   const [activeUrl, setActiveUrl] = useState(streamUrl);
 
-  // Hook de navegação D-Pad para capturar tecla VOLTAR em tela cheia
+  // Hook de navegação D-Pad para capturar tecla VOLTAR ou SETA ESQUERDA em tela cheia
   useSpatialNav({
     onBack: () => {
       if (onBack) {
-        console.log('[Player] Tecla VOLTAR pressionada - voltando para lista');
+        console.log('[Player] Tecla VOLTAR pressionada - saindo de tela cheia');
+        onBack();
+      }
+    },
+    onLeft: () => {
+      if (onBack) {
+        console.log('[Player] Seta para a ESQUERDA pressionada em tela cheia - exibindo lista/menu');
         onBack();
       }
     },
     disabled: !isFullScreen || hasError
   }, [onBack, isFullScreen, hasError]);
+
+  // Registra histórico para garantir que a tecla física VOLTAR do controle da TV volte da tela cheia
+  useEffect(() => {
+    if (!isFullScreen || !onBack) return;
+
+    window.history.pushState({ modal: 'fullscreen-player' }, '');
+
+    const handlePopState = () => {
+      console.log('[Player] Popstate capturado - saindo de tela cheia');
+      onBack();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isFullScreen, onBack]);
 
   // Escuta evento customizado de VOLTAR da Smart TV
   useEffect(() => {
@@ -95,52 +118,29 @@ export const Player: React.FC<PlayerProps> = ({
     setHasError(false);
 
     const isHls = activeUrl.includes('.m3u8');
-    const isSmartTv = /(web0s|webos|tizen|smarttv|smart-tv)/i.test(navigator.userAgent);
-    const isNativeHlsSupported = video.canPlayType('application/vnd.apple.mpegurl');
+    const isNativeHlsSupported = video.canPlayType('application/vnd.apple.mpegurl') === 'probably' || video.canPlayType('application/vnd.apple.mpegurl') === 'maybe';
 
-    // 1. Em Smart TVs (LG webOS e Samsung Tizen): utiliza o pipeline de decodificação de hardware nativo da TV
-    // O player nativo da Smart TV toca streams diretamente pelo chip de vídeo sem as restrições de XHR do navegador
-    if (isSmartTv || (isNativeHlsSupported && !navigator.userAgent.includes('Windows') && !navigator.userAgent.includes('Macintosh'))) {
-      console.log('[Player] Usando player nativo da Smart TV');
-      
-      // Limpa o vídeo anterior completamente
-      video.pause();
-      video.removeAttribute('src');
-      video.load();
-      
-      // Aguarda um frame antes de carregar o novo stream (evita sobreposição de áudio)
-      requestAnimationFrame(() => {
-        video.src = activeUrl;
-        video.load();
-        
-        // Aguarda o vídeo estar pronto antes de reproduzir
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            console.warn('[Player] Erro ao iniciar reprodução:', err);
-          });
-        }
-      });
-    } 
-    // 2. Em computadores Desktop / Notebooks: utiliza Hls.js com buffer adaptativo
-    else if (isHls && Hls.isSupported()) {
+    // 1. Sempre que Hls.js for suportado (MSE disponível no Media Station X, Tizen, webOS e PCs):
+    // Utiliza Hls.js para demuxar H.264 de vídeo e AAC de áudio, garantindo que o vídeo apareça na tela
+    if (isHls && Hls.isSupported()) {
+      console.log('[Player] Usando Hls.js Engine (MSE Video+Audio Demuxer)');
       const hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: false,              // Desabilitado para maior estabilidade
-        backBufferLength: 20,               // Aumentado para 20s
-        maxBufferLength: 30,                // Aumentado para 30s
-        maxMaxBufferLength: 60,             // Aumentado para 60s
-        liveSyncDurationCount: 5,           // Mais tolerante (5 chunks)
-        liveMaxLatencyDurationCount: 10,    // Maior latência permitida
-        manifestLoadingTimeOut: 20000,      // 20s timeout
-        levelLoadingTimeOut: 20000,         // 20s timeout
-        fragLoadingTimeOut: 30000,          // 30s timeout
-        manifestLoadingMaxRetry: 4,         // 4 tentativas de retry
-        levelLoadingMaxRetry: 4,            // 4 tentativas de retry
-        fragLoadingMaxRetry: 6,             // 6 tentativas de retry
+        lowLatencyMode: false,
+        backBufferLength: 15,
+        maxBufferLength: 25,
+        maxMaxBufferLength: 45,
+        liveSyncDurationCount: 4,
+        liveMaxLatencyDurationCount: 8,
+        manifestLoadingTimeOut: 15000,
+        levelLoadingTimeOut: 15000,
+        fragLoadingTimeOut: 20000,
+        manifestLoadingMaxRetry: 4,
+        levelLoadingMaxRetry: 4,
+        fragLoadingMaxRetry: 6,
         xhrSetup: (xhr) => {
           xhr.withCredentials = false;
-          xhr.timeout = 30000;              // Timeout explícito de 30s
+          xhr.timeout = 25000;
         }
       });
 
@@ -157,7 +157,6 @@ export const Player: React.FC<PlayerProps> = ({
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              // Se falhar na rede no PC e houver fallback TS
               if (fallbackUrl && activeUrl !== fallbackUrl) {
                 console.warn("[Player] HLS com falha de rede. Tentando stream TS alternativo...");
                 setActiveUrl(fallbackUrl);
@@ -167,7 +166,7 @@ export const Player: React.FC<PlayerProps> = ({
                 setHasError(true);
                 const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
                 if (isHttps) {
-                  setErrorMessage('O stream deste canal é transmitido em HTTP. No computador, acesse via http://tvplay.loja-am.top ou libere "Conteúdo não seguro" no ícone ao lado da barra de endereços.');
+                  setErrorMessage('O stream deste canal é transmitido em HTTP. Acesse via http://tvplay.loja-am.top ou utilize o proxy seguro.');
                 } else {
                   setErrorMessage('Sinal temporariamente indisponível no servidor.');
                 }
@@ -186,11 +185,21 @@ export const Player: React.FC<PlayerProps> = ({
           }
         }
       });
-    } else {
-      // Reprodução nativa direta para MP4 / TS
-      video.src = activeUrl;
+    } 
+    // 2. Fallback para reprodução nativa direta (Safari Apple HLS ou arquivos diretos MP4 / TS)
+    else if (isNativeHlsSupported || !isHls) {
+      console.log('[Player] Usando pipeline nativo HTML5 Video');
+      video.pause();
+      video.removeAttribute('src');
       video.load();
-      video.play().catch(() => {});
+
+      requestAnimationFrame(() => {
+        video.src = activeUrl;
+        video.load();
+        video.play().catch((err) => {
+          console.warn('[Player] Erro ao iniciar reprodução nativa:', err);
+        });
+      });
     }
 
     const handleLoadStart = () => {
@@ -252,9 +261,15 @@ export const Player: React.FC<PlayerProps> = ({
     <div className={`relative bg-black overflow-hidden flex items-center justify-center ${isFullScreen ? 'w-full h-full' : 'w-full h-full rounded-xl'}`}>
       <video
         ref={videoRef}
-        className="w-full h-full object-contain"
+        className="w-full h-full object-contain bg-black"
         autoPlay
         playsInline
+        preload="auto"
+        style={{
+          transform: 'translate3d(0, 0, 0)',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden'
+        }}
       />
 
       {/* Loading Overlay */}

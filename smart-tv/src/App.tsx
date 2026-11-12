@@ -107,6 +107,11 @@ export default function App() {
     onSelect: () => {
       setFocusZone('content');
     },
+    onBack: () => {
+      // Retorna para a tela Home quando apertar Voltar no Menu Lateral
+      setCurrentSection('home');
+      setFocusZone('content');
+    },
     disabled: focusZone !== 'sidebar' || currentSection === 'home' || activationStatus !== 'active' || isFullScreen
   }, [focusZone, currentSection, activationStatus, isFullScreen]);
 

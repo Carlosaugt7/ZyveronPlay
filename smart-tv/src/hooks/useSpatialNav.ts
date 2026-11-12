@@ -60,13 +60,23 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
         handlers.onSelect();
       }
     }
-    // Voltar / Return (LG: 461, Tizen: 10009, Escape: 27, Backspace: 8)
-    // Previne que a TV saia da aplicação ao voltar da tela cheia ou de menus
+    // Voltar / Return / Back
+    // Samsung Tizen: 10009
+    // LG webOS: 461
+    // Android TV / Box / Fire TV: 4
+    // Windows / Chrome: 166 (BrowserBack)
+    // PC Keyboard: 27 (Escape), 8 (Backspace)
+    // MSX / Roku / Outros: 'BrowserBack', 'GoBack', 'Back'
     else if (
       key === 'Escape' || 
       key === 'Backspace' || 
+      key === 'BrowserBack' || 
+      key === 'GoBack' || 
+      key === 'Back' || 
       code === 27 || 
       code === 8 || 
+      code === 4 || 
+      code === 166 || 
       code === 10009 || 
       code === 461
     ) {

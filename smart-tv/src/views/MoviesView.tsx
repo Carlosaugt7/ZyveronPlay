@@ -141,13 +141,13 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       }
     },
     onLeft: () => {
-      if (isPlaying) return;
+      if (isPlaying) {
+        stopPlaying();
+        return;
+      }
       if (activeFocusColumn === 'categories') {
-        if (onBackToHome) {
-          onBackToHome();
-        } else {
-          onRequestFocusSidebar?.();
-        }
+        // Seta para a esquerda na coluna de categorias foca o Menu Lateral
+        onRequestFocusSidebar?.();
       } else if (activeFocusColumn === 'grid') {
         if (selectedMovieIdx % 5 === 0 || displayedMovies.length === 0) {
           setActiveFocusColumn('categories');

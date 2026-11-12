@@ -135,15 +135,16 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       }
     },
     onLeft: () => {
-      if (isFullScreen) return;
+      if (isFullScreen) {
+        // Sai de tela cheia para exibir o menu e canais ao apertar seta para o lado
+        setFullScreenMode(false);
+        return;
+      }
       if (activeFocusColumn === 'channels') {
         setActiveFocusColumn('categories');
       } else if (activeFocusColumn === 'categories') {
-        if (onBackToHome) {
-          onBackToHome();
-        } else {
-          onRequestFocusSidebar?.();
-        }
+        // Seta para esquerda nas categorias abre o Menu Lateral (Sidebar)
+        onRequestFocusSidebar?.();
       }
     },
     onRight: () => {
@@ -376,23 +377,25 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         <div>
           {currentPlayingChannel ? (
             <div className="space-y-4">
-              {/* Mini Player */}
-              <div className="w-full aspect-video bg-black rounded-2xl overflow-hidden border border-[#2a3449] shadow-2xl relative group">
-                <Player
-                  streamUrl={client.buildLiveHlsUrl(currentPlayingChannel.stream_id)}
-                  fallbackUrl={client.buildLiveTsUrl(currentPlayingChannel.stream_id)}
-                  title={currentPlayingChannel.name}
-                  channelNum={currentPlayingChannel.num || selectedChannelIdx + 1}
-                  logoUrl={currentPlayingChannel.stream_icon}
-                  isFullScreen={false}
-                />
-                <button
-                  onClick={() => setFullScreenMode(true)}
-                  className="absolute bottom-4 right-4 p-3 bg-black/70 hover:bg-emerald-500 hover:text-black text-white rounded-xl backdrop-blur-md transition flex items-center gap-2 text-sm font-bold shadow-lg cursor-pointer"
-                >
-                  <Maximize2 className="w-5 h-5" /> Expandir Tela Cheia [OK]
-                </button>
-              </div>
+              {/* Mini Player (Desmontado durante tela cheia para evitar conflito no decodificador de vídeo da TV) */}
+              {!isFullScreen && (
+                <div className="w-full aspect-video bg-black rounded-2xl overflow-hidden border border-[#2a3449] shadow-2xl relative group">
+                  <Player
+                    streamUrl={client.buildLiveHlsUrl(currentPlayingChannel.stream_id)}
+                    fallbackUrl={client.buildLiveTsUrl(currentPlayingChannel.stream_id)}
+                    title={currentPlayingChannel.name}
+                    channelNum={currentPlayingChannel.num || selectedChannelIdx + 1}
+                    logoUrl={currentPlayingChannel.stream_icon}
+                    isFullScreen={false}
+                  />
+                  <button
+                    onClick={() => setFullScreenMode(true)}
+                    className="absolute bottom-4 right-4 p-3 bg-black/70 hover:bg-emerald-500 hover:text-black text-white rounded-xl backdrop-blur-md transition flex items-center gap-2 text-sm font-bold shadow-lg cursor-pointer"
+                  >
+                    <Maximize2 className="w-5 h-5" /> Expandir Tela Cheia [OK]
+                  </button>
+                </div>
+              )}
 
               {/* Informações do Canal */}
               <div className="bg-[#121722] border border-[#2a3449] p-5 rounded-2xl">

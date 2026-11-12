@@ -179,13 +179,13 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       }
     },
     onLeft: () => {
-      if (playingEpisode) return;
+      if (playingEpisode) {
+        stopPlayingEpisode();
+        return;
+      }
       if (activeFocusColumn === 'categories') {
-        if (onBackToHome) {
-          onBackToHome();
-        } else {
-          onRequestFocusSidebar?.();
-        }
+        // Seta para a esquerda na coluna de categorias foca o Menu Lateral
+        onRequestFocusSidebar?.();
       } else if (activeFocusColumn === 'grid') {
         if (selectedSeriesIdx % 5 === 0 || displayedSeries.length === 0) {
           setActiveFocusColumn('categories');
