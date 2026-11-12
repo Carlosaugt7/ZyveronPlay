@@ -154,7 +154,7 @@ export default function App() {
 
   // 3. Aplicação Principal Ativa (Home Dashboard, TV Ao Vivo, Filmes, Séries, Ajustes)
   return (
-    <div className="w-screen h-screen flex flex-col bg-[#0a0d14] overflow-hidden select-none">
+    <div className="w-full h-full min-h-[100dvh] flex flex-col bg-[#0a0d14] overflow-hidden select-none safe-area-padding">
       <TitleBar isFullScreen={isFullScreen} />
       <div className="flex-1 flex bg-[#0a0d14] overflow-hidden relative w-full h-full">
         {/* Conteúdo da Seção em 100% da tela (sem sidebar persistente para reproduzir fielmente o APK Android TV) */}

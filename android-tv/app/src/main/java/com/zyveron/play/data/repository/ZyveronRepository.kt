@@ -414,16 +414,14 @@ class ZyveronRepository(private val context: Context) {
                         for (i in 0 until json.length()) {
                             val item = json.getJSONObject(i)
                             val catName = item.optString("category_name", "Geral")
-                            if (ContentSafetyFilter.isSafe(catName)) {
-                                parsedCategories.add(
-                                    CategoryEntity(
-                                        categoryId = item.optString("category_id", "$i"),
-                                        categoryName = catName,
-                                        parentId = item.optInt("parent_id", 0),
-                                        type = "live"
-                                    )
+                            parsedCategories.add(
+                                CategoryEntity(
+                                    categoryId = item.optString("category_id", "$i"),
+                                    categoryName = catName,
+                                    parentId = item.optInt("parent_id", 0),
+                                    type = "live"
                                 )
-                            }
+                            )
                         }
                     }
                 }
@@ -445,19 +443,17 @@ class ZyveronRepository(private val context: Context) {
                         for (i in 0 until json.length()) {
                             val item = json.getJSONObject(i)
                             val name = item.optString("name", "Canal $i")
-                            if (ContentSafetyFilter.isSafe(name)) {
-                                parsedChannels.add(
-                                    ChannelEntity(
-                                        streamId = item.optInt("stream_id", i),
-                                        num = item.optInt("num", i + 1),
-                                        name = name,
-                                        streamIcon = item.optString("stream_icon").takeIf { it.isNotEmpty() },
-                                        epgChannelId = item.optString("epg_channel_id").takeIf { it.isNotEmpty() },
-                                        categoryId = item.optString("category_id", "0"),
-                                        isFavorite = false
-                                    )
+                            parsedChannels.add(
+                                ChannelEntity(
+                                    streamId = item.optInt("stream_id", i),
+                                    num = item.optInt("num", i + 1),
+                                    name = name,
+                                    streamIcon = item.optString("stream_icon").takeIf { it.isNotEmpty() },
+                                    epgChannelId = item.optString("epg_channel_id").takeIf { it.isNotEmpty() },
+                                    categoryId = item.optString("category_id", "0"),
+                                    isFavorite = false
                                 )
-                            }
+                            )
                         }
                     } else if (bodyStr.startsWith("{")) {
                         try {
@@ -513,16 +509,14 @@ class ZyveronRepository(private val context: Context) {
                         for (i in 0 until json.length()) {
                             val item = json.getJSONObject(i)
                             val catName = item.optString("category_name", "Filmes")
-                            if (ContentSafetyFilter.isSafe(catName)) {
-                                parsedCategories.add(
-                                    CategoryEntity(
-                                        categoryId = item.optString("category_id", "$i"),
-                                        categoryName = catName,
-                                        parentId = item.optInt("parent_id", 0),
-                                        type = "vod"
-                                    )
+                            parsedCategories.add(
+                                CategoryEntity(
+                                    categoryId = item.optString("category_id", "$i"),
+                                    categoryName = catName,
+                                    parentId = item.optInt("parent_id", 0),
+                                    type = "vod"
                                 )
-                            }
+                            )
                         }
                     }
                 }
@@ -543,20 +537,18 @@ class ZyveronRepository(private val context: Context) {
                         for (i in 0 until json.length()) {
                             val item = json.getJSONObject(i)
                             val name = item.optString("name", "Filme $i")
-                            if (ContentSafetyFilter.isSafe(name)) {
-                                parsedVods.add(
-                                    VodEntity(
-                                        streamId = item.optInt("stream_id", i),
-                                        num = item.optInt("num", i + 1),
-                                        name = name,
-                                        streamIcon = item.optString("stream_icon").takeIf { it.isNotEmpty() },
-                                        rating = item.optString("rating").takeIf { it.isNotEmpty() },
-                                        year = item.optString("year").takeIf { it.isNotEmpty() },
-                                        categoryId = item.optString("category_id", "0"),
-                                        containerExtension = item.optString("container_extension", "mp4")
-                                    )
+                            parsedVods.add(
+                                VodEntity(
+                                    streamId = item.optInt("stream_id", i),
+                                    num = item.optInt("num", i + 1),
+                                    name = name,
+                                    streamIcon = item.optString("stream_icon").takeIf { it.isNotEmpty() },
+                                    rating = item.optString("rating").takeIf { it.isNotEmpty() },
+                                    year = item.optString("year").takeIf { it.isNotEmpty() },
+                                    categoryId = item.optString("category_id", "0"),
+                                    containerExtension = item.optString("container_extension", "mp4")
                                 )
-                            }
+                            )
                         }
                     }
                 }
@@ -594,16 +586,14 @@ class ZyveronRepository(private val context: Context) {
                         for (i in 0 until json.length()) {
                             val item = json.getJSONObject(i)
                             val catName = item.optString("category_name", "Séries")
-                            if (ContentSafetyFilter.isSafe(catName)) {
-                                parsedCategories.add(
-                                    CategoryEntity(
-                                        categoryId = item.optString("category_id", "$i"),
-                                        categoryName = catName,
-                                        parentId = item.optInt("parent_id", 0),
-                                        type = "series"
-                                    )
+                            parsedCategories.add(
+                                CategoryEntity(
+                                    categoryId = item.optString("category_id", "$i"),
+                                    categoryName = catName,
+                                    parentId = item.optInt("parent_id", 0),
+                                    type = "series"
                                 )
-                            }
+                            )
                         }
                     }
                 }
@@ -624,22 +614,20 @@ class ZyveronRepository(private val context: Context) {
                         for (i in 0 until json.length()) {
                             val item = json.getJSONObject(i)
                             val name = item.optString("name", "Série $i")
-                            if (ContentSafetyFilter.isSafe(name)) {
-                                parsedSeries.add(
-                                    SeriesEntity(
-                                        seriesId = item.optInt("series_id", i),
-                                        num = item.optInt("num", i + 1),
-                                        name = name,
-                                        cover = item.optString("cover").takeIf { it.isNotEmpty() },
-                                        plot = item.optString("plot").takeIf { it.isNotEmpty() },
-                                        cast = item.optString("cast").takeIf { it.isNotEmpty() },
-                                        rating = item.optString("rating").takeIf { it.isNotEmpty() },
-                                        year = item.optString("year").takeIf { it.isNotEmpty() },
-                                        genre = item.optString("genre").takeIf { it.isNotEmpty() },
-                                        categoryId = item.optString("category_id", "0")
-                                    )
+                            parsedSeries.add(
+                                SeriesEntity(
+                                    seriesId = item.optInt("series_id", i),
+                                    num = item.optInt("num", i + 1),
+                                    name = name,
+                                    cover = item.optString("cover").takeIf { it.isNotEmpty() },
+                                    plot = item.optString("plot").takeIf { it.isNotEmpty() },
+                                    cast = item.optString("cast").takeIf { it.isNotEmpty() },
+                                    rating = item.optString("rating").takeIf { it.isNotEmpty() },
+                                    year = item.optString("year").takeIf { it.isNotEmpty() },
+                                    genre = item.optString("genre").takeIf { it.isNotEmpty() },
+                                    categoryId = item.optString("category_id", "0")
                                 )
-                            }
+                            )
                         }
                     }
                 }

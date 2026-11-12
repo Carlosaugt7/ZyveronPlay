@@ -1,7 +1,7 @@
 {
-  "versionCode": 19,
-  "versionName": "2.9.4",
+  "versionCode": 20,
+  "versionName": "2.9.5",
   "apkUrl": "https://github.com/Carlosaugt7/ZyveronPlay/raw/main/zyveron-play-tv.apk",
-  "releaseNotes": "Versão 2.9.4: Confirmação permanente de avisos na TV (ao clicar em 'OK, Entendido' o aviso é memorizado localmente e não reaparece ao reabrir o app).",
+  "releaseNotes": "Versão 2.9.5: Liberação de conteúdo adulto (+18) com proteção por senha (PIN padrão 0000) e pastas posicionadas ao final da lista.",
   "isMandatory": false
 }

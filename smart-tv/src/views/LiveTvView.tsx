@@ -4,8 +4,10 @@ import { XtreamCategory, XtreamStream } from '../types';
 import { VirtualList } from '../components/VirtualList';
 import { Player } from '../components/Player';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Star, Tv, Maximize2, Loader2, AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, X, List, Layers, Search } from 'lucide-react';
+import { Star, Tv, Maximize2, Loader2, AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, X, List, Layers, Search, Lock } from 'lucide-react';
 import { getFavorites, toggleFavorite } from '../lib/storage';
+import { AdultContentHelper } from '../lib/adultContent';
+import { AdultPinModal } from '../components/AdultPinModal';
 
 interface LiveTvViewProps {
   client: XtreamClient;
@@ -44,6 +46,10 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const [favorites, setFavorites] = useState<number[]>(() => getFavorites('live'));
   const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'channels'>('channels');
   const [previewConfirmedChannelId, setPreviewConfirmedChannelId] = useState<number | null>(null);
+
+  // Controle Parental (PIN 0000 para Conteúdo Adulto)
+  const [showAdultPinModal, setShowAdultPinModal] = useState<boolean>(false);
+  const [pendingAdultCategory, setPendingAdultCategory] = useState<{ id: string; idx: number } | null>(null);
 
   // Canais filtrados por busca de texto (nome ou número)
   const displayedChannels = useMemo(() => {
@@ -100,6 +106,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   }, []);
 
   const categoriesContainerRef = useRef<HTMLDivElement>(null);
+  const backHomeBtnRef = useRef<HTMLButtonElement>(null);
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
   const activeChannelBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -133,22 +140,24 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   useEffect(() => {
     setFavorites(getFavorites('live'));
     client.getLiveCategories()
-      .then((cats) => {
-        setCategories(cats || []);
-        if (initialCategoryId && cats && cats.length > 0) {
+      .then((rawCats) => {
+        // Ordena colocando categorias adultas SEMPRE no final
+        const sortedCats = AdultContentHelper.partitionAdultCategories(rawCats || [], (c) => c.category_name);
+        setCategories(sortedCats);
+        if (initialCategoryId && sortedCats && sortedCats.length > 0) {
           if (initialCategoryId === 'sports') {
-            const sportsCatIdx = cats.findIndex((c) => {
+            const sportsCatIdx = sortedCats.findIndex((c) => {
               const name = c.category_name.toLowerCase();
               return name.includes('esporte') || name.includes('sport') || name.includes('futebol') || name.includes('combate');
             });
             if (sportsCatIdx !== -1) {
-              setSelectedCategory(cats[sportsCatIdx].category_id);
+              setSelectedCategory(sortedCats[sportsCatIdx].category_id);
               setSelectedCategoryIdx(sportsCatIdx + 2);
             }
           } else {
-            const targetIdx = cats.findIndex((c) => c.category_id === initialCategoryId);
+            const targetIdx = sortedCats.findIndex((c) => c.category_id === initialCategoryId);
             if (targetIdx !== -1) {
-              setSelectedCategory(cats[targetIdx].category_id);
+              setSelectedCategory(sortedCats[targetIdx].category_id);
               setSelectedCategoryIdx(targetIdx + 2);
             }
           }
@@ -195,14 +204,31 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   // Força foco real do DOM no botão selecionado
   useEffect(() => {
     if (!isFullScreen && isFocusedContent) {
-      if (activeFocusColumn === 'categories' && activeCategoryBtnRef.current) {
-        activeCategoryBtnRef.current.focus();
-        activeCategoryBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (activeFocusColumn === 'categories') {
+        if (selectedCategoryIdx === -1 && backHomeBtnRef.current) {
+          backHomeBtnRef.current.focus();
+        } else if (activeCategoryBtnRef.current) {
+          activeCategoryBtnRef.current.focus();
+          activeCategoryBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
       } else if (activeFocusColumn === 'channels' && activeChannelBtnRef.current) {
         activeChannelBtnRef.current.focus();
       }
     }
   }, [selectedCategoryIdx, selectedChannelIdx, activeFocusColumn, isFocusedContent, isFullScreen]);
+
+  // Ação de clique / seleção de categoria protegida
+  const handleCategoryClick = (catId: string, catIndex: number, catName?: string) => {
+    const isAdult = AdultContentHelper.isAdultCategory(catName);
+    if (isAdult && !AdultContentHelper.isSessionUnlocked()) {
+      setPendingAdultCategory({ id: catId, idx: catIndex });
+      setShowAdultPinModal(true);
+      return;
+    }
+    setSelectedCategory(catId);
+    setSelectedCategoryIdx(catIndex);
+    setActiveFocusColumn('channels');
+  };
 
   // 1º Clique / Enter: Seleciona o canal e carrega na prévia lateral
   // 2º Clique / Enter no mesmo canal ativo: Confirma e expande para tela cheia
@@ -247,7 +273,11 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           return next;
         });
       } else if (activeFocusColumn === 'categories') {
-        setSelectedCategoryIdx((prev) => Math.max(0, prev - 1));
+        setSelectedCategoryIdx((prev) => {
+          // Permite subir foco até o botão Voltar/Início (-1)
+          if (prev <= 0) return -1;
+          return prev - 1;
+        });
       }
     },
     onDown: () => {
@@ -277,7 +307,10 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           return next;
         });
       } else if (activeFocusColumn === 'categories') {
-        setSelectedCategoryIdx((prev) => Math.min(categories.length + 1, prev + 1));
+        setSelectedCategoryIdx((prev) => {
+          if (prev === -1) return 0;
+          return Math.min(categories.length + 1, prev + 1);
+        });
       }
     },
     onLeft: () => {
@@ -333,14 +366,20 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         return;
       }
       if (activeFocusColumn === 'categories') {
+        if (selectedCategoryIdx === -1) {
+          onBackToHome?.();
+          return;
+        }
         if (selectedCategoryIdx === 0) {
           setSelectedCategory('all');
+          setActiveFocusColumn('channels');
         } else if (selectedCategoryIdx === 1) {
           setSelectedCategory('favorites');
+          setActiveFocusColumn('channels');
         } else if (categories[selectedCategoryIdx - 2]) {
-          setSelectedCategory(categories[selectedCategoryIdx - 2].category_id);
+          const cat = categories[selectedCategoryIdx - 2];
+          handleCategoryClick(cat.category_id, selectedCategoryIdx, cat.category_name);
         }
-        setActiveFocusColumn('channels');
       } else if (activeFocusColumn === 'channels' && displayedChannels[selectedChannelIdx]) {
         handleChannelSelectOrPlay(displayedChannels[selectedChannelIdx], selectedChannelIdx);
       }
@@ -388,6 +427,11 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       showToast('Sincronizando grade de canais...');
     },
     onBack: () => {
+      if (showAdultPinModal) {
+        setShowAdultPinModal(false);
+        setPendingAdultCategory(null);
+        return;
+      }
       if (isFullScreen) {
         if (isGuideOpen) {
           if (guideFocusColumn === 'channels') {
@@ -402,7 +446,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       }
       onBackToHome?.();
     },
-    disabled: !isFocusedContent,
+    disabled: !isFocusedContent || showAdultPinModal,
     priority: 15
   }, [
     isFullScreen,
@@ -417,6 +461,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     isFocusedContent,
     previewConfirmedChannelId,
     selectedCategory,
+    showAdultPinModal,
     onBackToHome
   ]);
 
@@ -697,9 +742,14 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           </h2>
           {onBackToHome && (
             <button
+              ref={backHomeBtnRef}
               type="button"
               onClick={onBackToHome}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-sky-600 text-xs font-black text-slate-200 hover:text-white transition cursor-pointer border border-slate-700 shadow"
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition cursor-pointer border shadow ${
+                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === -1
+                  ? 'bg-rose-600 text-white font-black ring-4 ring-rose-400 scale-105 border-white shadow-xl'
+                  : 'bg-slate-800 hover:bg-sky-600 text-xs font-black text-slate-200 hover:text-white border-slate-700'
+              }`}
               title="Voltar para a Home"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -764,28 +814,28 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
             const thisIdx = catIdx + 2;
             const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === thisIdx;
             const isSelected = selectedCategory === cat.category_id;
+            const isAdult = AdultContentHelper.isAdultCategory(cat.category_name);
 
             return (
               <button
                 key={cat.category_id}
                 ref={isCatFocused ? activeCategoryBtnRef : null}
-                onClick={() => {
-                  setSelectedCategory(cat.category_id);
-                  setSelectedCategoryIdx(thisIdx);
-                  setActiveFocusColumn('channels');
-                }}
+                onClick={() => handleCategoryClick(cat.category_id, thisIdx, cat.category_name)}
                 tabIndex={0}
-                className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition truncate cursor-pointer ${
+                className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition truncate cursor-pointer flex items-center justify-between ${
                   isSelected
-                    ? 'bg-emerald-500 text-black font-black shadow'
-                    : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
+                    ? isAdult ? 'bg-rose-500 text-white font-black shadow' : 'bg-emerald-500 text-black font-black shadow'
+                    : isAdult ? 'text-rose-400 hover:bg-rose-950/30' : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
                 } ${
                   isCatFocused
-                    ? 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
+                    ? isAdult
+                      ? 'ring-4 ring-rose-400 shadow-2xl scale-102 font-black outline-none bg-rose-500 text-white'
+                      : 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
                     : ''
                 }`}
               >
-                {cat.category_name}
+                <span className="truncate">{cat.category_name}</span>
+                {isAdult && <Lock className="w-4 h-4 ml-2 shrink-0 opacity-80" />}
               </button>
             );
           })}
@@ -977,6 +1027,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                     channelNum={currentPlayingChannel.num || selectedChannelIdx + 1}
                     logoUrl={currentPlayingChannel.stream_icon}
                     isFullScreen={false}
+                    disableSpatialNav={true}
                   />
                   <button
                     type="button"
@@ -1090,6 +1141,24 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           <span className="text-base font-black tracking-wide">{toastMessage}</span>
         </div>
       )}
+
+      {/* Modal de PIN Parental (+18) */}
+      <AdultPinModal
+        isOpen={showAdultPinModal}
+        onDismiss={() => {
+          setShowAdultPinModal(false);
+          setPendingAdultCategory(null);
+        }}
+        onSuccess={() => {
+          setShowAdultPinModal(false);
+          if (pendingAdultCategory) {
+            setSelectedCategory(pendingAdultCategory.id);
+            setSelectedCategoryIdx(pendingAdultCategory.idx);
+            setActiveFocusColumn('channels');
+            setPendingAdultCategory(null);
+          }
+        }}
+      />
     </div>
   );
 };

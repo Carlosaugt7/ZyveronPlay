@@ -3,8 +3,10 @@ import { XtreamClient } from '../lib/xtream';
 import { XtreamCategory, XtreamVod } from '../types';
 import { Player } from '../components/Player';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Film, Play, Star, Loader2, ArrowLeft, Heart, Clock, Calendar, Info, Search, X } from 'lucide-react';
+import { Film, Play, Star, Loader2, ArrowLeft, Heart, Clock, Calendar, Info, Search, X, Lock } from 'lucide-react';
 import { getFavorites, toggleFavorite } from '../lib/storage';
+import { AdultContentHelper } from '../lib/adultContent';
+import { AdultPinModal } from '../components/AdultPinModal';
 
 interface MoviesViewProps {
   client: XtreamClient;
@@ -48,6 +50,10 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   // Coluna em foco: 'categories' | 'grid' | 'details'
   const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid' | 'details'>('categories');
 
+  // Proteção Parental (+18)
+  const [showAdultPinModal, setShowAdultPinModal] = useState<boolean>(false);
+  const [pendingAdultCategory, setPendingAdultCategory] = useState<{ id: string; idx: number } | null>(null);
+
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
   const activeMovieBtnRef = useRef<HTMLButtonElement>(null);
   const activeDetailBtnRef = useRef<HTMLButtonElement>(null);
@@ -69,15 +75,16 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     setIsLoadingCats(true);
     setFavorites(getFavorites('vod'));
     client.getVodCategories()
-      .then((cats) => {
-        if (cats && cats.length > 0) {
-          setCategories(cats);
+      .then((rawCats) => {
+        if (rawCats && rawCats.length > 0) {
+          const sortedCats = AdultContentHelper.partitionAdultCategories(rawCats, (c) => c.category_name);
+          setCategories(sortedCats);
           const currentFavs = getFavorites('vod');
           if (currentFavs.length > 0) {
             setSelectedCategory('favorites');
             setSelectedCategoryIdx(0);
           } else {
-            setSelectedCategory(cats[0].category_id);
+            setSelectedCategory(sortedCats[0].category_id);
             setSelectedCategoryIdx(1);
           }
         } else {
@@ -205,6 +212,18 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     setActiveFocusColumn('grid');
   };
 
+  const handleCategoryClick = (catId: string, catIndex: number, catName?: string) => {
+    const isAdult = AdultContentHelper.isAdultCategory(catName);
+    if (isAdult && !AdultContentHelper.isSessionUnlocked()) {
+      setPendingAdultCategory({ id: catId, idx: catIndex });
+      setShowAdultPinModal(true);
+      return;
+    }
+    setSelectedCategory(catId);
+    setSelectedCategoryIdx(catIndex);
+    setActiveFocusColumn('grid');
+  };
+
   const handleToggleFav = (streamId: number) => {
     toggleFavorite(streamId, 'vod');
     setFavorites(getFavorites('vod'));
@@ -290,15 +309,21 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       } else if (activeFocusColumn === 'categories') {
         if (selectedCategoryIdx === 0) {
           setSelectedCategory('favorites');
+          setActiveFocusColumn('grid');
         } else if (categories[selectedCategoryIdx - 1]) {
-          setSelectedCategory(categories[selectedCategoryIdx - 1].category_id);
+          const cat = categories[selectedCategoryIdx - 1];
+          handleCategoryClick(cat.category_id, selectedCategoryIdx, cat.category_name);
         }
-        setActiveFocusColumn('grid');
       } else if (activeFocusColumn === 'grid' && displayedMovies[selectedMovieIdx]) {
         openMovieDetails(displayedMovies[selectedMovieIdx]);
       }
     },
     onBack: () => {
+      if (showAdultPinModal) {
+        setShowAdultPinModal(false);
+        setPendingAdultCategory(null);
+        return;
+      }
       if (isPlaying) {
         stopPlaying();
         return;
@@ -315,7 +340,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         handleToggleFav(targetMovie.stream_id);
       }
     },
-    disabled: !isFocusedContent,
+    disabled: !isFocusedContent || showAdultPinModal,
     priority: 15
   }, [
     isPlaying,
@@ -329,6 +354,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     categories,
     selectedMovieForDetails,
     isFocusedContent,
+    showAdultPinModal,
     onBackToHome
   ]);
 
@@ -417,6 +443,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
               const thisIdx = catIdx + 1;
               const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === thisIdx;
               const isSelected = selectedCategory === cat.category_id;
+              const isAdult = AdultContentHelper.isAdultCategory(cat.category_name);
 
               return (
                 <button
@@ -424,22 +451,21 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                   key={cat.category_id}
                   ref={isCatFocused ? activeCategoryBtnRef : null}
                   tabIndex={0}
-                  onClick={() => {
-                    setSelectedCategory(cat.category_id);
-                    setSelectedCategoryIdx(thisIdx);
-                    setActiveFocusColumn('grid');
-                  }}
-                  className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition truncate cursor-pointer ${
+                  onClick={() => handleCategoryClick(cat.category_id, thisIdx, cat.category_name)}
+                  className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition truncate cursor-pointer flex items-center justify-between ${
                     isSelected
-                      ? 'bg-emerald-500 text-black font-black shadow'
-                      : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
+                      ? isAdult ? 'bg-rose-500 text-white font-black shadow' : 'bg-emerald-500 text-black font-black shadow'
+                      : isAdult ? 'text-rose-400 hover:bg-rose-950/30' : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
                   } ${
                     isCatFocused
-                      ? 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
+                      ? isAdult
+                        ? 'ring-4 ring-rose-400 shadow-2xl scale-102 font-black outline-none bg-rose-500 text-white'
+                        : 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
                       : ''
                   }`}
                 >
-                  {cat.category_name}
+                  <span className="truncate">{cat.category_name}</span>
+                  {isAdult && <Lock className="w-4 h-4 ml-2 shrink-0 opacity-80" />}
                 </button>
               );
             })}
@@ -734,6 +760,24 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal de PIN Parental (+18) */}
+      <AdultPinModal
+        isOpen={showAdultPinModal}
+        onDismiss={() => {
+          setShowAdultPinModal(false);
+          setPendingAdultCategory(null);
+        }}
+        onSuccess={() => {
+          setShowAdultPinModal(false);
+          if (pendingAdultCategory) {
+            setSelectedCategory(pendingAdultCategory.id);
+            setSelectedCategoryIdx(pendingAdultCategory.idx);
+            setActiveFocusColumn('grid');
+            setPendingAdultCategory(null);
+          }
+        }}
+      />
     </div>
   );
 };
