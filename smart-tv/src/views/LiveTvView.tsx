@@ -705,13 +705,13 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
 
           {/* GUIA DE PROGRAMAÇÃO DUAL-COLUMN EM TELA CHEIA (ESTILO RECEPTOR / APK ANDROID TV) */}
           {isGuideOpen && (
-            <div className="absolute inset-y-0 left-0 w-[820px] max-w-[95vw] bg-black/95 backdrop-blur-2xl border-r border-[#2a3449] z-[10002] flex flex-col p-4 animate-in slide-in-from-left duration-200 shadow-2xl">
+            <div className="absolute inset-y-0 left-0 w-[880px] lg:w-[980px] max-w-[96vw] bg-black/95 backdrop-blur-2xl border-r border-[#2a3449] z-[10002] flex flex-col p-4 animate-in slide-in-from-left duration-200 shadow-2xl">
               {/* Topo do Guia: Título + Campo de Busca Rápida + Fechar */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3 gap-4">
                 <div className="flex items-center gap-2.5 text-white">
-                  <Tv className="w-6 h-6 text-emerald-400" />
+                  <Tv className="w-7 h-7 text-emerald-400" />
                   <div>
-                    <h3 className="font-extrabold text-base md:text-lg text-white leading-tight">
+                    <h3 className="font-extrabold text-lg md:text-xl text-white leading-tight">
                       Guia de Canais • {currentCategoryName}
                     </h3>
                     <p className="text-xs text-slate-400 font-mono">
@@ -722,7 +722,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
 
                 <div className="flex items-center gap-3">
                   {/* Busca Rápida */}
-                  <div className={`relative w-56 md:w-64 transition-all ${
+                  <div className={`relative w-64 md:w-72 transition-all ${
                     guideFocusColumn === 'search' ? 'ring-4 ring-emerald-400 rounded-xl' : ''
                   }`}>
                     <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -733,7 +733,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                       value={searchQuery}
                       onFocus={() => setGuideFocusColumn('search')}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className={`w-full pl-9 pr-7 py-1.5 bg-slate-900 border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none transition ${
+                      className={`w-full pl-9 pr-7 py-2 bg-slate-900 border rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none transition ${
                         guideFocusColumn === 'search'
                           ? 'border-emerald-400 ring-2 ring-emerald-300'
                           : 'border-slate-700'
@@ -763,80 +763,69 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
 
               {/* Corpo: Duas Colunas Lado a Lado (Categorias na Esquerda + Canais na Direita) */}
               <div className="flex-1 flex gap-3 overflow-hidden">
-                {/* Coluna 1: Categorias (Esquerda, w-64) */}
-                <div className={`w-64 bg-[#121722]/90 border border-slate-800 rounded-2xl p-2.5 overflow-y-auto space-y-1.5 custom-scrollbar ${
+                {/* Coluna 1: Categorias (Esquerda, w-72 lg:w-80) */}
+                <div className={`w-72 lg:w-80 bg-[#121722]/90 border border-slate-800 rounded-2xl p-2.5 overflow-y-auto space-y-2 custom-scrollbar ${
                   guideFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60' : ''
                 }`}>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 px-2 block mb-1">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-400 px-2 block mb-1">
                     CATEGORIAS
                   </span>
 
-                  {/* 1. Todos os canais */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedCategory('all');
-                      setSelectedCategoryIdx(0);
-                      setGuideFocusColumn('channels');
-                    }}
-                    className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-bold transition cursor-pointer flex items-center justify-between ${
-                      guideFocusColumn === 'categories' && selectedCategoryIdx === 0
-                        ? 'bg-emerald-400 text-black font-black ring-2 ring-emerald-300 shadow'
-                        : selectedCategory === 'all'
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                        : 'text-slate-300 hover:bg-slate-800'
-                    }`}
-                  >
-                    <span>★ Todos os Canais</span>
-                    <span className="text-xs font-mono font-black">{totalLiveCount}</span>
-                  </button>
-
-                  {/* 2. Meus favoritos */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedCategory('favorites');
-                      setSelectedCategoryIdx(1);
-                      setGuideFocusColumn('channels');
-                    }}
-                    className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-bold transition cursor-pointer flex items-center justify-between ${
-                      guideFocusColumn === 'categories' && selectedCategoryIdx === 1
-                        ? 'bg-amber-400 text-black font-black ring-2 ring-amber-300 shadow'
-                        : selectedCategory === 'favorites'
-                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                        : 'text-amber-300/90 hover:bg-slate-800'
-                    }`}
-                  >
-                    <span>⭐ Meus Favoritos</span>
-                    <span className="text-xs font-mono font-black">{favorites.length}</span>
-                  </button>
-
-                  {/* 3. Categorias da API */}
-                  {categories.map((cat, catIdx) => {
-                    const targetIdx = catIdx + 2;
-                    const isFocused = guideFocusColumn === 'categories' && selectedCategoryIdx === targetIdx;
-                    const isSelected = selectedCategory === cat.category_id;
+                  {selectableCategories.map((item, idx) => {
+                    const isFocused = guideFocusColumn === 'categories' && selectedCategoryIdx === idx;
+                    const isSelected = selectedCategory === item.id;
 
                     return (
-                      <button
-                        key={cat.category_id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedCategory(cat.category_id);
-                          setSelectedCategoryIdx(targetIdx);
-                          setGuideFocusColumn('channels');
-                        }}
-                        className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-bold transition cursor-pointer flex items-center justify-between ${
-                          isFocused
-                            ? 'bg-emerald-400 text-black font-black ring-2 ring-emerald-300 shadow'
-                            : isSelected
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                            : 'text-slate-300 hover:bg-slate-800'
-                        }`}
-                      >
-                        <span className="truncate">{cat.category_name}</span>
-                        <span className="text-xs font-mono font-black shrink-0 ml-1.5 opacity-80">{categoryCounts[cat.category_id] ?? 0}</span>
-                      </button>
+                      <React.Fragment key={`guide-${item.id}-${idx}`}>
+                        {item.groupHeader && (
+                          <div className="pt-2 pb-1 px-2 text-[11px] font-black tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+                            <span className="h-px bg-slate-700/60 flex-1"></span>
+                            <span className="truncate">{item.groupHeader}</span>
+                            <span className="h-px bg-slate-700/60 flex-1"></span>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (item.isAdult && !AdultContentHelper.isSessionUnlocked()) {
+                              setPendingAdultCategory({ id: item.id, idx });
+                              setShowAdultPinModal(true);
+                              return;
+                            }
+                            setSelectedCategory(item.id);
+                            setSelectedCategoryIdx(idx);
+                            setGuideFocusColumn('channels');
+                          }}
+                          className={`w-full text-left px-4 py-3 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer flex items-center justify-between ${
+                            isFocused
+                              ? item.isAdult
+                                ? 'bg-rose-500 text-white font-black ring-2 ring-rose-300 shadow'
+                                : item.id === 'favorites'
+                                ? 'bg-amber-400 text-black font-black ring-2 ring-amber-300 shadow'
+                                : item.id === 'sports'
+                                ? 'bg-sky-400 text-black font-black ring-2 ring-sky-300 shadow'
+                                : 'bg-emerald-400 text-black font-black ring-2 ring-emerald-300 shadow'
+                              : isSelected
+                              ? item.isAdult
+                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                                : item.id === 'favorites'
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                : item.id === 'sports'
+                                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              : item.isAdult
+                              ? 'text-rose-400 hover:bg-slate-800'
+                              : item.id === 'favorites'
+                              ? 'text-amber-300/90 hover:bg-slate-800'
+                              : item.id === 'sports'
+                              ? 'text-sky-300 hover:bg-slate-800'
+                              : 'text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          <span className="truncate">{item.name}</span>
+                          <span className="text-xs md:text-sm font-mono font-black shrink-0 ml-2 opacity-80">{item.count}</span>
+                        </button>
+                      </React.Fragment>
                     );
                   })}
                 </div>
@@ -848,18 +837,18 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                   {isLoadingChannels ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
                       <Loader2 className="w-8 h-8 animate-spin text-emerald-400 mb-2" />
-                      <span className="text-sm">Carregando canais da categoria...</span>
+                      <span className="text-base font-semibold">Carregando canais da categoria...</span>
                     </div>
                   ) : displayedChannels.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-4 text-center">
                       <AlertCircle className="w-8 h-8 mb-2" />
-                      <span className="text-sm">Nenhum canal encontrado nesta categoria.</span>
+                      <span className="text-base font-semibold">Nenhum canal encontrado nesta categoria.</span>
                     </div>
                   ) : (
                     <div className="flex-1 min-h-0 w-full overflow-hidden">
                       <VirtualList
                         items={displayedChannels}
-                        itemHeight={64}
+                        itemHeight={78}
                         selectedIndex={guideFocusColumn === 'channels' ? selectedChannelIdx : -1}
                         renderItem={(channel, index, isSelected) => {
                           const isItemFocused = isSelected && guideFocusColumn === 'channels';
@@ -875,7 +864,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                                 setCurrentPlayingChannel(channel);
                                 setIsGuideOpen(false);
                               }}
-                              className={`w-full h-[58px] px-3 rounded-xl flex items-center justify-between cursor-pointer transition select-none text-left ${
+                              className={`w-full h-[70px] px-4 rounded-2xl flex items-center justify-between cursor-pointer transition select-none text-left ${
                                 isItemFocused
                                   ? 'bg-emerald-400 text-black font-black shadow-xl ring-2 ring-emerald-300 scale-[1.01]'
                                   : isNowPlaying
@@ -883,32 +872,32 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                                   : 'bg-[#121722]/80 hover:bg-[#1b2234] text-slate-200'
                               }`}
                             >
-                              <div className="flex items-center gap-2.5 overflow-hidden">
-                                <span className={`font-mono text-xs font-black w-7 ${isItemFocused ? 'text-black' : 'text-slate-400'}`}>
+                              <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0 pr-2">
+                                <span className={`font-mono text-sm md:text-base font-black w-9 shrink-0 ${isItemFocused ? 'text-black' : 'text-slate-400'}`}>
                                   {channel.num || index + 1}
                                 </span>
                                 {channel.stream_icon ? (
                                   <img
                                     src={channel.stream_icon}
                                     alt=""
-                                    className="w-8 h-8 object-contain rounded-lg bg-black/40 p-0.5"
+                                    className="w-10 h-10 object-contain rounded-xl bg-black/40 p-0.5 shrink-0"
                                     onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                                   />
                                 ) : (
-                                  <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center">
-                                    <Tv className="w-4 h-4 text-slate-400" />
+                                  <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center shrink-0">
+                                    <Tv className="w-5 h-5 text-slate-400" />
                                   </div>
                                 )}
-                                <div className="truncate">
-                                  <span className="font-bold text-sm block truncate max-w-[220px] leading-tight">{channel.name}</span>
+                                <div className="flex-1 min-w-0">
+                                  <span className="font-extrabold text-base md:text-lg block truncate leading-tight">{channel.name}</span>
                                   {isNowPlaying && (
-                                    <span className={`text-[10px] font-black uppercase ${isItemFocused ? 'text-black' : 'text-emerald-400'}`}>
+                                    <span className={`text-xs font-black uppercase tracking-wider block mt-0.5 ${isItemFocused ? 'text-black' : 'text-emerald-400'}`}>
                                       ▶ No Ar
                                     </span>
                                   )}
                                 </div>
                               </div>
-                              {isFav && <Star className={`w-4 h-4 fill-amber-400 text-amber-400 shrink-0 ${isItemFocused ? 'text-black fill-black' : ''}`} />}
+                              {isFav && <Star className={`w-5 h-5 fill-amber-400 text-amber-400 shrink-0 ml-2 ${isItemFocused ? 'text-black fill-black' : ''}`} />}
                             </button>
                           );
                         }}
@@ -1034,13 +1023,13 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       </div>
 
       {/* Coluna 2: Lista Virtualizada de Canais (Fonte Aumentada e Legível) */}
-      <div className={`w-[400px] lg:w-[450px] h-full bg-[#0a0d14] border-r border-[#2a3449] flex flex-col p-4 select-none transition-all shrink-0 ${
+      <div className={`w-[430px] lg:w-[490px] h-full bg-[#0a0d14] border-r border-[#2a3449] flex flex-col p-4 select-none transition-all shrink-0 ${
         isFocusedContent && activeFocusColumn === 'channels' ? 'ring-2 ring-emerald-500/50' : ''
       }`}>
         <div className="flex items-center justify-between mb-3 px-2">
           <h2 className="text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
             <span>CANAIS</span>
-            <span className="text-sky-400 font-mono text-xs">({displayedChannels.length})</span>
+            <span className="text-sky-400 font-mono text-sm">({displayedChannels.length})</span>
           </h2>
           <span className="text-xs text-slate-400 font-mono font-bold">
             [1º OK] Prévia • [2º OK] Tela Cheia
@@ -1051,7 +1040,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         <div className={`relative mb-3 transition-all ${
           isFocusedContent && activeFocusColumn === 'search' ? 'ring-4 ring-emerald-400 rounded-xl' : ''
         }`}>
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             ref={searchInputRef}
             type="text"
@@ -1059,7 +1048,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
             value={searchQuery}
             onFocus={() => setActiveFocusColumn('search')}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className={`w-full pl-9 pr-8 py-2.5 bg-slate-900 border rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none transition ${
+            className={`w-full pl-10 pr-8 py-2.5 bg-slate-900 border rounded-xl text-base text-white placeholder-slate-500 focus:outline-none transition ${
               isFocusedContent && activeFocusColumn === 'search'
                 ? 'border-emerald-400 ring-2 ring-emerald-300'
                 : 'border-slate-700'
@@ -1093,7 +1082,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
             ) : (
               <>
                 <AlertCircle className="w-10 h-10 mb-2" />
-                <span className="text-sm">Nenhum canal encontrado.</span>
+                <span className="text-base font-semibold">Nenhum canal encontrado.</span>
               </>
             )}
           </div>
@@ -1101,7 +1090,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           <div className="flex-1 min-h-0 w-full overflow-hidden">
             <VirtualList
               items={displayedChannels}
-              itemHeight={72}
+              itemHeight={80}
               selectedIndex={selectedChannelIdx}
               renderItem={(channel, index, isSelected) => {
                 const isFav = favorites.includes(channel.stream_id);
@@ -1152,7 +1141,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                         longPressMouseTimer.current = null;
                       }
                     }}
-                    className={`w-full h-[64px] px-3.5 rounded-2xl flex items-center justify-between cursor-pointer transition select-none text-left ${
+                    className={`w-full h-[72px] px-4 rounded-2xl flex items-center justify-between cursor-pointer transition select-none text-left ${
                       isItemFocused
                         ? 'bg-emerald-400 text-black font-black shadow-2xl scale-[1.02] ring-4 ring-emerald-300'
                         : isNowPlayingInPreview
@@ -1162,26 +1151,26 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                         : 'bg-[#121722]/90 hover:bg-[#1b2234] text-slate-200 border border-transparent'
                     }`}
                   >
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <span className={`font-mono text-sm font-black w-8 ${isItemFocused ? 'text-black' : 'text-slate-400'}`}>
+                    <div className="flex items-center gap-3.5 overflow-hidden flex-1 min-w-0 pr-2">
+                      <span className={`font-mono text-base md:text-lg font-black w-9 shrink-0 ${isItemFocused ? 'text-black' : 'text-slate-400'}`}>
                         {channel.num || index + 1}
                       </span>
                       {channel.stream_icon ? (
                         <img
                           src={channel.stream_icon}
                           alt=""
-                          className="w-10 h-10 object-contain rounded-xl bg-black/40 p-0.5"
+                          className="w-11 h-11 object-contain rounded-xl bg-black/40 p-0.5 shrink-0"
                           onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                         />
                       ) : (
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isItemFocused ? 'bg-black/20 text-black' : 'bg-[#1b2234] text-slate-500'}`}>
-                          <Tv className="w-5 h-5" />
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${isItemFocused ? 'bg-black/20 text-black' : 'bg-[#1b2234] text-slate-500'}`}>
+                          <Tv className="w-6 h-6" />
                         </div>
                       )}
-                      <div className="truncate">
-                        <span className="font-bold text-base md:text-lg block truncate max-w-[210px] leading-tight">{channel.name}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-black text-lg md:text-xl block truncate leading-tight">{channel.name}</span>
                         {isNowPlayingInPreview && (
-                          <span className={`text-[11px] font-black uppercase tracking-wider block mt-0.5 ${
+                          <span className={`text-xs font-black uppercase tracking-wider block mt-1 ${
                             isItemFocused ? 'text-black' : 'text-emerald-400'
                           }`}>
                             ▶ No Ar {isConfirmed ? '• [OK: Tela Cheia]' : '• [Prévia Ativa]'}
