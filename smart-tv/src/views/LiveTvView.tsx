@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { XtreamClient } from '../lib/xtream';
 import { XtreamCategory, XtreamStream } from '../types';
 import { VirtualList } from '../components/VirtualList';
 import { Player } from '../components/Player';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Star, Tv, Maximize2, Loader2, AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, X, List, Layers } from 'lucide-react';
+import { Star, Tv, Maximize2, Loader2, AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, X, List, Layers, Search } from 'lucide-react';
 import { getFavorites, toggleFavorite } from '../lib/storage';
 
 interface LiveTvViewProps {
@@ -35,16 +35,24 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const [currentPlayingChannel, setCurrentPlayingChannel] = useState<XtreamStream | null>(null);
   const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
 
-  // Gavetas laterais em Tela Cheia (Estilo APK Android TV)
-  const [isChannelDrawerOpen, setIsChannelDrawerOpen] = useState<boolean>(false);
-  const [isCategoryDrawerOpen, setIsCategoryDrawerOpen] = useState<boolean>(false);
-  const [channelDrawerIdx, setChannelDrawerIdx] = useState<number>(0);
-  const [categoryDrawerIdx, setCategoryDrawerIdx] = useState<number>(0);
+  // Guia Unificado em Tela Cheia (Dual-Column: Categorias à Esquerda e Canais à Direita)
+  const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
+  const [guideFocusColumn, setGuideFocusColumn] = useState<'categories' | 'channels'>('channels');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const [isLoadingChannels, setIsLoadingChannels] = useState<boolean>(true);
   const [favorites, setFavorites] = useState<number[]>(() => getFavorites('live'));
   const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'channels'>('channels');
   const [previewConfirmedChannelId, setPreviewConfirmedChannelId] = useState<number | null>(null);
+
+  // Canais filtrados por busca de texto (nome ou número)
+  const displayedChannels = useMemo(() => {
+    if (!searchQuery.trim()) return filteredChannels;
+    const q = searchQuery.toLowerCase().trim();
+    return filteredChannels.filter((c) =>
+      c.name.toLowerCase().includes(q) || (c.num && String(c.num).includes(q))
+    );
+  }, [filteredChannels, searchQuery]);
 
   // Sistema de Notificação Toast (Feedback visual de favoritos na TV)
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -100,8 +108,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     setIsFullScreen(full);
     onFullScreenChange?.(full);
     if (!full) {
-      setIsChannelDrawerOpen(false);
-      setIsCategoryDrawerOpen(false);
+      setIsGuideOpen(false);
     }
   };
 
@@ -215,15 +222,23 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   useSpatialNav({
     onUp: () => {
       if (isFullScreen) {
-        if (isChannelDrawerOpen) {
-          setChannelDrawerIdx((prev) => Math.max(0, prev - 1));
-        } else if (isCategoryDrawerOpen) {
-          setCategoryDrawerIdx((prev) => Math.max(0, prev - 1));
-        } else if (filteredChannels.length > 0) {
+        if (isGuideOpen) {
+          if (guideFocusColumn === 'categories') {
+            setSelectedCategoryIdx((prev) => {
+              const next = Math.max(0, prev - 1);
+              if (next === 0) setSelectedCategory('all');
+              else if (next === 1) setSelectedCategory('favorites');
+              else if (categories[next - 2]) setSelectedCategory(categories[next - 2].category_id);
+              return next;
+            });
+          } else {
+            setSelectedChannelIdx((prev) => Math.max(0, prev - 1));
+          }
+        } else if (displayedChannels.length > 0) {
           // Zapping em tela cheia (Canal Anterior)
-          const nextIdx = (selectedChannelIdx - 1 + filteredChannels.length) % filteredChannels.length;
+          const nextIdx = (selectedChannelIdx - 1 + displayedChannels.length) % displayedChannels.length;
           setSelectedChannelIdx(nextIdx);
-          setCurrentPlayingChannel(filteredChannels[nextIdx]);
+          setCurrentPlayingChannel(displayedChannels[nextIdx]);
         }
       } else if (activeFocusColumn === 'channels') {
         setSelectedChannelIdx((prev) => {
@@ -237,19 +252,27 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     },
     onDown: () => {
       if (isFullScreen) {
-        if (isChannelDrawerOpen) {
-          setChannelDrawerIdx((prev) => Math.min(filteredChannels.length - 1, prev + 1));
-        } else if (isCategoryDrawerOpen) {
-          setCategoryDrawerIdx((prev) => Math.min(categories.length + 1, prev + 1));
-        } else if (filteredChannels.length > 0) {
+        if (isGuideOpen) {
+          if (guideFocusColumn === 'categories') {
+            setSelectedCategoryIdx((prev) => {
+              const next = Math.min(categories.length + 1, prev + 1);
+              if (next === 0) setSelectedCategory('all');
+              else if (next === 1) setSelectedCategory('favorites');
+              else if (categories[next - 2]) setSelectedCategory(categories[next - 2].category_id);
+              return next;
+            });
+          } else {
+            setSelectedChannelIdx((prev) => Math.min(displayedChannels.length - 1, prev + 1));
+          }
+        } else if (displayedChannels.length > 0) {
           // Zapping em tela cheia (Próximo Canal)
-          const nextIdx = (selectedChannelIdx + 1) % filteredChannels.length;
+          const nextIdx = (selectedChannelIdx + 1) % displayedChannels.length;
           setSelectedChannelIdx(nextIdx);
-          setCurrentPlayingChannel(filteredChannels[nextIdx]);
+          setCurrentPlayingChannel(displayedChannels[nextIdx]);
         }
       } else if (activeFocusColumn === 'channels') {
         setSelectedChannelIdx((prev) => {
-          const next = Math.min(filteredChannels.length - 1, prev + 1);
+          const next = Math.min(displayedChannels.length - 1, prev + 1);
           setPreviewConfirmedChannelId(null);
           return next;
         });
@@ -259,15 +282,11 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     },
     onLeft: () => {
       if (isFullScreen) {
-        if (isCategoryDrawerOpen) {
-          // Se o menu de categorias estiver aberto, fecha e abre os canais
-          setIsCategoryDrawerOpen(false);
-          setIsChannelDrawerOpen(true);
-          setChannelDrawerIdx(selectedChannelIdx);
-        } else if (!isChannelDrawerOpen) {
-          // Abre a barra lateral esquerda (Lista de Canais da Categoria)
-          setIsChannelDrawerOpen(true);
-          setChannelDrawerIdx(selectedChannelIdx);
+        if (!isGuideOpen) {
+          setIsGuideOpen(true);
+          setGuideFocusColumn('categories');
+        } else if (guideFocusColumn === 'channels') {
+          setGuideFocusColumn('categories');
         }
         return;
       }
@@ -277,39 +296,39 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     },
     onRight: () => {
       if (isFullScreen) {
-        if (isChannelDrawerOpen) {
-          // Se o menu de canais estiver aberto, fecha e abre as categorias
-          setIsChannelDrawerOpen(false);
-          setIsCategoryDrawerOpen(true);
-        } else if (!isCategoryDrawerOpen) {
-          // Abre a barra lateral direita (Menu de Categorias)
-          setIsCategoryDrawerOpen(true);
+        if (!isGuideOpen) {
+          setIsGuideOpen(true);
+          setGuideFocusColumn('channels');
+        } else if (guideFocusColumn === 'categories') {
+          setGuideFocusColumn('channels');
         }
         return;
       }
       if (activeFocusColumn === 'categories') {
         setActiveFocusColumn('channels');
-      } else if (activeFocusColumn === 'channels' && filteredChannels[selectedChannelIdx]) {
-        handleChannelSelectOrPlay(filteredChannels[selectedChannelIdx], selectedChannelIdx);
+      } else if (activeFocusColumn === 'channels' && displayedChannels[selectedChannelIdx]) {
+        handleChannelSelectOrPlay(displayedChannels[selectedChannelIdx], selectedChannelIdx);
       }
     },
     onSelect: () => {
       if (isFullScreen) {
-        if (isChannelDrawerOpen && filteredChannels[channelDrawerIdx]) {
-          setSelectedChannelIdx(channelDrawerIdx);
-          setCurrentPlayingChannel(filteredChannels[channelDrawerIdx]);
-          setIsChannelDrawerOpen(false);
-        } else if (isCategoryDrawerOpen) {
-          if (categoryDrawerIdx === 0) {
+        if (!isGuideOpen) {
+          setIsGuideOpen(true);
+          setGuideFocusColumn('channels');
+          return;
+        }
+        if (guideFocusColumn === 'categories') {
+          if (selectedCategoryIdx === 0) {
             setSelectedCategory('all');
-          } else if (categoryDrawerIdx === 1) {
+          } else if (selectedCategoryIdx === 1) {
             setSelectedCategory('favorites');
-          } else if (categories[categoryDrawerIdx - 2]) {
-            setSelectedCategory(categories[categoryDrawerIdx - 2].category_id);
+          } else if (categories[selectedCategoryIdx - 2]) {
+            setSelectedCategory(categories[selectedCategoryIdx - 2].category_id);
           }
-          setIsCategoryDrawerOpen(false);
-          setIsChannelDrawerOpen(true);
-          setChannelDrawerIdx(0);
+          setGuideFocusColumn('channels');
+        } else if (guideFocusColumn === 'channels' && displayedChannels[selectedChannelIdx]) {
+          setCurrentPlayingChannel(displayedChannels[selectedChannelIdx]);
+          setIsGuideOpen(false);
         }
         return;
       }
@@ -322,18 +341,15 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           setSelectedCategory(categories[selectedCategoryIdx - 2].category_id);
         }
         setActiveFocusColumn('channels');
-      } else if (activeFocusColumn === 'channels' && filteredChannels[selectedChannelIdx]) {
-        handleChannelSelectOrPlay(filteredChannels[selectedChannelIdx], selectedChannelIdx);
+      } else if (activeFocusColumn === 'channels' && displayedChannels[selectedChannelIdx]) {
+        handleChannelSelectOrPlay(displayedChannels[selectedChannelIdx], selectedChannelIdx);
       }
     },
     // Segurar botão OK por até 2 segundos: Favoritar/Desfavoritar
     onLongSelect: () => {
-      if (isFullScreen) {
-        const target = isChannelDrawerOpen ? filteredChannels[channelDrawerIdx] : currentPlayingChannel;
-        if (target) handleToggleFav(target.stream_id);
-        return;
-      }
-      const target = filteredChannels[selectedChannelIdx] || currentPlayingChannel;
+      const target = isFullScreen
+        ? (isGuideOpen ? displayedChannels[selectedChannelIdx] : currentPlayingChannel)
+        : (displayedChannels[selectedChannelIdx] || currentPlayingChannel);
       if (target) {
         handleToggleFav(target.stream_id);
       }
@@ -341,8 +357,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     // Botão Verde: Favoritar/Desfavoritar canal
     onGreen: () => {
       const target = isFullScreen
-        ? (isChannelDrawerOpen ? filteredChannels[channelDrawerIdx] : currentPlayingChannel)
-        : (filteredChannels[selectedChannelIdx] || currentPlayingChannel);
+        ? (isGuideOpen ? displayedChannels[selectedChannelIdx] : currentPlayingChannel)
+        : (displayedChannels[selectedChannelIdx] || currentPlayingChannel);
       if (target) {
         handleToggleFav(target.stream_id);
       }
@@ -358,11 +374,11 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       }
       setActiveFocusColumn('channels');
     },
-    // Botão Vermelho: Menu de Categorias
+    // Botão Vermelho: Menu de Categorias / Guia
     onRed: () => {
       if (isFullScreen) {
-        setIsChannelDrawerOpen(false);
-        setIsCategoryDrawerOpen((prev) => !prev);
+        setIsGuideOpen((prev) => !prev);
+        setGuideFocusColumn('categories');
       } else {
         setActiveFocusColumn((prev) => (prev === 'categories' ? 'channels' : 'categories'));
       }
@@ -373,13 +389,15 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     },
     onBack: () => {
       if (isFullScreen) {
-        if (isChannelDrawerOpen) {
-          setIsChannelDrawerOpen(false);
-        } else if (isCategoryDrawerOpen) {
-          setIsCategoryDrawerOpen(false);
-        } else {
-          setFullScreenMode(false);
+        if (isGuideOpen) {
+          if (guideFocusColumn === 'channels') {
+            setGuideFocusColumn('categories');
+          } else {
+            setIsGuideOpen(false);
+          }
+          return;
         }
+        setFullScreenMode(false);
         return;
       }
       onBackToHome?.();
@@ -388,14 +406,12 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     priority: 15
   }, [
     isFullScreen,
-    isChannelDrawerOpen,
-    isCategoryDrawerOpen,
-    channelDrawerIdx,
-    categoryDrawerIdx,
+    isGuideOpen,
+    guideFocusColumn,
     activeFocusColumn,
     selectedCategoryIdx,
     selectedChannelIdx,
-    filteredChannels,
+    displayedChannels,
     categories,
     currentPlayingChannel,
     isFocusedContent,
@@ -430,253 +446,239 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
             disableSpatialNav={true}
           />
 
-          {/* BARRA LATERAL ESQUERDA CLICÁVEL (Trigger flutuante - Some após 2 segundos de inatividade) */}
-          {!isChannelDrawerOpen && (
+          {/* BARRA FLUTUANTE DE GATILHO (Some após 2 segundos de inatividade) */}
+          {!isGuideOpen && (
             <div
               onClick={() => {
-                setIsCategoryDrawerOpen(false);
-                setIsChannelDrawerOpen(true);
-                setChannelDrawerIdx(selectedChannelIdx);
+                setIsGuideOpen(true);
+                setGuideFocusColumn('channels');
               }}
-              className={`absolute left-0 inset-y-0 w-16 md:w-24 z-[10001] flex items-center justify-start cursor-pointer group transition-opacity duration-300 ${
+              className={`absolute left-0 inset-y-0 w-16 md:w-20 z-[10001] flex items-center justify-start cursor-pointer group transition-opacity duration-300 ${
                 showLateralTriggers ? 'opacity-100' : 'opacity-0 pointer-events-none'
               }`}
-              title="Abrir Lista de Canais desta Categoria"
+              title="Abrir Guia de Canais e Categorias [◀ ou ▶]"
             >
               <button
                 type="button"
-                className="py-10 px-3 bg-black/75 group-hover:bg-emerald-500 group-hover:text-black text-white rounded-r-2xl border-y border-r border-emerald-500/50 backdrop-blur-md flex flex-col items-center gap-2 transition-all duration-200 shadow-2xl group-hover:scale-105"
+                className="py-8 px-2.5 bg-black/80 group-hover:bg-emerald-500 group-hover:text-black text-white rounded-r-2xl border-y border-r border-emerald-500/50 backdrop-blur-md flex flex-col items-center gap-2 transition-all duration-200 shadow-2xl group-hover:scale-105"
               >
-                <ChevronLeft className="w-6 h-6 text-emerald-400 group-hover:text-black" />
-                <span className="[writing-mode:vertical-lr] text-xs font-black tracking-widest uppercase">
-                  Canais
+                <List className="w-5 h-5 text-emerald-400 group-hover:text-black" />
+                <span className="[writing-mode:vertical-lr] text-[11px] font-black tracking-widest uppercase">
+                  Guia
                 </span>
               </button>
             </div>
           )}
 
-          {/* BARRA LATERAL DIREITA CLICÁVEL (Trigger flutuante - Some após 2 segundos de inatividade) */}
-          {!isCategoryDrawerOpen && (
-            <div
-              onClick={() => {
-                setIsChannelDrawerOpen(false);
-                setIsCategoryDrawerOpen(true);
-              }}
-              className={`absolute right-0 inset-y-0 w-16 md:w-24 z-[10001] flex items-center justify-end cursor-pointer group transition-opacity duration-300 ${
-                showLateralTriggers ? 'opacity-100' : 'opacity-0 pointer-events-none'
-              }`}
-              title="Abrir Menu de Categorias"
-            >
-              <button
-                type="button"
-                className="py-10 px-3 bg-black/75 group-hover:bg-sky-500 group-hover:text-black text-white rounded-l-2xl border-y border-l border-sky-500/50 backdrop-blur-md flex flex-col items-center gap-2 transition-all duration-200 shadow-2xl group-hover:scale-105"
-              >
-                <ChevronRight className="w-6 h-6 text-sky-400 group-hover:text-black" />
-                <span className="[writing-mode:vertical-lr] text-xs font-black tracking-widest uppercase">
-                  Categorias
-                </span>
-              </button>
-            </div>
-          )}
-
-          {/* DRAWER LATERAL ESQUERDO: LISTA DE CANAIS DA CATEGORIA */}
-          {isChannelDrawerOpen && (
-            <div className="absolute inset-y-0 left-0 w-96 md:w-[440px] bg-black/95 backdrop-blur-xl border-r border-[#2a3449] z-[10002] flex flex-col p-5 animate-in slide-in-from-left duration-200 shadow-2xl">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
+          {/* GUIA DE PROGRAMAÇÃO DUAL-COLUMN EM TELA CHEIA (ESTILO RECEPTOR / APK ANDROID TV) */}
+          {isGuideOpen && (
+            <div className="absolute inset-y-0 left-0 w-[820px] max-w-[95vw] bg-black/95 backdrop-blur-2xl border-r border-[#2a3449] z-[10002] flex flex-col p-4 animate-in slide-in-from-left duration-200 shadow-2xl">
+              {/* Topo do Guia: Título + Campo de Busca Rápida + Fechar */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3 gap-4">
                 <div className="flex items-center gap-2.5 text-white">
-                  <List className="w-6 h-6 text-emerald-400" />
+                  <Tv className="w-6 h-6 text-emerald-400" />
                   <div>
                     <h3 className="font-extrabold text-base md:text-lg text-white leading-tight">
-                      {currentCategoryName}
+                      Guia de Canais • {currentCategoryName}
                     </h3>
                     <p className="text-xs text-slate-400 font-mono">
-                      {filteredChannels.length} canais disponíveis
+                      {displayedChannels.length} canais disponíveis
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsChannelDrawerOpen(false)}
-                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
 
-              <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar pr-1">
-                {filteredChannels.map((channel, qIdx) => {
-                  const isQuickFocused = channelDrawerIdx === qIdx;
-                  const isNowPlaying = currentPlayingChannel.stream_id === channel.stream_id;
-                  const isFav = favorites.includes(channel.stream_id);
-
-                  return (
-                    <button
-                      key={channel.stream_id}
-                      type="button"
-                      tabIndex={0}
-                      onClick={() => {
-                        setSelectedChannelIdx(qIdx);
-                        setCurrentPlayingChannel(channel);
-                        setIsChannelDrawerOpen(false);
-                      }}
-                      className={`w-full text-left p-3.5 rounded-2xl flex items-center justify-between cursor-pointer transition select-none ${
-                        isQuickFocused
-                          ? 'bg-emerald-400 text-black font-black shadow-2xl scale-[1.02] ring-4 ring-emerald-300'
-                          : isNowPlaying
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50'
-                          : 'bg-[#121722]/90 hover:bg-[#1b2234] text-slate-200'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <span className={`font-mono text-sm font-black w-8 ${isQuickFocused ? 'text-black' : 'text-slate-400'}`}>
-                          {channel.num || qIdx + 1}
-                        </span>
-                        {channel.stream_icon ? (
-                          <img
-                            src={channel.stream_icon}
-                            alt=""
-                            className="w-10 h-10 object-contain rounded-lg bg-black/40 p-0.5"
-                            onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center">
-                            <Tv className="w-5 h-5" />
-                          </div>
-                        )}
-                        <span className="font-bold text-base md:text-lg truncate max-w-[200px]">{channel.name}</span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {isFav && <Star className="w-4 h-4 fill-amber-400 text-amber-400" />}
-                        {isNowPlaying && (
-                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
-                            isQuickFocused ? 'bg-black text-emerald-400' : 'bg-emerald-400 text-black'
-                          }`}>
-                            Ao Vivo
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="pt-3 border-t border-slate-800 text-xs text-slate-400 flex items-center justify-between">
-                <span>[▲/▼] Navegar • [OK] Trocar</span>
-                <span>[▶] Ver Categorias</span>
-              </div>
-            </div>
-          )}
-
-          {/* DRAWER LATERAL DIREITO: MENU DE CATEGORIAS DE CANAIS */}
-          {isCategoryDrawerOpen && (
-            <div className="absolute inset-y-0 right-0 w-96 md:w-[440px] bg-black/95 backdrop-blur-xl border-l border-[#2a3449] z-[10002] flex flex-col p-5 animate-in slide-in-from-right duration-200 shadow-2xl">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
-                <div className="flex items-center gap-2.5 text-white">
-                  <Layers className="w-6 h-6 text-sky-400" />
-                  <div>
-                    <h3 className="font-extrabold text-base md:text-lg text-white leading-tight">
-                      Categorias de Canais
-                    </h3>
-                    <p className="text-xs text-slate-400 font-mono">
-                      Selecione para ver os canais
-                    </p>
+                <div className="flex items-center gap-3">
+                  {/* Busca Rápida */}
+                  <div className="relative w-56 md:w-64">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Buscar canal..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-7 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsGuideOpen(false)}
+                    className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition cursor-pointer"
+                    title="Fechar Guia [VOLTAR]"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsCategoryDrawerOpen(false)}
-                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar pr-1">
-                {/* 1. Todos os Canais */}
-                <button
-                  type="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    setSelectedCategory('all');
-                    setSelectedCategoryIdx(0);
-                    setIsCategoryDrawerOpen(false);
-                    setIsChannelDrawerOpen(true);
-                  }}
-                  className={`w-full text-left p-4 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer flex items-center justify-between ${
-                    categoryDrawerIdx === 0
-                      ? 'bg-sky-400 text-black font-black scale-[1.02] shadow-2xl ring-4 ring-sky-300'
-                      : selectedCategory === 'all'
-                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/50'
-                      : 'bg-[#121722]/90 hover:bg-[#1b2234] text-slate-200'
-                  }`}
-                >
-                  <span>★ Todos os Canais</span>
-                  <ChevronLeft className="w-5 h-5 opacity-60" />
-                </button>
-
-                {/* 2. Meus Favoritos */}
-                <button
-                  type="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    setSelectedCategory('favorites');
-                    setSelectedCategoryIdx(1);
-                    setIsCategoryDrawerOpen(false);
-                    setIsChannelDrawerOpen(true);
-                  }}
-                  className={`w-full text-left p-4 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer flex items-center justify-between ${
-                    categoryDrawerIdx === 1
-                      ? 'bg-amber-400 text-black font-black scale-[1.02] shadow-2xl ring-4 ring-amber-300'
-                      : selectedCategory === 'favorites'
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
-                      : 'bg-[#121722]/90 hover:bg-[#1b2234] text-amber-300/90'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Star className="w-5 h-5 fill-current text-amber-400" />
-                    <span>Meus Favoritos</span>
-                  </div>
-                  <span className="font-mono text-sm px-2.5 py-0.5 rounded-lg bg-black/40 font-black">
-                    {favorites.length}
+              {/* Corpo: Duas Colunas Lado a Lado (Categorias na Esquerda + Canais na Direita) */}
+              <div className="flex-1 flex gap-3 overflow-hidden">
+                {/* Coluna 1: Categorias (Esquerda, w-64) */}
+                <div className={`w-64 bg-[#121722]/90 border border-slate-800 rounded-2xl p-2.5 overflow-y-auto space-y-1.5 custom-scrollbar ${
+                  guideFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60' : ''
+                }`}>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 px-2 block mb-1">
+                    CATEGORIAS
                   </span>
-                </button>
 
-                {/* 3. Categorias da API */}
-                {categories.map((cat, cIdx) => {
-                  const targetIdx = cIdx + 2;
-                  const isCatFocused = categoryDrawerIdx === targetIdx;
-                  const isCatActive = selectedCategory === cat.category_id;
+                  {/* 1. Todos os canais */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory('all');
+                      setSelectedCategoryIdx(0);
+                      setGuideFocusColumn('channels');
+                    }}
+                    className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-bold transition cursor-pointer ${
+                      guideFocusColumn === 'categories' && selectedCategoryIdx === 0
+                        ? 'bg-emerald-400 text-black font-black ring-2 ring-emerald-300 shadow'
+                        : selectedCategory === 'all'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                        : 'text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    ★ Todos os Canais
+                  </button>
 
-                  return (
-                    <button
-                      key={cat.category_id}
-                      type="button"
-                      tabIndex={0}
-                      onClick={() => {
-                        setSelectedCategory(cat.category_id);
-                        setSelectedCategoryIdx(targetIdx);
-                        setIsCategoryDrawerOpen(false);
-                        setIsChannelDrawerOpen(true);
-                      }}
-                      className={`w-full text-left p-4 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer flex items-center justify-between ${
-                        isCatFocused
-                          ? 'bg-sky-400 text-black font-black scale-[1.02] shadow-2xl ring-4 ring-sky-300'
-                          : isCatActive
-                          ? 'bg-sky-500/20 text-sky-300 border border-sky-500/50'
-                          : 'bg-[#121722]/90 hover:bg-[#1b2234] text-slate-200'
-                      }`}
-                    >
-                      <span className="truncate max-w-[280px]">{cat.category_name}</span>
-                      <ChevronLeft className="w-5 h-5 opacity-60" />
-                    </button>
-                  );
-                })}
+                  {/* 2. Meus favoritos */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory('favorites');
+                      setSelectedCategoryIdx(1);
+                      setGuideFocusColumn('channels');
+                    }}
+                    className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-bold transition cursor-pointer flex items-center justify-between ${
+                      guideFocusColumn === 'categories' && selectedCategoryIdx === 1
+                        ? 'bg-amber-400 text-black font-black ring-2 ring-amber-300 shadow'
+                        : selectedCategory === 'favorites'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        : 'text-amber-300/90 hover:bg-slate-800'
+                    }`}
+                  >
+                    <span>⭐ Meus Favoritos</span>
+                    <span className="text-xs font-mono font-black">{favorites.length}</span>
+                  </button>
+
+                  {/* 3. Categorias da API */}
+                  {categories.map((cat, catIdx) => {
+                    const targetIdx = catIdx + 2;
+                    const isFocused = guideFocusColumn === 'categories' && selectedCategoryIdx === targetIdx;
+                    const isSelected = selectedCategory === cat.category_id;
+
+                    return (
+                      <button
+                        key={cat.category_id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCategory(cat.category_id);
+                          setSelectedCategoryIdx(targetIdx);
+                          setGuideFocusColumn('channels');
+                        }}
+                        className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-bold transition cursor-pointer truncate ${
+                          isFocused
+                            ? 'bg-emerald-400 text-black font-black ring-2 ring-emerald-300 shadow'
+                            : isSelected
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            : 'text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        {cat.category_name}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Coluna 2: Canais da Categoria (Direita, flex-1 com Virtualização Leve) */}
+                <div className={`flex-1 bg-[#0a0d14] border border-slate-800 rounded-2xl p-2.5 flex flex-col overflow-hidden ${
+                  guideFocusColumn === 'channels' ? 'ring-2 ring-emerald-500/60' : ''
+                }`}>
+                  {isLoadingChannels ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+                      <Loader2 className="w-8 h-8 animate-spin text-emerald-400 mb-2" />
+                      <span className="text-sm">Carregando canais da categoria...</span>
+                    </div>
+                  ) : displayedChannels.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-4 text-center">
+                      <AlertCircle className="w-8 h-8 mb-2" />
+                      <span className="text-sm">Nenhum canal encontrado nesta categoria.</span>
+                    </div>
+                  ) : (
+                    <div className="flex-1 min-h-0 w-full overflow-hidden">
+                      <VirtualList
+                        items={displayedChannels}
+                        itemHeight={64}
+                        selectedIndex={guideFocusColumn === 'channels' ? selectedChannelIdx : -1}
+                        renderItem={(channel, index, isSelected) => {
+                          const isItemFocused = isSelected && guideFocusColumn === 'channels';
+                          const isNowPlaying = currentPlayingChannel?.stream_id === channel.stream_id;
+                          const isFav = favorites.includes(channel.stream_id);
+
+                          return (
+                            <button
+                              key={channel.stream_id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedChannelIdx(index);
+                                setCurrentPlayingChannel(channel);
+                                setIsGuideOpen(false);
+                              }}
+                              className={`w-full h-[58px] px-3 rounded-xl flex items-center justify-between cursor-pointer transition select-none text-left ${
+                                isItemFocused
+                                  ? 'bg-emerald-400 text-black font-black shadow-xl ring-2 ring-emerald-300 scale-[1.01]'
+                                  : isNowPlaying
+                                  ? 'bg-emerald-500/20 border border-emerald-500/60 text-white'
+                                  : 'bg-[#121722]/80 hover:bg-[#1b2234] text-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 overflow-hidden">
+                                <span className={`font-mono text-xs font-black w-7 ${isItemFocused ? 'text-black' : 'text-slate-400'}`}>
+                                  {channel.num || index + 1}
+                                </span>
+                                {channel.stream_icon ? (
+                                  <img
+                                    src={channel.stream_icon}
+                                    alt=""
+                                    className="w-8 h-8 object-contain rounded-lg bg-black/40 p-0.5"
+                                    onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center">
+                                    <Tv className="w-4 h-4 text-slate-400" />
+                                  </div>
+                                )}
+                                <div className="truncate">
+                                  <span className="font-bold text-sm block truncate max-w-[220px] leading-tight">{channel.name}</span>
+                                  {isNowPlaying && (
+                                    <span className={`text-[10px] font-black uppercase ${isItemFocused ? 'text-black' : 'text-emerald-400'}`}>
+                                      ▶ No Ar
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {isFav && <Star className={`w-4 h-4 fill-amber-400 text-amber-400 shrink-0 ${isItemFocused ? 'text-black fill-black' : ''}`} />}
+                            </button>
+                          );
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-800 text-xs text-slate-400 flex items-center justify-between">
-                <span>[▲/▼] Navegar • [OK] Selecionar</span>
-                <span>[◀] Ver Canais</span>
+              {/* Rodapé: Dicas de Controle Remoto */}
+              <div className="pt-2.5 border-t border-slate-800 text-xs text-slate-400 flex items-center justify-between">
+                <span>[◀/▶] Alternar Colunas • [▲/▼] Navegar • [OK] Trocar de Canal</span>
+                <span>[VOLTAR] Fechar Guia</span>
               </div>
             </div>
           )}
@@ -797,11 +799,33 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         <div className="flex items-center justify-between mb-3 px-2">
           <h2 className="text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
             <span>CANAIS</span>
-            <span className="text-sky-400 font-mono text-xs">({filteredChannels.length})</span>
+            <span className="text-sky-400 font-mono text-xs">({displayedChannels.length})</span>
           </h2>
           <span className="text-xs text-slate-400 font-mono font-bold">
             [1º OK] Prévia • [2º OK] Tela Cheia
           </span>
+        </div>
+
+        {/* Campo de Pesquisa em Canais */}
+        <div className="relative mb-3">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Pesquisar canal ou número..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-8 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 cursor-pointer"
+              title="Limpar pesquisa"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {isLoadingChannels ? (
@@ -809,7 +833,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
             <Loader2 className="w-10 h-10 animate-spin text-emerald-400 mb-3" />
             <span className="text-base font-semibold">Carregando canais...</span>
           </div>
-        ) : filteredChannels.length === 0 ? (
+        ) : displayedChannels.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-6 text-center">
             {selectedCategory === 'favorites' ? (
               <>
@@ -820,14 +844,14 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
             ) : (
               <>
                 <AlertCircle className="w-10 h-10 mb-2" />
-                <span className="text-sm">Nenhum canal nesta categoria.</span>
+                <span className="text-sm">Nenhum canal encontrado.</span>
               </>
             )}
           </div>
         ) : (
           <div className="flex-1 min-h-0 w-full overflow-hidden">
             <VirtualList
-              items={filteredChannels}
+              items={displayedChannels}
               itemHeight={72}
               selectedIndex={selectedChannelIdx}
               renderItem={(channel, index, isSelected) => {

@@ -3,7 +3,7 @@ import { XtreamClient } from '../lib/xtream';
 import { XtreamCategory, XtreamSeries, XtreamSeason, XtreamEpisode } from '../types';
 import { Player } from '../components/Player';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Clapperboard, Play, Star, Loader2, X, ArrowLeft, Calendar, Info, Heart } from 'lucide-react';
+import { Clapperboard, Play, Star, Loader2, X, ArrowLeft, Calendar, Info, Heart, Search } from 'lucide-react';
 import { getFavorites, toggleFavorite } from '../lib/storage';
 
 interface SeriesViewProps {
@@ -86,9 +86,15 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   const activeEpBtnRef = useRef<HTMLButtonElement>(null);
   const activeHeaderBtnRef = useRef<HTMLButtonElement>(null);
 
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
   const displayedSeries = useMemo(() => {
-    return allSeries.slice(0, displayedCount);
-  }, [allSeries, displayedCount]);
+    if (!searchQuery.trim()) {
+      return allSeries.slice(0, displayedCount);
+    }
+    const q = searchQuery.toLowerCase().trim();
+    return allSeries.filter((s) => s.name.toLowerCase().includes(q)).slice(0, displayedCount);
+  }, [allSeries, displayedCount, searchQuery]);
 
   const seasonKeys = useMemo(() => {
     return Object.keys(seriesDetails?.episodes || {});
@@ -646,23 +652,46 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
           isFocusedContent && activeFocusColumn === 'grid' ? 'ring-2 ring-emerald-500/30' : ''
         }`}
       >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-black text-white flex items-center gap-2.5">
-            <Clapperboard className="w-7 h-7 text-emerald-400" />
-            <span>Catálogo de Séries</span>
-            {allSeries.length > 0 && (
-              <span className="text-base font-normal text-slate-400 ml-1">
-                ({displayedSeries.length} de {allSeries.length})
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-black text-white flex items-center gap-2.5">
+              <Clapperboard className="w-7 h-7 text-emerald-400" />
+              <span>Catálogo de Séries</span>
+              {allSeries.length > 0 && (
+                <span className="text-base font-normal text-slate-400 ml-1">
+                  ({displayedSeries.length} de {allSeries.length})
+                </span>
+              )}
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {/* Campo de Busca Rápida de Séries */}
+            <div className="relative w-72 md:w-80">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Buscar série por título..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 bg-[#121722] border border-slate-700/80 rounded-xl text-xs md:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-emerald-400 transition"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            <div className="hidden sm:flex text-xs text-slate-400 items-center gap-2">
+              <span className="font-mono bg-[#1a2233] px-3 py-1.5 rounded-lg text-emerald-400 font-bold">
+                [OK] Abrir Série
               </span>
-            )}
-          </h2>
-          <div className="text-xs text-slate-400 flex items-center gap-3">
-            <span className="font-mono bg-[#1a2233] px-3 py-1.5 rounded-lg text-emerald-400 font-bold">
-              [OK] Abrir Série
-            </span>
-            <span className="font-mono bg-[#1a2233] px-3 py-1.5 rounded-lg text-slate-300">
-              [◀] Voltar para Gêneros
-            </span>
+            </div>
           </div>
         </div>
 

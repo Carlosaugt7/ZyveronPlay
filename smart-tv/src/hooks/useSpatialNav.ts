@@ -22,19 +22,19 @@ export interface SpatialNavHandler {
 // Verifica se o evento de teclado corresponde a qualquer tecla de VOLTAR de Smart TVs
 export function isBackKeyEvent(e: KeyboardEvent): boolean {
   const code = e.keyCode || e.which;
-  const key = e.key;
+  const key = (e.key || '').toLowerCase();
 
   return (
-    key === 'Escape' ||
-    key === 'Backspace' ||
-    key === 'BrowserBack' ||
-    key === 'GoBack' ||
-    key === 'Back' ||
-    key === 'Exit' ||
-    key === 'Cancel' ||
-    key === 'UIReturn' ||
-    key === 'XF86Back' ||
-    (key === 'Return' && code === 10009) ||
+    key === 'escape' ||
+    key === 'backspace' ||
+    key === 'browserback' ||
+    key === 'goback' ||
+    key === 'back' ||
+    key === 'exit' ||
+    key === 'cancel' ||
+    key === 'uireturn' ||
+    key === 'xf86back' ||
+    (key === 'return' && code !== 13) ||
     code === 27 || // Escape
     code === 8 || // Backspace
     code === 4 || // Android TV / Fire TV KEYCODE_BACK
