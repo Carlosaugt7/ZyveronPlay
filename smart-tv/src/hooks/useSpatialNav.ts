@@ -16,29 +16,149 @@ export interface SpatialNavHandler {
   onYellow?: () => void;
   onBlue?: () => void;
   disabled?: boolean;
+  priority?: number;
 }
 
-// Registra teclas de TV em ambientes Samsung Tizen e webOS se presentes
+// Verifica se o evento de teclado corresponde a qualquer tecla de VOLTAR de Smart TVs
+export function isBackKeyEvent(e: KeyboardEvent): boolean {
+  const code = e.keyCode || e.which;
+  const key = e.key;
+
+  return (
+    key === 'Escape' ||
+    key === 'Backspace' ||
+    key === 'BrowserBack' ||
+    key === 'GoBack' ||
+    key === 'Back' ||
+    key === 'Exit' ||
+    key === 'Cancel' ||
+    key === 'UIReturn' ||
+    key === 'XF86Back' ||
+    (key === 'Return' && code === 10009) ||
+    code === 27 || // Escape
+    code === 8 || // Backspace
+    code === 4 || // Android TV / Fire TV KEYCODE_BACK
+    code === 166 || // Windows / Chrome BrowserBack
+    code === 10009 || // Samsung Tizen Return
+    code === 461 || // LG webOS Back
+    code === 283 || // LG NetCast / webOS legado
+    code === 10182 || // Philips Back
+    code === 65385 || // XF86Back
+    code === 216 // Skyworth Back
+  );
+}
+
+// Pilha Global de Handlers de Voltar
+interface BackStackEntry {
+  id: number;
+  callback: () => void;
+  priority: number;
+}
+
+let nextHandlerId = 1;
+const globalBackStack: BackStackEntry[] = [];
+let lastBackTriggerTime = 0;
+
+export function triggerGlobalBack(): boolean {
+  const now = Date.now();
+  if (now - lastBackTriggerTime < 280) return true;
+  lastBackTriggerTime = now;
+
+  if (globalBackStack.length > 0) {
+    const topEntry = globalBackStack[globalBackStack.length - 1];
+    try {
+      topEntry.callback();
+      return true;
+    } catch (err) {
+      console.error('[SpatialNav] Erro ao executar handler de voltar:', err);
+    }
+  }
+  return false;
+}
+
+// Inicialização Global Única para Hardware e Plataformas de TV
 if (typeof window !== 'undefined') {
   try {
+    // 1. Samsung Tizen Input Device
     const tizenObj = (window as any).tizen;
     if (tizenObj?.tvinputdevice) {
-      tizenObj.tvinputdevice.registerKey('Return');
-      tizenObj.tvinputdevice.registerKey('Exit');
-      tizenObj.tvinputdevice.registerKey('ColorF0Red');
-      tizenObj.tvinputdevice.registerKey('ColorF1Green');
-      tizenObj.tvinputdevice.registerKey('ColorF2Yellow');
-      tizenObj.tvinputdevice.registerKey('ColorF3Blue');
+      try { tizenObj.tvinputdevice.registerKey('Return'); } catch {}
+      try { tizenObj.tvinputdevice.registerKey('Exit'); } catch {}
+      try { tizenObj.tvinputdevice.registerKey('ColorF0Red'); } catch {}
+      try { tizenObj.tvinputdevice.registerKey('ColorF1Green'); } catch {}
+      try { tizenObj.tvinputdevice.registerKey('ColorF2Yellow'); } catch {}
+      try { tizenObj.tvinputdevice.registerKey('ColorF3Blue'); } catch {}
+    }
+  } catch {}
+
+  // 2. Samsung Tizen Evento Nativo de Hardware (tizenhwkey)
+  window.addEventListener('tizenhwkey', (e: any) => {
+    if (e.keyName === 'back' || e.keyName === 'Back') {
+      triggerGlobalBack();
+    }
+  });
+
+  // 3. Android TV / Cordova / Capacitor / TV Box hardware back
+  document.addEventListener('backbutton', (e: any) => {
+    e?.preventDefault?.();
+    triggerGlobalBack();
+  });
+
+  // 4. Injeções de WebView Android TV
+  (window as any).onAndroidTVBackPress = () => triggerGlobalBack();
+  (window as any).onBackPressed = () => triggerGlobalBack();
+
+  // 5. Media Station X (MSX) postMessage
+  window.addEventListener('message', (e: MessageEvent) => {
+    if (
+      e.data === 'msx:back' ||
+      e.data === 'back' ||
+      e.data?.action === 'back' ||
+      e.data?.event === 'back'
+    ) {
+      triggerGlobalBack();
+    }
+  });
+
+  // 6. Histórico PopState (para WebViews que disparam history.back())
+  window.addEventListener('popstate', () => {
+    triggerGlobalBack();
+    try {
+      window.history.pushState({ nav: 'smart-tv-layer' }, '');
+    } catch {}
+  });
+
+  // 7. Interceptação Global das teclas físicas de Voltar (keydown e keyup com capture)
+  const handleGlobalBackKeyEvent = (e: KeyboardEvent) => {
+    if (isBackKeyEvent(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+      triggerGlobalBack();
+    }
+  };
+
+  window.addEventListener('keydown', handleGlobalBackKeyEvent, { capture: true });
+  window.addEventListener('keyup', handleGlobalBackKeyEvent, { capture: true });
+
+  // 8. Garante camada de histórico para o WebView nunca fechar o app diretamente
+  try {
+    if (window.history.state?.nav !== 'smart-tv-layer') {
+      window.history.pushState({ nav: 'smart-tv-layer' }, '');
+    }
+  } catch {}
+
+  // 9. Registra escuta de volta no Media Station X
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage('msx:register:back', '*');
     }
   } catch {}
 }
 
 /**
- * Hook de altíssimo desempenho para interceptar controles remotos de Smart TVs
- * Suporta Media Station X (MSX), LG webOS, Samsung Tizen, Android TV, Fire TV, Roku e PC.
+ * Hook de altíssimo desempenho para navegação espacial e controles remotos de Smart TVs
  */
 export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
-  const lastBackRef = useRef<number>(0);
   const longPressTimerRef = useRef<any>(null);
   const isLongPressTriggeredRef = useRef<boolean>(false);
   const onBackRef = useRef(handlers.onBack);
@@ -46,27 +166,55 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
   const disabledRef = useRef(handlers.disabled);
   disabledRef.current = handlers.disabled;
 
-  const triggerBack = useCallback(() => {
-    const now = Date.now();
-    if (now - lastBackRef.current < 250) return;
-    lastBackRef.current = now;
-    onBackRef.current?.();
-  }, []);
+  // Gerenciamento da Pilha Global de Voltar
+  useEffect(() => {
+    if (!handlers.onBack || handlers.disabled) return;
+
+    const id = nextHandlerId++;
+    const priority = handlers.priority ?? 10;
+
+    const entry: BackStackEntry = {
+      id,
+      priority,
+      callback: () => {
+        if (!disabledRef.current) {
+          onBackRef.current?.();
+        }
+      }
+    };
+
+    // Insere mantendo ordenação por prioridade
+    globalBackStack.push(entry);
+    globalBackStack.sort((a, b) => a.priority - b.priority);
+
+    return () => {
+      const idx = globalBackStack.findIndex((e) => e.id === id);
+      if (idx !== -1) {
+        globalBackStack.splice(idx, 1);
+      }
+    };
+  }, [handlers.onBack, handlers.disabled, handlers.priority]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (handlers.disabled) return;
 
+    // Se for tecla de voltar, o listener global cuida
+    if (isBackKeyEvent(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
     const code = e.keyCode || e.which;
     const key = e.key;
-
     let handled = false;
 
-    // Seta para Cima (38) ou Canal + (33)
+    // Seta para Cima (38)
     if (key === 'ArrowUp' || code === 38) {
       handled = true;
       handlers.onUp?.();
     }
-    // Seta para Baixo (40) ou Canal - (34)
+    // Seta para Baixo (40)
     else if (key === 'ArrowDown' || code === 40) {
       handled = true;
       handlers.onDown?.();
@@ -82,7 +230,6 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
       handlers.onRight?.();
     }
     // Seleção / OK / Enter (13)
-    // Suporta segurar por até 2 segundos para acionar onLongSelect
     else if (key === 'Enter' || code === 13) {
       handled = true;
       if (handlers.onLongSelect) {
@@ -97,7 +244,7 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
         handlers.onSelect?.();
       }
     }
-    // Botão Verde (ColorF1Green / VK_GREEN / 404 / 'g' / 'G')
+    // Botão Verde (ColorF1Green / 404 / 'g')
     else if (
       key === 'ColorF1Green' || 
       key === 'Green' || 
@@ -108,7 +255,7 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
       handled = true;
       handlers.onGreen?.();
     }
-    // Botão Amarelo (ColorF2Yellow / VK_YELLOW / 405 / 'y' / 'Y' / 'f' / 'F')
+    // Botão Amarelo (ColorF2Yellow / 405 / 'y' / 'f')
     else if (
       key === 'ColorF2Yellow' || 
       key === 'Yellow' || 
@@ -119,7 +266,7 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
       handled = true;
       handlers.onYellow?.();
     }
-    // Botão Vermelho (ColorF0Red / VK_RED / 403 / 'r' / 'R')
+    // Botão Vermelho (ColorF0Red / 403 / 'r')
     else if (
       key === 'ColorF0Red' || 
       key === 'Red' || 
@@ -130,7 +277,7 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
       handled = true;
       handlers.onRed?.();
     }
-    // Botão Azul (ColorF3Blue / VK_BLUE / 406 / 'b' / 'B')
+    // Botão Azul (ColorF3Blue / 406 / 'b')
     else if (
       key === 'ColorF3Blue' || 
       key === 'Blue' || 
@@ -140,38 +287,6 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
     ) {
       handled = true;
       handlers.onBlue?.();
-    }
-    // Voltar / Return / Back
-    // Samsung Tizen: 10009
-    // LG webOS: 461, 283
-    // Android TV / Box / Fire TV: 4
-    // Windows / Chrome: 166 (BrowserBack)
-    // PC Keyboard: 27 (Escape), 8 (Backspace)
-    // Philips / Sony / Outros: 65385, 10182, 216
-    // MSX / Roku: 'BrowserBack', 'GoBack', 'Back', 'Cancel', 'Exit'
-    else if (
-      key === 'Escape' || 
-      key === 'Backspace' || 
-      key === 'BrowserBack' || 
-      key === 'GoBack' || 
-      key === 'Back' || 
-      key === 'Exit' || 
-      key === 'Cancel' || 
-      key === 'UIReturn' || 
-      key === 'XF86Back' || 
-      code === 27 || 
-      code === 8 || 
-      code === 4 || 
-      code === 166 || 
-      code === 10009 || 
-      code === 461 || 
-      code === 283 || 
-      code === 10182 || 
-      code === 65385 ||
-      code === 216
-    ) {
-      handled = true;
-      triggerBack();
     }
     // Play / Pause (LG: 415, 19 | Tizen: 415, 19, 10252)
     else if (code === 415 || code === 19 || code === 10252 || key === 'MediaPlayPause') {
@@ -201,7 +316,7 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
       e.preventDefault();
       e.stopPropagation();
     }
-  }, [handlers, triggerBack, ...deps]);
+  }, [handlers, ...deps]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     if (handlers.disabled) return;
@@ -223,7 +338,6 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
     }
   }, [handlers.disabled, handlers.onSelect, handlers.onLongSelect]);
 
-  // Captura eventos via keydown e keyup com alta prioridade
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     window.addEventListener('keyup', handleKeyUp, { capture: true });
@@ -232,46 +346,4 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
       window.removeEventListener('keyup', handleKeyUp, { capture: true });
     };
   }, [handleKeyDown, handleKeyUp]);
-
-  // Comunicação com MSX e interceptação do botão Voltar (sem loop de histórico)
-  useEffect(() => {
-    if (!handlers.onBack) return;
-
-    // Registra controle de volta junto ao Media Station X
-    try {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage('msx:register:back', '*');
-      }
-    } catch {}
-
-    const handleMessage = (e: MessageEvent) => {
-      if (disabledRef.current) return;
-      if (
-        e.data === 'msx:back' || 
-        e.data === 'back' || 
-        e.data?.action === 'back' || 
-        e.data?.event === 'back'
-      ) {
-        triggerBack();
-      }
-    };
-
-    if (window.history.state?.nav !== 'smart-tv-layer') {
-      window.history.pushState({ nav: 'smart-tv-layer' }, '');
-    }
-
-    const handlePopState = () => {
-      if (disabledRef.current) return;
-      triggerBack();
-      window.history.pushState({ nav: 'smart-tv-layer' }, '');
-    };
-
-    window.addEventListener('message', handleMessage);
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('message', handleMessage);
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [triggerBack, handlers.onBack]);
 }

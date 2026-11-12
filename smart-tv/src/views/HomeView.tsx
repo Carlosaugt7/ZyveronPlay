@@ -3,6 +3,7 @@ import { XtreamClient } from '../lib/xtream';
 import { XtreamVod, XtreamSeries, DeviceActivation } from '../types';
 import { Tv, Film, Clapperboard, Trophy, RefreshCw, Settings, Wifi, Clock, ArrowRight } from 'lucide-react';
 import { useNetworkQuality } from '../hooks/useNetworkQuality';
+import { useSpatialNav } from '../hooks/useSpatialNav';
 
 interface HomeViewProps {
   client: XtreamClient;
@@ -67,6 +68,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
       activeCarouselRef.current.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
     }
   }, [focusedId]);
+
+  // Tecla VOLTAR na Home: sai de volta para o Media Station X ou fecha com segurança
+  useSpatialNav({
+    onBack: () => {
+      console.log('[HomeView] Voltar na Home acionado');
+      try {
+        if (window.history.length > 1) {
+          window.history.go(1 - window.history.length);
+        }
+      } catch {}
+    },
+    priority: 0
+  }, []);
 
   // Relógio e Saudação Dinâmica
   useEffect(() => {

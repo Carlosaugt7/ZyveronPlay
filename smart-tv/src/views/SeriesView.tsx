@@ -52,7 +52,29 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     id: string;
     title: string;
     ext: string;
+    season: string;
+    episodeIdx: number;
   } | null>(null);
+
+  // Reprodução Automática do Próximo Episódio (Persistente no localStorage)
+  const [autoPlayNextEpisode, setAutoPlayNextEpisode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('zyveron_autoplay_next_episode');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleAutoPlayNext = () => {
+    setAutoPlayNextEpisode((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('zyveron_autoplay_next_episode', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // Foco espacial: 'categories' | 'grid' | 'details-header' | 'seasons' | 'episodes'
   const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid' | 'details-header' | 'seasons' | 'episodes'>('categories');
@@ -234,7 +256,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     setActiveFocusColumn('grid');
   };
 
-  const startPlayingEpisode = (epData: { id: string; title: string; ext: string }) => {
+  const startPlayingEpisode = (epData: { id: string; title: string; ext: string; season: string; episodeIdx: number }) => {
     setPlayingEpisode(epData);
     onFullScreenChange?.(true);
   };
@@ -242,6 +264,93 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   const stopPlayingEpisode = () => {
     setPlayingEpisode(null);
     onFullScreenChange?.(false);
+  };
+
+  // Navegação Sequencial de Episódios para Séries (Auto-Play e Botões Próximo/Anterior)
+  const currentSeasonIndex = playingEpisode ? seasonKeys.indexOf(playingEpisode.season) : -1;
+  const currentSeasonEpisodes = playingEpisode ? seriesDetails?.episodes?.[playingEpisode.season] || [] : [];
+
+  let hasPrevEpisode = false;
+  let prevSeason = '';
+  let prevEpIdx = -1;
+
+  if (playingEpisode) {
+    if (playingEpisode.episodeIdx > 0) {
+      hasPrevEpisode = true;
+      prevSeason = playingEpisode.season;
+      prevEpIdx = playingEpisode.episodeIdx - 1;
+    } else if (currentSeasonIndex > 0) {
+      const prevSeasonKey = seasonKeys[currentSeasonIndex - 1];
+      const prevSeasonEps = seriesDetails?.episodes?.[prevSeasonKey] || [];
+      if (prevSeasonEps.length > 0) {
+        hasPrevEpisode = true;
+        prevSeason = prevSeasonKey;
+        prevEpIdx = prevSeasonEps.length - 1;
+      }
+    }
+  }
+
+  let hasNextEpisode = false;
+  let nextSeason = '';
+  let nextEpIdx = -1;
+  let nextEpisodeTitle = '';
+
+  if (playingEpisode) {
+    if (playingEpisode.episodeIdx < currentSeasonEpisodes.length - 1) {
+      hasNextEpisode = true;
+      nextSeason = playingEpisode.season;
+      nextEpIdx = playingEpisode.episodeIdx + 1;
+      const nextEp = currentSeasonEpisodes[nextEpIdx];
+      if (nextEp) {
+        nextEpisodeTitle = `T${nextSeason}:E${nextEp.episode_num} - ${nextEp.title}`;
+      }
+    } else if (currentSeasonIndex !== -1 && currentSeasonIndex < seasonKeys.length - 1) {
+      const nextSeasonKey = seasonKeys[currentSeasonIndex + 1];
+      const nextSeasonEps = seriesDetails?.episodes?.[nextSeasonKey] || [];
+      if (nextSeasonEps.length > 0) {
+        hasNextEpisode = true;
+        nextSeason = nextSeasonKey;
+        nextEpIdx = 0;
+        const nextEp = nextSeasonEps[0];
+        if (nextEp) {
+          nextEpisodeTitle = `T${nextSeason}:E${nextEp.episode_num} - ${nextEp.title}`;
+        }
+      }
+    }
+  }
+
+  const handleGoToNextEpisode = () => {
+    if (!hasNextEpisode) return;
+    const targetEps = seriesDetails?.episodes?.[nextSeason] || [];
+    const ep = targetEps[nextEpIdx];
+    if (ep) {
+      setSelectedSeason(nextSeason);
+      setSelectedEpisodeIdx(nextEpIdx);
+      setPlayingEpisode({
+        id: ep.id,
+        title: `T${nextSeason}:E${ep.episode_num} - ${ep.title}`,
+        ext: ep.container_extension || 'mp4',
+        season: nextSeason,
+        episodeIdx: nextEpIdx
+      });
+    }
+  };
+
+  const handleGoToPrevEpisode = () => {
+    if (!hasPrevEpisode) return;
+    const targetEps = seriesDetails?.episodes?.[prevSeason] || [];
+    const ep = targetEps[prevEpIdx];
+    if (ep) {
+      setSelectedSeason(prevSeason);
+      setSelectedEpisodeIdx(prevEpIdx);
+      setPlayingEpisode({
+        id: ep.id,
+        title: `T${prevSeason}:E${ep.episode_num} - ${ep.title}`,
+        ext: ep.container_extension || 'mp4',
+        season: prevSeason,
+        episodeIdx: prevEpIdx
+      });
+    }
   };
 
   // Navegação D-Pad para Smart TV
@@ -358,7 +467,9 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
           startPlayingEpisode({
             id: ep.id,
             title: `T${selectedSeason}:E${ep.episode_num} - ${ep.title}`,
-            ext: ep.container_extension || 'mp4'
+            ext: ep.container_extension || 'mp4',
+            season: selectedSeason,
+            episodeIdx: selectedEpisodeIdx
           });
         }
       }
@@ -388,7 +499,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       }
       onBackToHome?.();
     },
-    disabled: !isFocusedContent
+    disabled: !isFocusedContent,
+    priority: 15
   }, [
     playingEpisode,
     activeFocusColumn,
@@ -409,7 +521,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     onBackToHome
   ]);
 
-  // Player de Episódio (VOD com Seekbar)
+  // Player de Episódio (VOD com Seekbar & Próximo/Anterior Episódio)
   if (playingEpisode) {
     return (
       <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black">
@@ -420,6 +532,13 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
           isLive={false}
           onBack={stopPlayingEpisode}
           isFullScreen={true}
+          onNextEpisode={handleGoToNextEpisode}
+          onPreviousEpisode={handleGoToPrevEpisode}
+          hasNextEpisode={hasNextEpisode}
+          hasPreviousEpisode={hasPrevEpisode}
+          autoPlayNext={autoPlayNextEpisode}
+          onToggleAutoPlayNext={toggleAutoPlayNext}
+          nextEpisodeTitle={nextEpisodeTitle}
         />
       </div>
     );
@@ -782,7 +901,9 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                             startPlayingEpisode({
                               id: ep.id,
                               title: `T${selectedSeason}:E${ep.episode_num} - ${ep.title}`,
-                              ext: ep.container_extension || 'mp4'
+                              ext: ep.container_extension || 'mp4',
+                              season: selectedSeason,
+                              episodeIdx: epIdx
                             });
                           }}
                           className={`w-full flex items-center justify-between p-4 rounded-2xl cursor-pointer transition select-none text-left ${

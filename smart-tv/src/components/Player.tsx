@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
-import { Loader2, AlertCircle, ArrowLeft, Play, Pause, FastForward, Rewind } from 'lucide-react';
+import { Loader2, AlertCircle, ArrowLeft, Play, Pause, FastForward, Rewind, SkipBack, SkipForward, Sparkles } from 'lucide-react';
 import { useSpatialNav } from '../hooks/useSpatialNav';
 
 interface PlayerProps {
@@ -17,6 +17,14 @@ interface PlayerProps {
   onOpenChannelList?: () => void;
   isFullScreen?: boolean;
   disableSpatialNav?: boolean;
+  // Suporte a Séries (Episódios & Auto-Play)
+  onNextEpisode?: () => void;
+  onPreviousEpisode?: () => void;
+  hasNextEpisode?: boolean;
+  hasPreviousEpisode?: boolean;
+  autoPlayNext?: boolean;
+  onToggleAutoPlayNext?: () => void;
+  nextEpisodeTitle?: string;
 }
 
 function formatSeconds(sec: number): string {
@@ -43,7 +51,14 @@ export const Player: React.FC<PlayerProps> = ({
   onChannelDown,
   onOpenChannelList,
   isFullScreen = true,
-  disableSpatialNav = false
+  disableSpatialNav = false,
+  onNextEpisode,
+  onPreviousEpisode,
+  hasNextEpisode = false,
+  hasPreviousEpisode = false,
+  autoPlayNext = true,
+  onToggleAutoPlayNext,
+  nextEpisodeTitle
 }) => {
   const isActuallyLive = isLive !== undefined ? isLive : (channelNum !== undefined);
 
@@ -63,6 +78,34 @@ export const Player: React.FC<PlayerProps> = ({
   const [seekFeedback, setSeekFeedback] = useState<string | null>(null);
   const seekFeedbackTimerRef = useRef<any>(null);
   const osdTimerRef = useRef<any>(null);
+
+  // Auto-play Contagem Regressiva para Próximo Episódio
+  const [autoPlayCountdown, setAutoPlayCountdown] = useState<number | null>(null);
+  const autoPlayTimerRef = useRef<any>(null);
+
+  const cancelCountdown = useCallback(() => {
+    if (autoPlayTimerRef.current) {
+      clearInterval(autoPlayTimerRef.current);
+      autoPlayTimerRef.current = null;
+    }
+    setAutoPlayCountdown(null);
+  }, []);
+
+  const startAutoPlayCountdown = useCallback(() => {
+    if (!hasNextEpisode || !onNextEpisode) return;
+    cancelCountdown();
+    setAutoPlayCountdown(5);
+    let remaining = 5;
+    autoPlayTimerRef.current = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        cancelCountdown();
+        onNextEpisode();
+      } else {
+        setAutoPlayCountdown(remaining);
+      }
+    }, 1000);
+  }, [hasNextEpisode, onNextEpisode, cancelCountdown]);
 
   const showOsdTemporarily = useCallback(() => {
     setShowOsd(true);
@@ -104,7 +147,7 @@ export const Player: React.FC<PlayerProps> = ({
     showOsdTemporarily();
   }, [showOsdTemporarily]);
 
-  // Hook D-Pad para Smart TV
+  // Hook D-Pad para Smart TV com prioridade máxima
   useSpatialNav({
     onUp: () => {
       if (isActuallyLive && onChannelUp) {
@@ -122,23 +165,24 @@ export const Player: React.FC<PlayerProps> = ({
     },
     onLeft: () => {
       if (isActuallyLive) {
-        // Na TV ao vivo: Abre o Guia Rápido de Canais
         onOpenChannelList?.();
       } else {
-        // Em filmes e séries: RETROCEDE 15s (NUNCA SAI DO FILME)
         handleSeek(-15);
       }
     },
     onRight: () => {
       if (isActuallyLive) {
-        // Na TV ao vivo: Também abre o Guia Rápido
         onOpenChannelList?.();
       } else {
-        // Em filmes e séries: AVANÇA 15s
         handleSeek(15);
       }
     },
     onSelect: () => {
+      if (autoPlayCountdown !== null) {
+        cancelCountdown();
+        onNextEpisode?.();
+        return;
+      }
       if (!isActuallyLive) {
         togglePlayPause();
       } else {
@@ -148,14 +192,59 @@ export const Player: React.FC<PlayerProps> = ({
     onPlayPause: () => {
       togglePlayPause();
     },
+    onChannelUp: () => {
+      if (hasNextEpisode && onNextEpisode) {
+        onNextEpisode();
+      } else if (onChannelUp) {
+        onChannelUp();
+      }
+    },
+    onChannelDown: () => {
+      if (hasPreviousEpisode && onPreviousEpisode) {
+        onPreviousEpisode();
+      } else if (onChannelDown) {
+        onChannelDown();
+      }
+    },
+    onBlue: () => {
+      if (hasNextEpisode && onNextEpisode) {
+        onNextEpisode();
+      }
+    },
+    onYellow: () => {
+      if (hasPreviousEpisode && onPreviousEpisode) {
+        onPreviousEpisode();
+      }
+    },
     onBack: () => {
+      if (autoPlayCountdown !== null) {
+        cancelCountdown();
+        return;
+      }
       if (onBack) {
-        console.log('[Player] Tecla física VOLTAR pressionada');
         onBack();
       }
     },
-    disabled: !isFullScreen || hasError || disableSpatialNav
-  }, [isActuallyLive, onChannelUp, onChannelDown, onOpenChannelList, onBack, isFullScreen, hasError, disableSpatialNav, isPaused, handleSeek, togglePlayPause, showOsdTemporarily]);
+    disabled: disableSpatialNav,
+    priority: 30
+  }, [
+    isActuallyLive,
+    onChannelUp,
+    onChannelDown,
+    onOpenChannelList,
+    onBack,
+    disableSpatialNav,
+    isPaused,
+    handleSeek,
+    togglePlayPause,
+    showOsdTemporarily,
+    hasNextEpisode,
+    hasPreviousEpisode,
+    onNextEpisode,
+    onPreviousEpisode,
+    autoPlayCountdown,
+    cancelCountdown
+  ]);
 
   // OSD inicial ao carregar
   useEffect(() => {
@@ -173,8 +262,9 @@ export const Player: React.FC<PlayerProps> = ({
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
+    cancelCountdown();
     setActiveUrl(streamUrl);
-  }, [streamUrl]);
+  }, [streamUrl, cancelCountdown]);
 
   // Ciclo de carregamento do HLS / Vídeo
   useEffect(() => {
@@ -291,6 +381,18 @@ export const Player: React.FC<PlayerProps> = ({
       }
     };
 
+    // Evento de Fim de Vídeo (Para Séries - Auto-Play do Próximo Episódio)
+    const handleEnded = () => {
+      console.log('[Player] Episódio finalizado');
+      if (hasNextEpisode && onNextEpisode) {
+        if (autoPlayNext) {
+          startAutoPlayCountdown();
+        } else {
+          showOsdTemporarily();
+        }
+      }
+    };
+
     video.addEventListener('loadstart', handleLoadStart);
     video.addEventListener('loadeddata', handleLoadedData);
     video.addEventListener('playing', handlePlaying);
@@ -299,6 +401,7 @@ export const Player: React.FC<PlayerProps> = ({
     video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('durationchange', handleDurationChange);
     video.addEventListener('error', handleError);
+    video.addEventListener('ended', handleEnded);
 
     return () => {
       video.removeEventListener('loadstart', handleLoadStart);
@@ -309,6 +412,7 @@ export const Player: React.FC<PlayerProps> = ({
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('durationchange', handleDurationChange);
       video.removeEventListener('error', handleError);
+      video.removeEventListener('ended', handleEnded);
 
       video.pause();
       if (hlsRef.current) {
@@ -316,7 +420,7 @@ export const Player: React.FC<PlayerProps> = ({
         hlsRef.current = null;
       }
     };
-  }, [activeUrl, fallbackUrl, isActuallyLive]);
+  }, [activeUrl, fallbackUrl, isActuallyLive, hasNextEpisode, onNextEpisode, autoPlayNext, startAutoPlayCountdown, showOsdTemporarily]);
 
   return (
     <div className={`relative bg-black overflow-hidden flex items-center justify-center ${isFullScreen ? 'w-full h-full' : 'w-full h-full rounded-xl'}`}>
@@ -352,10 +456,55 @@ export const Player: React.FC<PlayerProps> = ({
       )}
 
       {/* Feedback de Pausado */}
-      {isPaused && !isLoading && !seekFeedback && (
+      {isPaused && !isLoading && !seekFeedback && autoPlayCountdown === null && (
         <div className="absolute inset-0 flex items-center justify-center z-25 pointer-events-none">
           <div className="w-20 h-20 rounded-full bg-black/75 border border-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-2xl">
             <Pause className="w-10 h-10" />
+          </div>
+        </div>
+      )}
+
+      {/* Overlay de Contagem Regressiva para o Próximo Episódio */}
+      {autoPlayCountdown !== null && hasNextEpisode && (
+        <div className="absolute inset-0 bg-black/90 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200">
+          <div className="bg-[#121722] border-2 border-emerald-500/80 p-8 rounded-3xl max-w-lg w-full shadow-2xl flex flex-col items-center">
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/20 px-4 py-1.5 rounded-full mb-3 border border-emerald-500/40">
+              <Sparkles className="w-4 h-4" />
+              <span>PRÓXIMO EPISÓDIO</span>
+            </div>
+            
+            <h3 className="text-2xl md:text-3xl font-black text-white mb-2 leading-tight">
+              {nextEpisodeTitle || 'Próximo Episódio'}
+            </h3>
+            
+            <p className="text-slate-300 text-sm md:text-base mb-6">
+              Iniciando automaticamente em{' '}
+              <span className="font-mono font-black text-emerald-400 text-2xl mx-1">
+                {autoPlayCountdown}s
+              </span>
+              ...
+            </p>
+            
+            <div className="flex items-center gap-4 w-full">
+              <button
+                type="button"
+                onClick={() => {
+                  cancelCountdown();
+                  onNextEpisode?.();
+                }}
+                className="flex-1 py-4 px-6 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-base rounded-2xl shadow-xl transition flex items-center justify-center gap-2.5 cursor-pointer ring-4 ring-emerald-300 scale-102"
+              >
+                <Play className="w-5 h-5 fill-black" />
+                <span>Assistir Agora [OK]</span>
+              </button>
+              <button
+                type="button"
+                onClick={cancelCountdown}
+                className="py-4 px-6 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-base rounded-2xl border border-slate-700 transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -371,7 +520,7 @@ export const Player: React.FC<PlayerProps> = ({
               onClick={onBack}
               className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold flex items-center gap-2 cursor-pointer shadow-lg"
             >
-              <ArrowLeft className="w-5 h-5" /> Voltar
+              <ArrowLeft className="w-5 h-5" /> Voltar ao Catálogo [VOLTAR]
             </button>
           )}
         </div>
@@ -379,11 +528,24 @@ export const Player: React.FC<PlayerProps> = ({
 
       {/* OSD (On-Screen Display de TV) */}
       {showOsd && !hasError && (
-        <div className="absolute inset-x-0 bottom-0 p-6 md:p-8 bg-gradient-to-t from-black/95 via-black/70 to-transparent z-15 flex flex-col gap-3 transition-opacity duration-300">
+        <div className="absolute inset-x-0 bottom-0 p-6 md:p-8 bg-gradient-to-t from-black/95 via-black/80 to-transparent z-15 flex flex-col gap-3 transition-opacity duration-300">
           
-          {/* Informações Superiores do OSD */}
+          {/* Informações Superiores do OSD + Botão Voltar Visível */}
           <div className="flex items-end justify-between">
             <div className="flex items-center gap-4">
+              {/* Botão Físico/Visual de Voltar */}
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="px-4 py-2.5 bg-black/80 hover:bg-slate-800 border border-slate-700/80 text-white rounded-2xl font-bold text-sm flex items-center gap-2 shadow-2xl transition cursor-pointer hover:scale-105"
+                  title="Voltar ao Catálogo [VOLTAR]"
+                >
+                  <ArrowLeft className="w-5 h-5 text-emerald-400" />
+                  <span>Voltar</span>
+                </button>
+              )}
+
               {logoUrl && (
                 <img
                   src={logoUrl}
@@ -404,10 +566,10 @@ export const Player: React.FC<PlayerProps> = ({
                       ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
                       : 'bg-sky-500/20 text-sky-400 border-sky-500/30'
                   }`}>
-                    {isActuallyLive ? 'AO VIVO • HLS' : 'FILME / VOD'}
+                    {isActuallyLive ? 'AO VIVO • HLS' : onNextEpisode !== undefined ? 'SÉRIE • EPISÓDIO' : 'FILME • VOD'}
                   </span>
                   {subtitle && (
-                    <span className="text-xs text-slate-400 font-medium">
+                    <span className="text-xs text-slate-300 font-medium">
                       {subtitle}
                     </span>
                   )}
@@ -422,10 +584,14 @@ export const Player: React.FC<PlayerProps> = ({
             <div className="hidden md:flex flex-col items-end text-xs text-slate-400 font-medium">
               {isActuallyLive ? (
                 <span>[▲▼] Trocar Canal • [◀▶] Lista de Canais • [VOLTAR] Sair</span>
+              ) : onNextEpisode !== undefined ? (
+                <div className="flex flex-col items-end gap-0.5">
+                  <span>[◀▶] -15s/+15s • [OK] Pausar • [Azul] Próximo • [VOLTAR] Sair</span>
+                  <span className="text-emerald-400 font-bold">Zyveron Play Series Engine</span>
+                </div>
               ) : (
                 <span>[◀▶] -15s / +15s • [OK] Pausar • [VOLTAR] Sair</span>
               )}
-              <span className="text-emerald-400 font-bold mt-0.5">Zyveron Play Engine</span>
             </div>
           </div>
 
@@ -444,6 +610,72 @@ export const Player: React.FC<PlayerProps> = ({
                 <span className="text-emerald-400">{formatSeconds(currentTime)}</span>
                 <span className="text-slate-400">{formatSeconds(duration)}</span>
               </div>
+            </div>
+          )}
+
+          {/* Barra de Ações de Episódio em Séries (Botões Anterior, Play/Pause, Próximo e Auto-Próximo) */}
+          {onNextEpisode !== undefined && (
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+              <div className="flex items-center gap-3">
+                {/* Botão Episódio Anterior */}
+                <button
+                  type="button"
+                  disabled={!hasPreviousEpisode}
+                  onClick={onPreviousEpisode}
+                  className={`px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition cursor-pointer ${
+                    hasPreviousEpisode
+                      ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-600 hover:text-white shadow'
+                      : 'bg-slate-900/60 text-slate-600 border border-slate-800/60 cursor-not-allowed opacity-40'
+                  }`}
+                  title="Episódio Anterior [Amarelo]"
+                >
+                  <SkipBack className="w-4 h-4" />
+                  <span>Episódio Anterior</span>
+                </button>
+
+                {/* Botão Play / Pause */}
+                <button
+                  type="button"
+                  onClick={togglePlayPause}
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-sm flex items-center gap-2 border border-slate-600 transition cursor-pointer"
+                >
+                  {isPaused ? <Play className="w-4 h-4 fill-white" /> : <Pause className="w-4 h-4" />}
+                  <span>{isPaused ? 'Reproduzir' : 'Pausar'}</span>
+                </button>
+
+                {/* Botão Próximo Episódio */}
+                <button
+                  type="button"
+                  disabled={!hasNextEpisode}
+                  onClick={onNextEpisode}
+                  className={`px-5 py-2.5 rounded-xl font-black text-sm flex items-center gap-2 transition cursor-pointer ${
+                    hasNextEpisode
+                      ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-lg shadow-emerald-950/40 ring-2 ring-emerald-300'
+                      : 'bg-slate-900/60 text-slate-600 border border-slate-800/60 cursor-not-allowed opacity-40'
+                  }`}
+                  title="Próximo Episódio [Azul]"
+                >
+                  <span>Próximo Episódio</span>
+                  <SkipForward className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Botão Toggle Próximo Automático */}
+              {onToggleAutoPlayNext && (
+                <button
+                  type="button"
+                  onClick={onToggleAutoPlayNext}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black border transition cursor-pointer flex items-center gap-2 ${
+                    autoPlayNext
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm'
+                      : 'bg-slate-800/80 text-slate-400 border-slate-700'
+                  }`}
+                  title="Ativar/desativar passagem automática para o próximo episódio"
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full ${autoPlayNext ? 'bg-emerald-400 shadow-sm shadow-emerald-500/80 animate-pulse' : 'bg-slate-600'}`} />
+                  <span>Auto-Próximo: {autoPlayNext ? 'ATIVADO' : 'DESATIVADO'}</span>
+                </button>
+              )}
             </div>
           )}
 

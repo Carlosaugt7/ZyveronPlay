@@ -384,7 +384,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       }
       onBackToHome?.();
     },
-    disabled: !isFocusedContent
+    disabled: !isFocusedContent,
+    priority: 15
   }, [
     isFullScreen,
     isChannelDrawerOpen,

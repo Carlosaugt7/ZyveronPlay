@@ -78,7 +78,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         onRequestFocusSidebar?.();
       }
     },
-    disabled: !isFocusedContent
+    disabled: !isFocusedContent,
+    priority: 15
   }, [focusedBtnIdx, isFocusedContent, onSyncContent, onResetDevice, onBackToHome]);
 
   return (

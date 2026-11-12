@@ -309,7 +309,8 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         handleToggleFav(targetMovie.stream_id);
       }
     },
-    disabled: !isFocusedContent
+    disabled: !isFocusedContent,
+    priority: 15
   }, [
     isPlaying,
     activeFocusColumn,
