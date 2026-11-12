@@ -90,21 +90,23 @@ body.mouse-enabled [role="button"] {
   outline: none !important;
 }
 
-/* Scrollbar ultra-fina para TVs */
+/* Scrollbar customizado e altamente visível para Smart TVs */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 8px;
+  height: 8px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(18, 23, 34, 0.85);
+  border-radius: 6px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #2a3449;
-  border-radius: 4px;
+  background: #10b981;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #10b981;
+  background: #34d399;
 }

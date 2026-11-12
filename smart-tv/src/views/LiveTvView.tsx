@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { XtreamClient } from '../lib/xtream';
 import { XtreamCategory, XtreamStream } from '../types';
 import { VirtualList } from '../components/VirtualList';
@@ -44,6 +44,23 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const [isLoadingChannels, setIsLoadingChannels] = useState<boolean>(true);
   const [favorites, setFavorites] = useState<number[]>(() => getFavorites('live'));
   const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'channels'>('channels');
+  const [previewConfirmedChannelId, setPreviewConfirmedChannelId] = useState<number | null>(null);
+
+  // Sistema de Notificação Toast (Feedback visual de favoritos na TV)
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<any>(null);
+
+  // Controle de Long-Press para Mouse / Touch
+  const longPressMouseTimer = useRef<any>(null);
+  const isLongPressMouse = useRef<boolean>(false);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      setToastMessage(null);
+    }, 2500);
+  }, []);
 
   const categoriesContainerRef = useRef<HTMLDivElement>(null);
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
@@ -56,6 +73,23 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     if (!full) {
       setIsChannelDrawerOpen(false);
       setIsCategoryDrawerOpen(false);
+    }
+  };
+
+  // Alterna o estado de favorito de um canal
+  const handleToggleFav = (streamId: number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const isCurrentlyFav = favorites.includes(streamId);
+    toggleFavorite(streamId, 'live');
+    const newFavs = getFavorites('live');
+    setFavorites(newFavs);
+
+    const ch = channels.find((c) => c.stream_id === streamId) || filteredChannels.find((c) => c.stream_id === streamId) || currentPlayingChannel;
+    const chName = ch ? ch.name : 'Canal';
+    if (!isCurrentlyFav) {
+      showToast(`⭐ ${chName} adicionado aos favoritos!`);
+    } else {
+      showToast(`☆ ${chName} removido dos favoritos!`);
     }
   };
 
@@ -99,6 +133,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           const favStreams = all.filter((s) => favorites.includes(s.stream_id));
           setFilteredChannels(favStreams);
           setSelectedChannelIdx(0);
+          setPreviewConfirmedChannelId(null);
           if (favStreams.length > 0 && !currentPlayingChannel) {
             setCurrentPlayingChannel(favStreams[0]);
           }
@@ -111,6 +146,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           setChannels(streams || []);
           setFilteredChannels(streams || []);
           setSelectedChannelIdx(0);
+          setPreviewConfirmedChannelId(null);
           if (streams && streams.length > 0 && !currentPlayingChannel) {
             setCurrentPlayingChannel(streams[0]);
           }
@@ -132,31 +168,16 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     }
   }, [selectedCategoryIdx, selectedChannelIdx, activeFocusColumn, isFocusedContent, isFullScreen]);
 
-  // Tecla de atalho para favoritar com controle remoto ('F' ou Tecla Amarela)
-  useEffect(() => {
-    const handleFavKey = (e: KeyboardEvent) => {
-      if (isFullScreen) return;
-      if (e.key === 'f' || e.key === 'F' || e.key === 'Yellow' || e.key === 'y' || e.key === 'Y') {
-        const targetChannel = filteredChannels[selectedChannelIdx] || currentPlayingChannel;
-        if (targetChannel) {
-          toggleFavorite(targetChannel.stream_id, 'live');
-          setFavorites(getFavorites('live'));
-        }
-      }
-    };
-    window.addEventListener('keydown', handleFavKey);
-    return () => window.removeEventListener('keydown', handleFavKey);
-  }, [filteredChannels, selectedChannelIdx, currentPlayingChannel, isFullScreen]);
-
-  // 1º Clique / Enter: Carrega na prévia lateral
+  // 1º Clique / Enter: Seleciona o canal e carrega na prévia lateral
   // 2º Clique / Enter no mesmo canal ativo: Confirma e expande para tela cheia
   const handleChannelSelectOrPlay = (channel: XtreamStream, index: number) => {
     setSelectedChannelIdx(index);
-    if (currentPlayingChannel?.stream_id === channel.stream_id) {
-      // 2º clique: confirma tela cheia!
+    if (previewConfirmedChannelId === channel.stream_id) {
+      // 2º clique: confirma e expande para tela cheia!
       setFullScreenMode(true);
     } else {
-      // 1º clique: carrega no mini player de prévia
+      // 1º clique: seleciona o canal e carrega na prévia
+      setPreviewConfirmedChannelId(channel.stream_id);
       setCurrentPlayingChannel(channel);
     }
   };
@@ -176,7 +197,11 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           setCurrentPlayingChannel(filteredChannels[nextIdx]);
         }
       } else if (activeFocusColumn === 'channels') {
-        setSelectedChannelIdx((prev) => Math.max(0, prev - 1));
+        setSelectedChannelIdx((prev) => {
+          const next = Math.max(0, prev - 1);
+          setPreviewConfirmedChannelId(null);
+          return next;
+        });
       } else if (activeFocusColumn === 'categories') {
         setSelectedCategoryIdx((prev) => Math.max(0, prev - 1));
       }
@@ -194,7 +219,11 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           setCurrentPlayingChannel(filteredChannels[nextIdx]);
         }
       } else if (activeFocusColumn === 'channels') {
-        setSelectedChannelIdx((prev) => Math.min(filteredChannels.length - 1, prev + 1));
+        setSelectedChannelIdx((prev) => {
+          const next = Math.min(filteredChannels.length - 1, prev + 1);
+          setPreviewConfirmedChannelId(null);
+          return next;
+        });
       } else if (activeFocusColumn === 'categories') {
         setSelectedCategoryIdx((prev) => Math.min(categories.length + 1, prev + 1));
       }
@@ -268,6 +297,51 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         handleChannelSelectOrPlay(filteredChannels[selectedChannelIdx], selectedChannelIdx);
       }
     },
+    // Segurar botão OK por até 2 segundos: Favoritar/Desfavoritar
+    onLongSelect: () => {
+      if (isFullScreen) {
+        const target = isChannelDrawerOpen ? filteredChannels[channelDrawerIdx] : currentPlayingChannel;
+        if (target) handleToggleFav(target.stream_id);
+        return;
+      }
+      const target = filteredChannels[selectedChannelIdx] || currentPlayingChannel;
+      if (target) {
+        handleToggleFav(target.stream_id);
+      }
+    },
+    // Botão Verde: Favoritar/Desfavoritar canal
+    onGreen: () => {
+      const target = isFullScreen
+        ? (isChannelDrawerOpen ? filteredChannels[channelDrawerIdx] : currentPlayingChannel)
+        : (filteredChannels[selectedChannelIdx] || currentPlayingChannel);
+      if (target) {
+        handleToggleFav(target.stream_id);
+      }
+    },
+    // Botão Amarelo: Alternar filtro de Favoritos
+    onYellow: () => {
+      if (selectedCategory === 'favorites') {
+        setSelectedCategory('all');
+        setSelectedCategoryIdx(0);
+      } else {
+        setSelectedCategory('favorites');
+        setSelectedCategoryIdx(1);
+      }
+      setActiveFocusColumn('channels');
+    },
+    // Botão Vermelho: Menu de Categorias
+    onRed: () => {
+      if (isFullScreen) {
+        setIsChannelDrawerOpen(false);
+        setIsCategoryDrawerOpen((prev) => !prev);
+      } else {
+        setActiveFocusColumn((prev) => (prev === 'categories' ? 'channels' : 'categories'));
+      }
+    },
+    // Botão Azul: Recarregar Lista
+    onBlue: () => {
+      showToast('Sincronizando grade de canais...');
+    },
     onBack: () => {
       if (isFullScreen) {
         if (isChannelDrawerOpen) {
@@ -293,19 +367,16 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     channelDrawerIdx,
     categoryDrawerIdx,
     activeFocusColumn,
-    filteredChannels,
-    selectedChannelIdx,
     selectedCategoryIdx,
+    selectedChannelIdx,
+    filteredChannels,
     categories,
     currentPlayingChannel,
-    isFocusedContent
+    isFocusedContent,
+    previewConfirmedChannelId,
+    selectedCategory,
+    onBackToHome
   ]);
-
-  const handleToggleFav = (channelId: number, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    toggleFavorite(channelId, 'live');
-    setFavorites(getFavorites('live'));
-  };
 
   const isCurrentPlayingFav = currentPlayingChannel ? favorites.includes(currentPlayingChannel.stream_id) : false;
 
@@ -724,23 +795,60 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
             )}
           </div>
         ) : (
-          <div className="flex-1">
+          <div className="flex-1 min-h-0 w-full overflow-hidden">
             <VirtualList
               items={filteredChannels}
               itemHeight={72}
-              containerHeight={window.innerHeight - 80}
               selectedIndex={selectedChannelIdx}
               renderItem={(channel, index, isSelected) => {
                 const isFav = favorites.includes(channel.stream_id);
                 const isItemFocused = isSelected && isFocusedContent && activeFocusColumn === 'channels';
                 const isNowPlayingInPreview = currentPlayingChannel?.stream_id === channel.stream_id;
+                const isConfirmed = previewConfirmedChannelId === channel.stream_id;
 
                 return (
                   <button
                     type="button"
                     tabIndex={0}
                     ref={isItemFocused ? activeChannelBtnRef : null}
-                    onClick={() => handleChannelSelectOrPlay(channel, index)}
+                    onClick={() => {
+                      if (isLongPressMouse.current) {
+                        isLongPressMouse.current = false;
+                        return;
+                      }
+                      handleChannelSelectOrPlay(channel, index);
+                    }}
+                    onDoubleClick={() => {
+                      setSelectedChannelIdx(index);
+                      setCurrentPlayingChannel(channel);
+                      setFullScreenMode(true);
+                    }}
+                    onMouseDown={() => {
+                      isLongPressMouse.current = false;
+                      longPressMouseTimer.current = setTimeout(() => {
+                        isLongPressMouse.current = true;
+                        handleToggleFav(channel.stream_id);
+                      }, 1500);
+                    }}
+                    onMouseUp={() => {
+                      if (longPressMouseTimer.current) {
+                        clearTimeout(longPressMouseTimer.current);
+                        longPressMouseTimer.current = null;
+                      }
+                    }}
+                    onTouchStart={() => {
+                      isLongPressMouse.current = false;
+                      longPressMouseTimer.current = setTimeout(() => {
+                        isLongPressMouse.current = true;
+                        handleToggleFav(channel.stream_id);
+                      }, 1500);
+                    }}
+                    onTouchEnd={() => {
+                      if (longPressMouseTimer.current) {
+                        clearTimeout(longPressMouseTimer.current);
+                        longPressMouseTimer.current = null;
+                      }
+                    }}
                     className={`w-full h-[64px] px-3.5 rounded-2xl flex items-center justify-between cursor-pointer transition select-none text-left ${
                       isItemFocused
                         ? 'bg-emerald-400 text-black font-black shadow-2xl scale-[1.02] ring-4 ring-emerald-300'
@@ -773,7 +881,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                           <span className={`text-[11px] font-black uppercase tracking-wider block mt-0.5 ${
                             isItemFocused ? 'text-black' : 'text-emerald-400'
                           }`}>
-                            ▶ No Ar {isItemFocused ? '• [OK Novamente: Tela Cheia]' : ''}
+                            ▶ No Ar {isConfirmed ? '• [OK: Tela Cheia]' : '• [Prévia Ativa]'}
                           </span>
                         )}
                       </div>
@@ -887,12 +995,47 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           )}
         </div>
 
-        {/* Dicas de Controle Remoto */}
-        <div className="bg-[#121722]/60 border border-[#2a3449]/40 p-4 rounded-2xl text-xs text-slate-400 flex items-center justify-between mt-4">
-          <span>• <b>1º OK</b>: Prévia • <b>2º OK</b>: Tela cheia • Tecla <b>F</b>: Favoritar</span>
-          <span className="text-emerald-400 font-bold">Zyveron Live Engine</span>
+        {/* Barra de Atalhos e Legenda dos Botões do Controle Remoto */}
+        <div className="bg-[#121722]/95 border border-[#2a3449] p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3 mt-4 text-xs select-none shadow-xl">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Botão Verde */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-extrabold shadow-sm">
+              <span className="w-3.5 h-3.5 rounded-full bg-emerald-400 shadow-md shadow-emerald-500/50 inline-block animate-pulse" />
+              <span>Botão Verde: Favorita/Desfavorita</span>
+            </div>
+
+            {/* Segurar OK 2s */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700 text-slate-200 font-bold">
+              <span>[Segurar OK 2s] Favoritar</span>
+            </div>
+
+            {/* Botão Amarelo */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold">
+              <span className="w-3.5 h-3.5 rounded-full bg-amber-400 inline-block" />
+              <span>[Amarelo] Meus Favoritos</span>
+            </div>
+
+            {/* Botão Vermelho */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 font-bold">
+              <span className="w-3.5 h-3.5 rounded-full bg-rose-400 inline-block" />
+              <span>[Vermelho] Categorias</span>
+            </div>
+          </div>
+
+          <div className="text-slate-300 font-semibold text-xs flex items-center gap-2">
+            <span className="text-emerald-400 font-bold">• 1º OK: Seleciona canal</span>
+            <span>• 2º OK: Tela cheia</span>
+          </div>
         </div>
       </div>
+
+      {/* Toast Flutuante de Notificação na TV */}
+      {toastMessage && (
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[99999] px-6 py-3.5 bg-black/95 border-2 border-emerald-400 text-white rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-200">
+          <Star className="w-6 h-6 fill-amber-400 text-amber-400 animate-pulse" />
+          <span className="text-base font-black tracking-wide">{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 };

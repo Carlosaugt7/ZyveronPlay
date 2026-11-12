@@ -6,10 +6,15 @@ export interface SpatialNavHandler {
   onLeft?: () => void;
   onRight?: () => void;
   onSelect?: () => void;
+  onLongSelect?: () => void;
   onBack?: () => void;
   onPlayPause?: () => void;
   onChannelUp?: () => void;
   onChannelDown?: () => void;
+  onRed?: () => void;
+  onGreen?: () => void;
+  onYellow?: () => void;
+  onBlue?: () => void;
   disabled?: boolean;
 }
 
@@ -34,6 +39,8 @@ if (typeof window !== 'undefined') {
  */
 export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
   const lastBackRef = useRef<number>(0);
+  const longPressTimerRef = useRef<any>(null);
+  const isLongPressTriggeredRef = useRef<boolean>(false);
 
   const triggerBack = useCallback(() => {
     const now = Date.now();
@@ -71,9 +78,64 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
       handlers.onRight?.();
     }
     // Seleção / OK / Enter (13)
+    // Suporta segurar por até 2 segundos para acionar onLongSelect
     else if (key === 'Enter' || code === 13) {
       handled = true;
-      handlers.onSelect?.();
+      if (handlers.onLongSelect) {
+        if (!e.repeat && !longPressTimerRef.current) {
+          isLongPressTriggeredRef.current = false;
+          longPressTimerRef.current = setTimeout(() => {
+            isLongPressTriggeredRef.current = true;
+            handlers.onLongSelect?.();
+          }, 1500);
+        }
+      } else {
+        handlers.onSelect?.();
+      }
+    }
+    // Botão Verde (ColorF1Green / VK_GREEN / 404 / 'g' / 'G')
+    else if (
+      key === 'ColorF1Green' || 
+      key === 'Green' || 
+      code === 404 || 
+      code === 10072 || 
+      (!e.ctrlKey && !e.altKey && (key === 'g' || key === 'G'))
+    ) {
+      handled = true;
+      handlers.onGreen?.();
+    }
+    // Botão Amarelo (ColorF2Yellow / VK_YELLOW / 405 / 'y' / 'Y' / 'f' / 'F')
+    else if (
+      key === 'ColorF2Yellow' || 
+      key === 'Yellow' || 
+      code === 405 || 
+      code === 10073 || 
+      (!e.ctrlKey && !e.altKey && (key === 'y' || key === 'Y' || key === 'f' || key === 'F'))
+    ) {
+      handled = true;
+      handlers.onYellow?.();
+    }
+    // Botão Vermelho (ColorF0Red / VK_RED / 403 / 'r' / 'R')
+    else if (
+      key === 'ColorF0Red' || 
+      key === 'Red' || 
+      code === 403 || 
+      code === 10071 || 
+      (!e.ctrlKey && !e.altKey && (key === 'r' || key === 'R'))
+    ) {
+      handled = true;
+      handlers.onRed?.();
+    }
+    // Botão Azul (ColorF3Blue / VK_BLUE / 406 / 'b' / 'B')
+    else if (
+      key === 'ColorF3Blue' || 
+      key === 'Blue' || 
+      code === 406 || 
+      code === 10074 || 
+      (!e.ctrlKey && !e.altKey && (key === 'b' || key === 'B'))
+    ) {
+      handled = true;
+      handlers.onBlue?.();
     }
     // Voltar / Return / Back
     // Samsung Tizen: 10009
@@ -136,11 +198,35 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
     }
   }, [handlers, triggerBack, ...deps]);
 
-  // Captura eventos via keydown com alta prioridade
+  const handleKeyUp = useCallback((e: KeyboardEvent) => {
+    if (handlers.disabled) return;
+
+    const code = e.keyCode || e.which;
+    const key = e.key;
+
+    if (key === 'Enter' || code === 13) {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+      if (handlers.onLongSelect) {
+        if (!isLongPressTriggeredRef.current) {
+          handlers.onSelect?.();
+        }
+        isLongPressTriggeredRef.current = false;
+      }
+    }
+  }, [handlers.disabled, handlers.onSelect, handlers.onLongSelect]);
+
+  // Captura eventos via keydown e keyup com alta prioridade
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown, { capture: true });
-    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [handleKeyDown]);
+    window.addEventListener('keyup', handleKeyUp, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
+      window.removeEventListener('keyup', handleKeyUp, { capture: true });
+    };
+  }, [handleKeyDown, handleKeyUp]);
 
   // Captura eventos de popstate (disparados nativamente pelo Media Station X ao apertar VOLTAR no controle)
   useEffect(() => {
