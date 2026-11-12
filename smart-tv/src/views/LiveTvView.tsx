@@ -4,7 +4,7 @@ import { XtreamCategory, XtreamStream } from '../types';
 import { VirtualList } from '../components/VirtualList';
 import { Player } from '../components/Player';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Star, Tv, Maximize2, Loader2, AlertCircle } from 'lucide-react';
+import { Star, Tv, Maximize2, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 import { getFavorites, toggleFavorite } from '../lib/storage';
 
 interface LiveTvViewProps {
@@ -13,6 +13,8 @@ interface LiveTvViewProps {
   onRequestFocusSidebar?: () => void;
   reloadKey?: number;
   onFullScreenChange?: (full: boolean) => void;
+  initialCategoryId?: string;
+  onBackToHome?: () => void;
 }
 
 export const LiveTvView: React.FC<LiveTvViewProps> = ({
@@ -20,7 +22,9 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   isFocusedContent = true,
   onRequestFocusSidebar,
   reloadKey = 0,
-  onFullScreenChange
+  onFullScreenChange,
+  initialCategoryId,
+  onBackToHome
 }) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -50,9 +54,27 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     client.getLiveCategories()
       .then((cats) => {
         setCategories(cats || []);
+        if (initialCategoryId && cats && cats.length > 0) {
+          if (initialCategoryId === 'sports') {
+            const sportsCatIdx = cats.findIndex((c) => {
+              const name = c.category_name.toLowerCase();
+              return name.includes('esporte') || name.includes('sport') || name.includes('futebol') || name.includes('combate');
+            });
+            if (sportsCatIdx !== -1) {
+              setSelectedCategory(cats[sportsCatIdx].category_id);
+              setSelectedCategoryIdx(sportsCatIdx + 1);
+            }
+          } else {
+            const targetIdx = cats.findIndex((c) => c.category_id === initialCategoryId);
+            if (targetIdx !== -1) {
+              setSelectedCategory(cats[targetIdx].category_id);
+              setSelectedCategoryIdx(targetIdx + 1);
+            }
+          }
+        }
       })
       .catch((err) => console.error("Erro ao carregar categorias:", err));
-  }, [client, reloadKey]);
+  }, [client, reloadKey, initialCategoryId]);
 
   // Carrega canais da categoria selecionada ou quando recarregar lista
   useEffect(() => {
@@ -117,7 +139,11 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       if (activeFocusColumn === 'channels') {
         setActiveFocusColumn('categories');
       } else if (activeFocusColumn === 'categories') {
-        onRequestFocusSidebar?.();
+        if (onBackToHome) {
+          onBackToHome();
+        } else {
+          onRequestFocusSidebar?.();
+        }
       }
     },
     onRight: () => {
@@ -151,7 +177,11 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       if (activeFocusColumn === 'channels') {
         setActiveFocusColumn('categories');
       } else if (activeFocusColumn === 'categories') {
-        onRequestFocusSidebar?.();
+        if (onBackToHome) {
+          onBackToHome();
+        } else {
+          onRequestFocusSidebar?.();
+        }
       }
     },
     disabled: !isFocusedContent
@@ -192,9 +222,22 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       <div className={`w-72 h-full bg-[#121722]/60 border-r border-[#2a3449] flex flex-col p-4 select-none transition-all ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/50 bg-[#161d2b]' : ''
       }`}>
-        <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3 px-2">
-          Categorias ({categories.length})
-        </h2>
+        <div className="flex items-center justify-between mb-3 px-1">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">
+            Categorias ({categories.length})
+          </h2>
+          {onBackToHome && (
+            <button
+              type="button"
+              onClick={onBackToHome}
+              className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-sky-600 text-[11px] font-semibold text-slate-300 hover:text-white transition cursor-pointer"
+              title="Voltar para a Home"
+            >
+              <ArrowLeft className="w-3 h-3" />
+              <span>Início</span>
+            </button>
+          )}
+        </div>
         <div ref={categoriesContainerRef} className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
           <button
             ref={selectedCategoryIdx === 0 ? activeCategoryBtnRef : null}

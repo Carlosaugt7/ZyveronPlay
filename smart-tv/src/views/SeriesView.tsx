@@ -3,13 +3,15 @@ import { XtreamClient } from '../lib/xtream';
 import { XtreamCategory, XtreamSeries, XtreamSeason, XtreamEpisode } from '../types';
 import { Player } from '../components/Player';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Clapperboard, Play, Star, Loader2, X } from 'lucide-react';
+import { Clapperboard, Play, Star, Loader2, X, ArrowLeft } from 'lucide-react';
 
 interface SeriesViewProps {
   client: XtreamClient;
   isFocusedContent?: boolean;
   onRequestFocusSidebar?: () => void;
   onFullScreenChange?: (full: boolean) => void;
+  onBackToHome?: () => void;
+  initialStreamId?: number;
 }
 
 const BATCH_SIZE = 30; // Proteção de memória para Smart TVs
@@ -18,7 +20,9 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   client,
   isFocusedContent = true,
   onRequestFocusSidebar,
-  onFullScreenChange
+  onFullScreenChange,
+  onBackToHome,
+  initialStreamId
 }) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -177,7 +181,11 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     onLeft: () => {
       if (playingEpisode) return;
       if (activeFocusColumn === 'categories') {
-        onRequestFocusSidebar?.();
+        if (onBackToHome) {
+          onBackToHome();
+        } else {
+          onRequestFocusSidebar?.();
+        }
       } else if (activeFocusColumn === 'grid') {
         if (selectedSeriesIdx % 5 === 0 || displayedSeries.length === 0) {
           setActiveFocusColumn('categories');
@@ -238,7 +246,11 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       } else if (activeFocusColumn === 'grid') {
         setActiveFocusColumn('categories');
       } else if (activeFocusColumn === 'categories') {
-        onRequestFocusSidebar?.();
+        if (onBackToHome) {
+          onBackToHome();
+        } else {
+          onRequestFocusSidebar?.();
+        }
       }
     },
     disabled: !isFocusedContent
@@ -277,10 +289,23 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       <div className={`w-72 h-full bg-[#121722]/80 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-2 flex items-center justify-between">
-          <span>Gêneros Séries</span>
-          <span className="text-emerald-400 font-mono">{categories.length}</span>
-        </h2>
+        <div className="flex items-center justify-between mb-3 px-1">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <span>Gêneros Séries</span>
+            <span className="text-sky-400 font-mono">({categories.length})</span>
+          </h2>
+          {onBackToHome && (
+            <button
+              type="button"
+              onClick={onBackToHome}
+              className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-sky-600 text-[11px] font-semibold text-slate-300 hover:text-white transition cursor-pointer"
+              title="Voltar para a Home"
+            >
+              <ArrowLeft className="w-3 h-3" />
+              <span>Início</span>
+            </button>
+          )}
+        </div>
 
         {isLoadingCats ? (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400">

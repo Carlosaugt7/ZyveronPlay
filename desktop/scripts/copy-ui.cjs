@@ -17,3 +17,4 @@ if (fs.existsSync(destDir)) {
 
 fs.cpSync(srcDir, destDir, { recursive: true });
 console.log(`UI copiada com sucesso de smart-tv/dist para desktop/ui`);
+

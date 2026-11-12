@@ -31,3 +31,4 @@ const icoBuffer = Buffer.concat([header, entry, pngBuffer]);
 fs.writeFileSync(icoPath, icoBuffer);
 
 console.log(`Generated icon.ico successfully (${icoBuffer.length} bytes)`);
+

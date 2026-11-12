@@ -1,0 +1,18 @@
+{
+  "name": "Zyveron Play",
+  "version": "2.0.0",
+  "parameter": "menu:auto",
+  "response": "ready",
+  "action": "launch:https://tvplay.loja-am.top",
+  "menu": [
+    {
+      "icon": "https://tvplay.loja-am.top/icon.png",
+      "label": "Zyveron Play",
+      "action": "launch:https://tvplay.loja-am.top",
+      "data": {
+        "title": "Zyveron Play Smart TV",
+        "badge": "TV & VOD"
+      }
+    }
+  ]
+}

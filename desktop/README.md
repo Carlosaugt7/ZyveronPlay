@@ -78,3 +78,4 @@ desktop/
 ├── electron-builder.json  # Configuração de empacotamento para Windows e Linux
 └── package.json           # Scripts de build e dependências
 ```
+

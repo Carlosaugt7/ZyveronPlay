@@ -111,3 +111,4 @@ export const TitleBar: React.FC<TitleBarProps> = ({ isFullScreen = false }) => {
     </header>
   );
 };
+

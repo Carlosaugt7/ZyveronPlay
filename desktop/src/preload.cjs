@@ -41,3 +41,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('maximize-changed', handler);
   }
 });
+

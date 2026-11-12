@@ -3,13 +3,15 @@ import { XtreamClient } from '../lib/xtream';
 import { XtreamCategory, XtreamVod } from '../types';
 import { Player } from '../components/Player';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Film, Play, Star, Loader2 } from 'lucide-react';
+import { Film, Play, Star, Loader2, ArrowLeft } from 'lucide-react';
 
 interface MoviesViewProps {
   client: XtreamClient;
   isFocusedContent?: boolean;
   onRequestFocusSidebar?: () => void;
   onFullScreenChange?: (full: boolean) => void;
+  onBackToHome?: () => void;
+  initialStreamId?: number;
 }
 
 const BATCH_SIZE = 30; // Limita o DOM a 30 filmes por vez para não estourar a memória da Smart TV LG
@@ -18,7 +20,9 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   client,
   isFocusedContent = true,
   onRequestFocusSidebar,
-  onFullScreenChange
+  onFullScreenChange,
+  onBackToHome,
+  initialStreamId
 }) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -139,7 +143,11 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     onLeft: () => {
       if (isPlaying) return;
       if (activeFocusColumn === 'categories') {
-        onRequestFocusSidebar?.();
+        if (onBackToHome) {
+          onBackToHome();
+        } else {
+          onRequestFocusSidebar?.();
+        }
       } else if (activeFocusColumn === 'grid') {
         if (selectedMovieIdx % 5 === 0 || displayedMovies.length === 0) {
           setActiveFocusColumn('categories');
@@ -184,7 +192,11 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       if (activeFocusColumn === 'grid') {
         setActiveFocusColumn('categories');
       } else if (activeFocusColumn === 'categories') {
-        onRequestFocusSidebar?.();
+        if (onBackToHome) {
+          onBackToHome();
+        } else {
+          onRequestFocusSidebar?.();
+        }
       }
     },
     disabled: !isFocusedContent
@@ -221,10 +233,23 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       <div className={`w-72 h-full bg-[#121722]/80 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-2 flex items-center justify-between">
-          <span>Gêneros VOD</span>
-          <span className="text-emerald-400 font-mono">{categories.length}</span>
-        </h2>
+        <div className="flex items-center justify-between mb-3 px-1">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <span>Gêneros VOD</span>
+            <span className="text-sky-400 font-mono">({categories.length})</span>
+          </h2>
+          {onBackToHome && (
+            <button
+              type="button"
+              onClick={onBackToHome}
+              className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-sky-600 text-[11px] font-semibold text-slate-300 hover:text-white transition cursor-pointer"
+              title="Voltar para a Home"
+            >
+              <ArrowLeft className="w-3 h-3" />
+              <span>Início</span>
+            </button>
+          )}
+        </div>
 
         {isLoadingCats ? (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400">

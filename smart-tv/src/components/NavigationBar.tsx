@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Tv, Film, Clapperboard, Settings } from 'lucide-react';
+import { Home, Tv, Film, Clapperboard, Settings } from 'lucide-react';
 
-export type MainSection = 'live' | 'vod' | 'series' | 'settings';
+export type MainSection = 'home' | 'live' | 'vod' | 'series' | 'settings';
 
 interface NavigationBarProps {
   currentSection: MainSection;
@@ -17,6 +17,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
   const activeBtnRef = useRef<HTMLButtonElement>(null);
 
   const menuItems: { id: MainSection; label: string; icon: any }[] = [
+    { id: 'home', label: 'Início', icon: Home },
     { id: 'live', label: 'Canais Ao Vivo', icon: Tv },
     { id: 'vod', label: 'Filmes', icon: Film },
     { id: 'series', label: 'Séries', icon: Clapperboard },

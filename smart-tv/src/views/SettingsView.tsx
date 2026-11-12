@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { DeviceActivation } from '../types';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Settings, Tv, Key, Globe, Shield, RefreshCw, Trash2, CheckCircle } from 'lucide-react';
+import { Settings, Tv, Key, Globe, Shield, RefreshCw, Trash2, CheckCircle, ArrowLeft } from 'lucide-react';
 
 interface SettingsViewProps {
   device: DeviceActivation;
@@ -9,6 +9,7 @@ interface SettingsViewProps {
   onRequestFocusSidebar?: () => void;
   onSyncContent: () => void;
   onResetDevice: () => void;
+  onBackToHome?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -16,7 +17,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   isFocusedContent = true,
   onRequestFocusSidebar,
   onSyncContent,
-  onResetDevice
+  onResetDevice,
+  onBackToHome
 }) => {
   const [clearedSuccess, setClearedSuccess] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
@@ -52,7 +54,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setFocusedBtnIdx((prev) => Math.min(2, prev + 1));
     },
     onLeft: () => {
-      onRequestFocusSidebar?.();
+      if (onBackToHome) {
+        onBackToHome();
+      } else {
+        onRequestFocusSidebar?.();
+      }
     },
     onSelect: () => {
       if (focusedBtnIdx === 0) {
@@ -64,7 +70,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       }
     },
     onBack: () => {
-      onRequestFocusSidebar?.();
+      if (onBackToHome) {
+        onBackToHome();
+      } else {
+        onRequestFocusSidebar?.();
+      }
     },
     disabled: !isFocusedContent
   }, [focusedBtnIdx, isFocusedContent, onSyncContent, onResetDevice]);
@@ -74,14 +84,27 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       isFocusedContent ? 'ring-2 ring-emerald-500/20' : ''
     }`}>
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-center">
-            <Settings className="w-6 h-6 text-emerald-400" />
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-center">
+              <Settings className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Ajustes & Informações do Sistema</h1>
+              <p className="text-sm text-slate-400">Configurações técnicas da Smart TV e identificadores de acesso</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Ajustes & Informações do Sistema</h1>
-            <p className="text-sm text-slate-400">Configurações técnicas da Smart TV e identificadores de acesso</p>
-          </div>
+
+          {onBackToHome && (
+            <button
+              type="button"
+              onClick={onBackToHome}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-sky-600 text-xs font-bold text-slate-200 hover:text-white transition cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Voltar ao Início</span>
+            </button>
+          )}
         </div>
 
         {/* Informações da Conta */}

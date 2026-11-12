@@ -5,6 +5,7 @@ import { DeviceActivation } from './types';
 import { XtreamClient } from './lib/xtream';
 import { ActivationScreen } from './components/ActivationScreen';
 import { NavigationBar, MainSection } from './components/NavigationBar';
+import { HomeView } from './views/HomeView';
 import { LiveTvView } from './views/LiveTvView';
 import { MoviesView } from './views/MoviesView';
 import { SeriesView } from './views/SeriesView';
@@ -13,7 +14,7 @@ import { TitleBar } from './components/TitleBar';
 import { useSpatialNav } from './hooks/useSpatialNav';
 import { Loader2 } from 'lucide-react';
 
-const SECTIONS: MainSection[] = ['live', 'vod', 'series', 'settings'];
+const SECTIONS: MainSection[] = ['home', 'live', 'vod', 'series', 'settings'];
 
 export default function App() {
   const [identity, setIdentity] = useState(() => getOrCreateDeviceIdentity());
@@ -23,9 +24,14 @@ export default function App() {
     () => (initialCached && initialCached.mac === identity.mac ? 'active' : 'loading')
   );
   const [statusMessage, setStatusMessage] = useState<string>('');
-  const [currentSection, setCurrentSection] = useState<MainSection>('live');
+  const [currentSection, setCurrentSection] = useState<MainSection>('home');
   const [focusZone, setFocusZone] = useState<'sidebar' | 'content'>('content');
   const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
+
+  // Filtros dinâmicos passados pela Home
+  const [selectedLiveCategory, setSelectedLiveCategory] = useState<string | undefined>(undefined);
+  const [selectedVodId, setSelectedVodId] = useState<number | undefined>(undefined);
+  const [selectedSeriesId, setSelectedSeriesId] = useState<number | undefined>(undefined);
 
   // Chaves de controle para revalidação reativa sem travamento
   const [authReloadKey, setAuthReloadKey] = useState<number>(0);
@@ -101,7 +107,7 @@ export default function App() {
     onSelect: () => {
       setFocusZone('content');
     },
-    disabled: focusZone !== 'sidebar' || activationStatus !== 'active' || isFullScreen
+    disabled: focusZone !== 'sidebar' || currentSection === 'home' || activationStatus !== 'active' || isFullScreen
   }, [focusZone, currentSection, activationStatus, isFullScreen]);
 
   // Força revalidação no Firestore caso o usuário clique em "Verificar Agora"
@@ -162,13 +168,13 @@ export default function App() {
     );
   }
 
-  // 3. Aplicação Principal Ativa (TV Ao Vivo, Filmes, Séries, Ajustes)
+  // 3. Aplicação Principal Ativa (Home Dashboard, TV Ao Vivo, Filmes, Séries, Ajustes)
   return (
     <div className="w-screen h-screen flex flex-col bg-[#0a0d14] overflow-hidden select-none">
       <TitleBar isFullScreen={isFullScreen} />
       <div className="flex-1 flex bg-[#0a0d14] overflow-hidden relative">
-        {/* Barra de Menu Lateral - Ocultada completamente quando o vídeo estiver em tela cheia */}
-        {!isFullScreen && (
+        {/* Barra de Menu Lateral - Ocultada na Home e quando o vídeo estiver em tela cheia */}
+        {!isFullScreen && currentSection !== 'home' && (
           <NavigationBar
             currentSection={currentSection}
             onSelectSection={(sec) => {
@@ -179,42 +185,69 @@ export default function App() {
           />
         )}
 
-      <main className="flex-1 h-full overflow-hidden">
-        {currentSection === 'live' && (
-          <LiveTvView
-            client={xtreamClient}
-            isFocusedContent={focusZone === 'content'}
-            onRequestFocusSidebar={() => setFocusZone('sidebar')}
-            reloadKey={contentReloadKey}
-            onFullScreenChange={setIsFullScreen}
-          />
-        )}
-        {currentSection === 'vod' && (
-          <MoviesView
-            client={xtreamClient}
-            isFocusedContent={focusZone === 'content'}
-            onRequestFocusSidebar={() => setFocusZone('sidebar')}
-            onFullScreenChange={setIsFullScreen}
-          />
-        )}
-        {currentSection === 'series' && (
-          <SeriesView
-            client={xtreamClient}
-            isFocusedContent={focusZone === 'content'}
-            onRequestFocusSidebar={() => setFocusZone('sidebar')}
-            onFullScreenChange={setIsFullScreen}
-          />
-        )}
-        {currentSection === 'settings' && (
-          <SettingsView
-            device={activeDevice}
-            isFocusedContent={focusZone === 'content'}
-            onRequestFocusSidebar={() => setFocusZone('sidebar')}
-            onSyncContent={handleSyncContent}
-            onResetDevice={handleResetDevice}
-          />
-        )}
-      </main>
+        <main className="flex-1 h-full overflow-hidden">
+          {currentSection === 'home' && (
+            <HomeView
+              client={xtreamClient}
+              device={activeDevice}
+              onNavigate={(section, extra) => {
+                if (extra?.categoryId) {
+                  setSelectedLiveCategory(extra.categoryId);
+                } else {
+                  setSelectedLiveCategory(undefined);
+                }
+                if (extra?.streamId) {
+                  if (section === 'vod') setSelectedVodId(extra.streamId);
+                  if (section === 'series') setSelectedSeriesId(extra.streamId);
+                }
+                setCurrentSection(section);
+                setFocusZone('content');
+              }}
+              onSyncContent={handleSyncContent}
+            />
+          )}
+          {currentSection === 'live' && (
+            <LiveTvView
+              client={xtreamClient}
+              isFocusedContent={focusZone === 'content'}
+              onRequestFocusSidebar={() => setFocusZone('sidebar')}
+              onBackToHome={() => setCurrentSection('home')}
+              initialCategoryId={selectedLiveCategory}
+              reloadKey={contentReloadKey}
+              onFullScreenChange={setIsFullScreen}
+            />
+          )}
+          {currentSection === 'vod' && (
+            <MoviesView
+              client={xtreamClient}
+              isFocusedContent={focusZone === 'content'}
+              onRequestFocusSidebar={() => setFocusZone('sidebar')}
+              onBackToHome={() => setCurrentSection('home')}
+              initialStreamId={selectedVodId}
+              onFullScreenChange={setIsFullScreen}
+            />
+          )}
+          {currentSection === 'series' && (
+            <SeriesView
+              client={xtreamClient}
+              isFocusedContent={focusZone === 'content'}
+              onRequestFocusSidebar={() => setFocusZone('sidebar')}
+              onBackToHome={() => setCurrentSection('home')}
+              initialStreamId={selectedSeriesId}
+              onFullScreenChange={setIsFullScreen}
+            />
+          )}
+          {currentSection === 'settings' && (
+            <SettingsView
+              device={activeDevice}
+              isFocusedContent={focusZone === 'content'}
+              onRequestFocusSidebar={() => setFocusZone('sidebar')}
+              onBackToHome={() => setCurrentSection('home')}
+              onSyncContent={handleSyncContent}
+              onResetDevice={handleResetDevice}
+            />
+          )}
+        </main>
       </div>
     </div>
   );
