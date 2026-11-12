@@ -1,10 +1,37 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --panel-bg: #f8fafc;
+  --sidebar-bg: #ffffff;
+  --navbar-bg: rgba(255, 255, 255, 0.95);
+  --card-bg: #ffffff;
+  --card-border: #e2e8f0;
+  --input-bg: #ffffff;
+  --input-border: #cbd5e1;
+  --muted-text: #64748b;
+  --dim-text: #94a3b8;
+  --accent-blue: #0284c7;
+  --accent-emerald: #10b981;
+  --accent-amber: #f59e0b;
+  --accent-rose: #f43f5e;
+}
+
+.dark {
   --background: #090d12;
   --foreground: #f3f4f6;
-  --card: #0f1621;
+  --panel-bg: #090d12;
+  --sidebar-bg: #0c121a;
+  --navbar-bg: rgba(12, 18, 26, 0.95);
+  --card-bg: #0f1621;
   --card-border: #1f2937;
+  --input-bg: #121822;
+  --input-border: #222d42;
+  --muted-text: #94a3b8;
+  --dim-text: #64748b;
   --accent-blue: #0ea5e9;
   --accent-emerald: #10b981;
   --accent-amber: #f59e0b;
@@ -16,21 +43,132 @@ body {
   color: var(--foreground);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
   overflow-x: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Custom Scrollbar for sleek dark mode */
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #090d12;
+  background: var(--background);
 }
 ::-webkit-scrollbar-thumb {
-  background: #1f2937;
+  background: #cbd5e1;
   border-radius: 3px;
 }
+.dark ::-webkit-scrollbar-thumb {
+  background: #1f2937;
+}
 ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
   background: #374151;
 }
 
+/* ==============================================================
+   REGRAS ESPECÍFICAS PARA O MODO CLARO (LIGHT MODE)
+   ============================================================== */
+html.light {
+  color-scheme: light;
+}
+
+/* Fundo Geral da Aplicação */
+html.light .bg-\[\#090d12\],
+html.light .bg-\[\#070b10\] {
+  background-color: #f8fafc !important;
+}
+
+/* Barra Lateral (Sidebar) & Cabeçalho (Navbar) */
+html.light aside,
+html.light .bg-\[\#0c121a\] {
+  background-color: #ffffff !important;
+}
+
+html.light .bg-\[\#0c121a\]\/95,
+html.light .bg-\[\#0c121a\]\/90 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Cards, Modais e Painéis */
+html.light .bg-\[\#0f1722\],
+html.light .bg-\[\#0f1621\],
+html.light .bg-\[\#0c1420\],
+html.light .bg-\[\#0f1824\],
+html.light .bg-\[\#0f1724\] {
+  background-color: #ffffff !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+}
+
+/* Elementos Secundários / Containers de Inputs / Fundos de Destaque */
+html.light .bg-zinc-950,
+html.light .bg-zinc-950\/60,
+html.light .bg-zinc-900,
+html.light .bg-zinc-900\/90,
+html.light .bg-zinc-900\/80,
+html.light .bg-zinc-900\/60 {
+  background-color: #f1f5f9 !important;
+}
+
+/* Bordas em Modo Claro */
+html.light .border-zinc-800,
+html.light .border-zinc-800\/80,
+html.light .border-zinc-700,
+html.light .border-zinc-700\/60 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Textos em Modo Claro */
+html.light .text-white,
+html.light .text-zinc-100,
+html.light .text-zinc-200 {
+  color: #0f172a !important;
+}
+
+html.light .text-zinc-300,
+html.light .text-zinc-400 {
+  color: #475569 !important;
+}
+
+html.light .text-zinc-500 {
+  color: #64748b !important;
+}
+
+/* Inputs, Textareas e Selects em Modo Claro */
+html.light input,
+html.light select,
+html.light textarea {
+  color: #0f172a !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Banner de Boas-Vindas no Dashboard */
+html.light .bg-gradient-to-r.from-\[\#0d1829\] {
+  background: linear-gradient(to right, #e0f2fe, #f0fdf4, #f8fafc) !important;
+  border-color: #bae6fd !important;
+}
+
+html.light .bg-gradient-to-r.from-\[\#0d1829\] h2 {
+  color: #0f172a !important;
+}
+
+html.light .bg-gradient-to-r.from-\[\#0d1829\] p {
+  color: #334155 !important;
+}
+
+/* Botões com fundo escuro que devem ter bom contraste no claro */
+html.light .bg-zinc-900.text-white {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.light .bg-zinc-900.text-white:hover {
+  background-color: #cbd5e1 !important;
+}

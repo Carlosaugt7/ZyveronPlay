@@ -154,3 +154,4 @@ export function useNetworkQuality(pingIntervalMs = 15000): NetworkQuality {
 
   return quality;
 }
+

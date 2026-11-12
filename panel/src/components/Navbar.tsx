@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Radio, RefreshCw, Bell, Search, ShieldCheck, LogOut, Menu } from "lucide-react";
+import { Radio, RefreshCw, Bell, Search, ShieldCheck, LogOut, Menu, Sun, Moon } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useTheme } from "@/context/ThemeContext";
 
 interface NavbarProps {
   title: string;
@@ -12,6 +13,7 @@ interface NavbarProps {
 
 export function Navbar({ title, subtitle, onRefresh }: NavbarProps) {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [time, setTime] = useState<string>("");
 
   useEffect(() => {
@@ -63,6 +65,20 @@ export function Navbar({ title, subtitle, onRefresh }: NavbarProps) {
         <div className="hidden md:block text-xs font-mono text-zinc-400 bg-zinc-900/80 px-2.5 py-1 rounded-md border border-zinc-800">
           {time || "--:--:--"}
         </div>
+
+        {/* Theme Toggle Button (Light/Dark) */}
+        <button
+          onClick={toggleTheme}
+          className="p-2 text-zinc-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition relative group"
+          title={theme === "dark" ? "Mudar para Modo Claro" : "Mudar para Modo Escuro"}
+          aria-label="Alternar tema"
+        >
+          {theme === "dark" ? (
+            <Sun className="w-4 h-4 text-amber-400" />
+          ) : (
+            <Moon className="w-4 h-4 text-sky-500" />
+          )}
+        </button>
 
         {/* Refresh Button */}
         {onRefresh && (

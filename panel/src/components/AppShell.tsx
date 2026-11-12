@@ -2,12 +2,14 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useTheme } from "@/context/ThemeContext";
 import { Sidebar } from "@/components/Sidebar";
 import { LoginView } from "@/components/LoginView";
-import { Menu, Tv } from "lucide-react";
+import { Menu, Tv, Sun, Moon } from "lucide-react";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -53,8 +55,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Zyveron <span className="text-emerald-400">Play</span>
           </span>
         </div>
-        <div className="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-[10px] font-bold text-emerald-300">
-          {user?.name?.substring(0, 2).toUpperCase() ?? "AD"}
+        <div className="flex items-center gap-2">
+          {/* Mobile Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            className="p-1.5 text-zinc-400 hover:text-amber-400 rounded-lg transition"
+            title="Alternar tema"
+            aria-label="Alternar tema"
+          >
+            {theme === "dark" ? (
+              <Sun className="w-4 h-4 text-amber-400" />
+            ) : (
+              <Moon className="w-4 h-4 text-sky-500" />
+            )}
+          </button>
+          <div className="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-[10px] font-bold text-emerald-300">
+            {user?.name?.substring(0, 2).toUpperCase() ?? "AD"}
+          </div>
         </div>
       </div>
 

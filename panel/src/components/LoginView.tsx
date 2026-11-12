@@ -2,10 +2,12 @@
 
 import React, { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { Tv, Lock, Mail, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck } from "lucide-react";
+import { useTheme } from "@/context/ThemeContext";
+import { Tv, Lock, Mail, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, Sun, Moon } from "lucide-react";
 
 export function LoginView() {
   const { login } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -35,6 +37,19 @@ export function LoginView() {
 
   return (
     <div className="min-h-screen bg-[#070b10] flex items-center justify-center p-4 relative overflow-hidden select-none">
+      {/* Botão de Tema no Login */}
+      <div className="absolute top-5 right-5 z-20">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800 text-zinc-400 hover:text-amber-400 transition cursor-pointer"
+          title="Alternar tema claro/escuro"
+          aria-label="Alternar tema claro/escuro"
+        >
+          {theme === "dark" ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-sky-500" />}
+        </button>
+      </div>
+
       {/* Luz ambiente de fundo (Glow Cósmico com paleta Zyveron) */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-gradient-to-tr from-emerald-600/15 to-cyan-500/10 blur-[120px] rounded-full pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-[300px] h-[300px] bg-blue-600/10 blur-[100px] rounded-full pointer-events-none" />

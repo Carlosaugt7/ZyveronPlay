@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { useTheme } from "@/context/ThemeContext";
 import { UserRole } from "@/types";
 import {
   Tv,
@@ -17,7 +18,9 @@ import {
   ChevronRight,
   ArrowRightLeft,
   LogOut,
-  X
+  X,
+  Sun,
+  Moon
 } from "lucide-react";
 
 interface SidebarProps {
@@ -28,6 +31,7 @@ interface SidebarProps {
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { user, switchRole, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
 
   const isSuperAdmin = user?.role === "superadmin";
 
@@ -168,6 +172,39 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 }`}
             >
               Sub-Rev.
+            </button>
+          </div>
+        </div>
+
+        {/* Seletor de Tema (Claro / Escuro) */}
+        <div className="px-3 py-2 border-t border-zinc-800/80 bg-zinc-950/40">
+          <div className="flex items-center justify-between mb-1.5 px-1">
+            <span className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">
+              Tema do Painel
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              onClick={() => setTheme("dark")}
+              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-[11px] font-medium transition cursor-pointer ${
+                theme === "dark"
+                  ? "bg-zinc-800 text-white font-bold border border-zinc-700 shadow-sm"
+                  : "bg-transparent text-zinc-400 hover:text-white hover:bg-zinc-900"
+              }`}
+            >
+              <Moon className="w-3.5 h-3.5 text-sky-400" />
+              <span>Escuro</span>
+            </button>
+            <button
+              onClick={() => setTheme("light")}
+              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-[11px] font-medium transition cursor-pointer ${
+                theme === "light"
+                  ? "bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40 shadow-sm"
+                  : "bg-transparent text-zinc-400 hover:text-white hover:bg-zinc-900"
+              }`}
+            >
+              <Sun className="w-3.5 h-3.5 text-amber-400" />
+              <span>Claro</span>
             </button>
           </div>
         </div>
