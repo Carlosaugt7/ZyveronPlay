@@ -36,10 +36,10 @@ export default function DashboardPage() {
   const [quickDnsSuccess, setQuickDnsSuccess] = useState(false);
 
   // Estado para Atualização OTA do APK da TV
-  const [otaVersionCode, setOtaVersionCode] = useState(19);
-  const [otaVersionName, setOtaVersionName] = useState("2.9.4");
+  const [otaVersionCode, setOtaVersionCode] = useState(20);
+  const [otaVersionName, setOtaVersionName] = useState("2.9.5");
   const [otaApkUrl, setOtaApkUrl] = useState("https://github.com/Carlosaugt7/ZyveronPlay/raw/main/zyveron-play-tv.apk");
-  const [otaNotes, setOtaNotes] = useState("Versão 2.9.4: Confirmação permanente de avisos na TV (ao clicar em 'OK, Entendido' o aviso é memorizado localmente e não reaparece ao reabrir o app).");
+  const [otaNotes, setOtaNotes] = useState("Versão 2.9.5: Liberação de conteúdo adulto (+18) com proteção por senha (PIN padrão 0000) e pastas posicionadas ao final da lista.");
   const [otaSavedSuccess, setOtaSavedSuccess] = useState(false);
   const [publishedOta, setPublishedOta] = useState<{ versionCode: number; versionName: string } | null>(null);
 
@@ -80,11 +80,11 @@ export default function DashboardPage() {
     FirestoreSync.fetchAppUpdate().then((info) => {
       if (info) {
         setPublishedOta(info);
-        // Se a versão cadastrada for menor que a atual compilada (19), preenche com a 2.9.4
-        if (info.versionCode < 19) {
-          setOtaVersionCode(19);
-          setOtaVersionName("2.9.4");
-          setOtaNotes("Versão 2.9.4: Confirmação permanente de avisos na TV (ao clicar em 'OK, Entendido' o aviso é memorizado localmente e não reaparece ao reabrir o app).");
+        // Se a versão cadastrada for menor que a atual compilada (20), preenche com a 2.9.5
+        if (info.versionCode < 20) {
+          setOtaVersionCode(20);
+          setOtaVersionName("2.9.5");
+          setOtaNotes("Versão 2.9.5: Liberação de conteúdo adulto (+18) com proteção por senha (PIN padrão 0000) e pastas posicionadas ao final da lista.");
         } else {
           setOtaVersionCode(info.versionCode);
           setOtaVersionName(info.versionName);
