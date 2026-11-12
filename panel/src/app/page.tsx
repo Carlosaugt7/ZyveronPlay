@@ -79,13 +79,25 @@ export default function DashboardPage() {
     loadData();
     FirestoreSync.fetchAppUpdate().then((info) => {
       if (info) {
-        setPublishedOta(info);
-        // Se a versão cadastrada for menor que a atual compilada (20), preenche com a 2.9.5
+        // Se a versão cadastrada for menor que 20, atualiza para 2.9.5 e sincroniza
         if (info.versionCode < 20) {
-          setOtaVersionCode(20);
-          setOtaVersionName("2.9.5");
-          setOtaNotes("Versão 2.9.5: Liberação de conteúdo adulto (+18) com proteção por senha (PIN padrão 0000) e pastas posicionadas ao final da lista.");
+          const autoUpdate = {
+            versionCode: 20,
+            versionName: "2.9.5",
+            apkUrl: info.apkUrl || "https://github.com/Carlosaugt7/ZyveronPlay/raw/main/zyveron-play-tv.apk",
+            releaseNotes: "Versão 2.9.5: Liberação de conteúdo adulto (+18) com proteção por senha (PIN padrão 0000) e pastas posicionadas ao final da lista.",
+            isMandatory: false,
+          };
+          setOtaVersionCode(autoUpdate.versionCode);
+          setOtaVersionName(autoUpdate.versionName);
+          setOtaNotes(autoUpdate.releaseNotes);
+          setPublishedOta({
+            versionCode: autoUpdate.versionCode,
+            versionName: autoUpdate.versionName,
+          });
+          FirestoreSync.syncAppUpdate(autoUpdate);
         } else {
+          setPublishedOta(info);
           setOtaVersionCode(info.versionCode);
           setOtaVersionName(info.versionName);
           setOtaNotes(info.releaseNotes || "");
