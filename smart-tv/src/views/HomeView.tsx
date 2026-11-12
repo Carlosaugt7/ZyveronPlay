@@ -299,40 +299,40 @@ export const HomeView: React.FC<HomeViewProps> = ({
       <main className="w-full flex-1 min-h-0 grid grid-cols-12 gap-4 items-stretch mb-3">
         
         {/* --- COLUNA ESQUERDA: GRID 2x2 DE CARDS PRINCIPAIS (6 Colunas) --- */}
-        <div className="col-span-12 lg:col-span-6 grid grid-cols-2 gap-3.5 h-full">
+        <div className="col-span-12 lg:col-span-6 grid grid-cols-2 gap-4 h-full">
           
           {/* 1. CANAIS AO VIVO */}
           <button
             type="button"
             onClick={() => onNavigate('live')}
             onMouseEnter={() => setFocusedId(0)}
-            className={`group h-full rounded-2xl p-4 md:p-6 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
+            className={`group h-full rounded-3xl p-5 md:p-8 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
               focusedId === 0
-                ? 'scale-[1.03] border-2 border-sky-400 shadow-2xl shadow-sky-500/30 bg-gradient-to-br from-[#182a45] via-[#121c2e] to-[#0e1724] ring-2 ring-sky-400/50'
-                : 'border border-[#222d42] bg-[#121722]/90 hover:border-slate-600'
+                ? 'scale-[1.03] border-3 border-sky-400 shadow-2xl shadow-sky-500/35 bg-gradient-to-br from-[#182a45] via-[#121c2e] to-[#0e1724] ring-4 ring-sky-400/50'
+                : 'border-2 border-[#222d42] bg-[#121722]/95 hover:border-slate-500'
             }`}
           >
             {/* Badge no canto superior direito */}
-            <span className={`absolute top-3.5 right-3.5 text-[10px] md:text-xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-              focusedId === 0 ? 'bg-sky-400 text-black font-extrabold shadow-sm' : 'bg-slate-800/90 text-slate-400 border border-slate-700'
+            <span className={`absolute top-4 right-4 text-xs md:text-sm px-3.5 py-1 rounded-xl font-black uppercase tracking-wider ${
+              focusedId === 0 ? 'bg-sky-400 text-black font-black shadow-md' : 'bg-slate-800/90 text-slate-300 border border-slate-700'
             }`}>
               Ao Vivo
             </span>
 
             {/* Ícone Centralizado em Destaque */}
-            <div className={`w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mb-3 transition-all duration-300 ${
+            <div className={`w-20 h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 rounded-3xl flex items-center justify-center mb-4 transition-all duration-300 ${
               focusedId === 0
-                ? 'bg-sky-500/20 border-2 border-sky-400/60 shadow-lg shadow-sky-500/30 scale-110'
-                : 'bg-sky-500/10 border border-sky-500/20 group-hover:scale-105'
+                ? 'bg-sky-500/25 border-2 border-sky-400/80 shadow-xl shadow-sky-500/40 scale-110'
+                : 'bg-sky-500/10 border border-sky-500/25 group-hover:scale-105'
             }`}>
-              <Tv className="w-8 h-8 md:w-10 md:h-10 text-sky-400" />
+              <Tv className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 text-sky-400" />
             </div>
 
             {/* Título e Contagem Centralizados */}
-            <h3 className="text-xl md:text-2xl font-black text-white tracking-wide group-hover:text-sky-300 transition-colors leading-tight">
+            <h3 className="text-2xl md:text-3xl lg:text-4xl font-black text-white tracking-wide group-hover:text-sky-300 transition-colors leading-tight">
               Canais ao Vivo
             </h3>
-            <p className="text-xs md:text-sm text-slate-400 font-medium mt-1">
+            <p className="text-sm md:text-base lg:text-lg text-slate-300 font-semibold mt-1.5">
               {liveCount > 0 ? `${liveCount.toLocaleString('pt-BR')} canais` : (isLoading ? 'Sincronizando...' : 'Grade completa')}
             </p>
           </button>
@@ -342,33 +342,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
             type="button"
             onClick={() => onNavigate('vod')}
             onMouseEnter={() => setFocusedId(1)}
-            className={`group h-full rounded-2xl p-4 md:p-6 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
+            className={`group h-full rounded-3xl p-5 md:p-8 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
               focusedId === 1
-                ? 'scale-[1.03] border-2 border-sky-400 shadow-2xl shadow-sky-500/30 bg-gradient-to-br from-[#182a45] via-[#121c2e] to-[#0e1724] ring-2 ring-sky-400/50'
-                : 'border border-[#222d42] bg-[#121722]/90 hover:border-slate-600'
+                ? 'scale-[1.03] border-3 border-sky-400 shadow-2xl shadow-sky-500/35 bg-gradient-to-br from-[#182a45] via-[#121c2e] to-[#0e1724] ring-4 ring-sky-400/50'
+                : 'border-2 border-[#222d42] bg-[#121722]/95 hover:border-slate-500'
             }`}
           >
             {/* Badge no canto superior direito */}
-            <span className={`absolute top-3.5 right-3.5 text-[10px] md:text-xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-              focusedId === 1 ? 'bg-sky-400 text-black font-extrabold shadow-sm' : 'bg-slate-800/90 text-slate-400 border border-slate-700'
+            <span className={`absolute top-4 right-4 text-xs md:text-sm px-3.5 py-1 rounded-xl font-black uppercase tracking-wider ${
+              focusedId === 1 ? 'bg-sky-400 text-black font-black shadow-md' : 'bg-slate-800/90 text-slate-300 border border-slate-700'
             }`}>
               VOD
             </span>
 
             {/* Ícone Centralizado em Destaque */}
-            <div className={`w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mb-3 transition-all duration-300 ${
+            <div className={`w-20 h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 rounded-3xl flex items-center justify-center mb-4 transition-all duration-300 ${
               focusedId === 1
-                ? 'bg-sky-500/20 border-2 border-sky-400/60 shadow-lg shadow-sky-500/30 scale-110'
-                : 'bg-sky-500/10 border border-sky-500/20 group-hover:scale-105'
+                ? 'bg-sky-500/25 border-2 border-sky-400/80 shadow-xl shadow-sky-500/40 scale-110'
+                : 'bg-sky-500/10 border border-sky-500/25 group-hover:scale-105'
             }`}>
-              <Film className="w-8 h-8 md:w-10 md:h-10 text-sky-400" />
+              <Film className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 text-sky-400" />
             </div>
 
             {/* Título e Contagem Centralizados */}
-            <h3 className="text-xl md:text-2xl font-black text-white tracking-wide group-hover:text-sky-300 transition-colors leading-tight">
+            <h3 className="text-2xl md:text-3xl lg:text-4xl font-black text-white tracking-wide group-hover:text-sky-300 transition-colors leading-tight">
               Filmes
             </h3>
-            <p className="text-xs md:text-sm text-slate-400 font-medium mt-1">
+            <p className="text-sm md:text-base lg:text-lg text-slate-300 font-semibold mt-1.5">
               {vodCount > 0 ? `${vodCount.toLocaleString('pt-BR')} filmes • Cinema` : 'On Demand'}
             </p>
           </button>
@@ -378,33 +378,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
             type="button"
             onClick={() => onNavigate('series')}
             onMouseEnter={() => setFocusedId(2)}
-            className={`group h-full rounded-2xl p-4 md:p-6 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
+            className={`group h-full rounded-3xl p-5 md:p-8 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
               focusedId === 2
-                ? 'scale-[1.03] border-2 border-sky-400 shadow-2xl shadow-sky-500/30 bg-gradient-to-br from-[#182a45] via-[#121c2e] to-[#0e1724] ring-2 ring-sky-400/50'
-                : 'border border-[#222d42] bg-[#121722]/90 hover:border-slate-600'
+                ? 'scale-[1.03] border-3 border-sky-400 shadow-2xl shadow-sky-500/35 bg-gradient-to-br from-[#182a45] via-[#121c2e] to-[#0e1724] ring-4 ring-sky-400/50'
+                : 'border-2 border-[#222d42] bg-[#121722]/95 hover:border-slate-500'
             }`}
           >
             {/* Badge no canto superior direito */}
-            <span className={`absolute top-3.5 right-3.5 text-[10px] md:text-xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-              focusedId === 2 ? 'bg-sky-400 text-black font-extrabold shadow-sm' : 'bg-slate-800/90 text-slate-400 border border-slate-700'
+            <span className={`absolute top-4 right-4 text-xs md:text-sm px-3.5 py-1 rounded-xl font-black uppercase tracking-wider ${
+              focusedId === 2 ? 'bg-sky-400 text-black font-black shadow-md' : 'bg-slate-800/90 text-slate-300 border border-slate-700'
             }`}>
               Séries
             </span>
 
             {/* Ícone Centralizado em Destaque */}
-            <div className={`w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mb-3 transition-all duration-300 ${
+            <div className={`w-20 h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 rounded-3xl flex items-center justify-center mb-4 transition-all duration-300 ${
               focusedId === 2
-                ? 'bg-sky-500/20 border-2 border-sky-400/60 shadow-lg shadow-sky-500/30 scale-110'
-                : 'bg-sky-500/10 border border-sky-500/20 group-hover:scale-105'
+                ? 'bg-sky-500/25 border-2 border-sky-400/80 shadow-xl shadow-sky-500/40 scale-110'
+                : 'bg-sky-500/10 border border-sky-500/25 group-hover:scale-105'
             }`}>
-              <Clapperboard className="w-8 h-8 md:w-10 md:h-10 text-sky-400" />
+              <Clapperboard className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 text-sky-400" />
             </div>
 
             {/* Título e Contagem Centralizados */}
-            <h3 className="text-xl md:text-2xl font-black text-white tracking-wide group-hover:text-sky-300 transition-colors leading-tight">
+            <h3 className="text-2xl md:text-3xl lg:text-4xl font-black text-white tracking-wide group-hover:text-sky-300 transition-colors leading-tight">
               Séries
             </h3>
-            <p className="text-xs md:text-sm text-slate-400 font-medium mt-1">
+            <p className="text-sm md:text-base lg:text-lg text-slate-300 font-semibold mt-1.5">
               {seriesCount > 0 ? `${seriesCount.toLocaleString('pt-BR')} séries • Temporadas` : 'Episódios'}
             </p>
           </button>
@@ -414,33 +414,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
             type="button"
             onClick={() => onNavigate('live', { categoryId: 'sports' })}
             onMouseEnter={() => setFocusedId(3)}
-            className={`group h-full rounded-2xl p-4 md:p-6 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
+            className={`group h-full rounded-3xl p-5 md:p-8 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
               focusedId === 3
-                ? 'scale-[1.03] border-2 border-emerald-400 shadow-2xl shadow-emerald-500/30 bg-gradient-to-br from-[#11271f] via-[#0f211a] to-[#0c1813] ring-2 ring-emerald-400/50'
-                : 'border border-[#222d42] bg-[#121722]/90 hover:border-slate-600'
+                ? 'scale-[1.03] border-3 border-emerald-400 shadow-2xl shadow-emerald-500/35 bg-gradient-to-br from-[#11271f] via-[#0f211a] to-[#0c1813] ring-4 ring-emerald-400/50'
+                : 'border-2 border-[#222d42] bg-[#121722]/95 hover:border-slate-500'
             }`}
           >
             {/* Badge no canto superior direito */}
-            <span className={`absolute top-3.5 right-3.5 text-[10px] md:text-xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-              focusedId === 3 ? 'bg-emerald-400 text-black font-extrabold shadow-sm' : 'bg-slate-800/90 text-slate-400 border border-slate-700'
+            <span className={`absolute top-4 right-4 text-xs md:text-sm px-3.5 py-1 rounded-xl font-black uppercase tracking-wider ${
+              focusedId === 3 ? 'bg-emerald-400 text-black font-black shadow-md' : 'bg-slate-800/90 text-slate-300 border border-slate-700'
             }`}>
               Ao Vivo
             </span>
 
             {/* Ícone Centralizado em Destaque */}
-            <div className={`w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mb-3 transition-all duration-300 ${
+            <div className={`w-20 h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 rounded-3xl flex items-center justify-center mb-4 transition-all duration-300 ${
               focusedId === 3
-                ? 'bg-emerald-500/20 border-2 border-emerald-400/60 shadow-lg shadow-emerald-500/30 scale-110'
-                : 'bg-emerald-500/10 border border-emerald-500/20 group-hover:scale-105'
+                ? 'bg-emerald-500/25 border-2 border-emerald-400/80 shadow-xl shadow-emerald-500/40 scale-110'
+                : 'bg-emerald-500/10 border border-emerald-500/25 group-hover:scale-105'
             }`}>
-              <Trophy className="w-8 h-8 md:w-10 md:h-10 text-emerald-400" />
+              <Trophy className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 text-emerald-400" />
             </div>
 
             {/* Título e Contagem Centralizados */}
-            <h3 className="text-xl md:text-2xl font-black text-white tracking-wide group-hover:text-emerald-300 transition-colors leading-tight">
+            <h3 className="text-2xl md:text-3xl lg:text-4xl font-black text-white tracking-wide group-hover:text-emerald-300 transition-colors leading-tight">
               Esportes
             </h3>
-            <p className="text-xs md:text-sm text-emerald-400 font-medium mt-1">
+            <p className="text-sm md:text-base lg:text-lg text-emerald-300 font-semibold mt-1.5">
               Futebol • Lutas • Ao Vivo
             </p>
           </button>
@@ -448,29 +448,29 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         {/* --- COLUNA DIREITA: CARROSSÉIS DE DESTAQUES (6 Colunas Otimizadas para Preencher a Tela) --- */}
-        <div className="col-span-12 lg:col-span-6 flex flex-col justify-between gap-3.5 h-full overflow-hidden">
+        <div className="col-span-12 lg:col-span-6 flex flex-col justify-between gap-4 h-full overflow-hidden">
           
           {/* Seção 1: Filmes em Destaque */}
-          <div className="flex-1 flex flex-col justify-between bg-[#121722]/80 border border-[#222d42] rounded-2xl p-3.5 overflow-hidden shadow-xl">
-            <div className="flex items-center justify-between mb-2 shrink-0">
+          <div className="flex-1 flex flex-col justify-between bg-[#121722]/90 border border-[#222d42] rounded-3xl p-4 overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between mb-2.5 shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-xs md:text-sm font-black text-sky-400 tracking-wider">
+                <span className="text-sm md:text-base font-black text-sky-400 tracking-wider">
                   🎬 FILMES EM DESTAQUE
                 </span>
-                <span className="text-[11px] text-slate-400 hidden sm:inline">
+                <span className="text-xs md:text-sm text-slate-400 hidden sm:inline">
                   • Cinema e Lançamentos
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigate('vod')}
-                className="text-xs text-sky-400 hover:text-white flex items-center gap-1 font-semibold cursor-pointer"
+                className="text-xs md:text-sm text-sky-400 hover:text-white flex items-center gap-1.5 font-bold cursor-pointer"
               >
-                Ver todos <ArrowRight className="w-3.5 h-3.5" />
+                Ver todos <ArrowRight className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="flex-1 flex items-center gap-3 overflow-x-auto no-scrollbar py-1">
+            <div className="flex-1 flex items-center gap-3.5 overflow-x-auto no-scrollbar py-1">
               {featuredVods.length > 0 ? (
                 featuredVods.slice(0, 10).map((vod, idx) => {
                   const targetId = 10 + idx;
@@ -482,7 +482,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       ref={isItemFocused ? activeCarouselRef : null}
                       onClick={() => onNavigate('vod', { streamId: vod.stream_id })}
                       onMouseEnter={() => setFocusedId(targetId)}
-                      className={`shrink-0 w-28 md:w-32 lg:w-36 h-[95%] max-h-[195px] rounded-2xl overflow-hidden relative transition-all duration-200 cursor-pointer focus:outline-none ${
+                      className={`shrink-0 w-36 md:w-44 lg:w-48 h-[96%] max-h-[240px] rounded-2xl overflow-hidden relative transition-all duration-200 cursor-pointer focus:outline-none ${
                         isItemFocused
                           ? 'scale-105 border-2 border-white shadow-2xl shadow-sky-500/50 ring-4 ring-sky-400 z-10'
                           : 'border border-slate-700/60 opacity-85 hover:opacity-100 hover:border-slate-500'
@@ -499,14 +499,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
                           }}
                         />
                       ) : (
-                        <div className="w-full h-full bg-slate-800 flex items-center justify-center text-2xl">
+                        <div className="w-full h-full bg-slate-800 flex items-center justify-center text-3xl">
                           🎬
                         </div>
                       )}
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-2 text-left">
-                        <p className="text-[11px] font-bold text-white truncate">{vod.name}</p>
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent p-2.5 text-left">
+                        <p className="text-xs md:text-sm font-bold text-white truncate">{vod.name}</p>
                         {vod.rating && (
-                          <p className="text-[9px] text-amber-400 font-semibold flex items-center gap-0.5 mt-0.5">
+                          <p className="text-[11px] md:text-xs text-amber-400 font-bold flex items-center gap-1 mt-0.5">
                             ★ {vod.rating}
                           </p>
                         )}
@@ -515,7 +515,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   );
                 })
               ) : (
-                <div className="w-full h-28 flex items-center justify-center text-slate-500 text-xs">
+                <div className="w-full h-28 flex items-center justify-center text-slate-500 text-sm">
                   Carregando lançamentos...
                 </div>
               )}
@@ -523,26 +523,26 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
 
           {/* Seção 2: Séries em Destaque */}
-          <div className="flex-1 flex flex-col justify-between bg-[#121722]/80 border border-[#222d42] rounded-2xl p-3.5 overflow-hidden shadow-xl">
-            <div className="flex items-center justify-between mb-2 shrink-0">
+          <div className="flex-1 flex flex-col justify-between bg-[#121722]/90 border border-[#222d42] rounded-3xl p-4 overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between mb-2.5 shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-xs md:text-sm font-black text-sky-400 tracking-wider">
+                <span className="text-sm md:text-base font-black text-sky-400 tracking-wider">
                   📺 SÉRIES EM DESTAQUE
                 </span>
-                <span className="text-[11px] text-slate-400 hidden sm:inline">
+                <span className="text-xs md:text-sm text-slate-400 hidden sm:inline">
                   • Temporadas Completas
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigate('series')}
-                className="text-xs text-sky-400 hover:text-white flex items-center gap-1 font-semibold cursor-pointer"
+                className="text-xs md:text-sm text-sky-400 hover:text-white flex items-center gap-1.5 font-bold cursor-pointer"
               >
-                Ver todas <ArrowRight className="w-3.5 h-3.5" />
+                Ver todas <ArrowRight className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="flex-1 flex items-center gap-3 overflow-x-auto no-scrollbar py-1">
+            <div className="flex-1 flex items-center gap-3.5 overflow-x-auto no-scrollbar py-1">
               {featuredSeries.length > 0 ? (
                 featuredSeries.slice(0, 10).map((series, idx) => {
                   const targetId = 20 + idx;
@@ -554,7 +554,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       ref={isItemFocused ? activeCarouselRef : null}
                       onClick={() => onNavigate('series', { streamId: series.series_id })}
                       onMouseEnter={() => setFocusedId(targetId)}
-                      className={`shrink-0 w-28 md:w-32 lg:w-36 h-[95%] max-h-[195px] rounded-2xl overflow-hidden relative transition-all duration-200 cursor-pointer focus:outline-none ${
+                      className={`shrink-0 w-36 md:w-44 lg:w-48 h-[96%] max-h-[240px] rounded-2xl overflow-hidden relative transition-all duration-200 cursor-pointer focus:outline-none ${
                         isItemFocused
                           ? 'scale-105 border-2 border-white shadow-2xl shadow-sky-500/50 ring-4 ring-sky-400 z-10'
                           : 'border border-slate-700/60 opacity-85 hover:opacity-100 hover:border-slate-500'
@@ -571,14 +571,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
                           }}
                         />
                       ) : (
-                        <div className="w-full h-full bg-slate-800 flex items-center justify-center text-2xl">
+                        <div className="w-full h-full bg-slate-800 flex items-center justify-center text-3xl">
                           📺
                         </div>
                       )}
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-2 text-left">
-                        <p className="text-[11px] font-bold text-white truncate">{series.name}</p>
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent p-2.5 text-left">
+                        <p className="text-xs md:text-sm font-bold text-white truncate">{series.name}</p>
                         {series.rating && (
-                          <p className="text-[9px] text-amber-400 font-semibold flex items-center gap-0.5 mt-0.5">
+                          <p className="text-[11px] md:text-xs text-amber-400 font-bold flex items-center gap-1 mt-0.5">
                             ★ {series.rating}
                           </p>
                         )}
@@ -587,7 +587,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   );
                 })
               ) : (
-                <div className="w-full h-28 flex items-center justify-center text-slate-500 text-xs">
+                <div className="w-full h-28 flex items-center justify-center text-slate-500 text-sm">
                   Carregando séries...
                 </div>
               )}

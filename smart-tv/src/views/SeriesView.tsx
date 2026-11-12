@@ -261,7 +261,6 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     onDown: () => {
       if (playingEpisode) return;
       if (activeFocusColumn === 'categories') {
-        // total = 1 (Favoritos) + categories.length
         setSelectedCategoryIdx((prev) => Math.min(categories.length, prev + 1));
       } else if (activeFocusColumn === 'grid') {
         setSelectedSeriesIdx((prev) => {
@@ -391,23 +390,23 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
 
   return (
     <div className="w-full h-full flex bg-[#0a0d14] overflow-hidden select-none relative">
-      {/* Coluna de Categorias */}
-      <div className={`w-72 h-full bg-[#121722]/80 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 shrink-0 ${
+      {/* Coluna de Categorias (Fonte Aumentada para Idosos e TVs) */}
+      <div className={`w-80 lg:w-88 h-full bg-[#121722]/90 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 shrink-0 ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>
-        <div className="flex items-center justify-between mb-3 px-1">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <span>Gêneros Séries</span>
-            <span className="text-sky-400 font-mono">({categories.length + 1})</span>
+        <div className="flex items-center justify-between mb-4 px-1">
+          <h2 className="text-sm font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <span>GÊNEROS SÉRIES</span>
+            <span className="text-sky-400 font-mono text-xs">({categories.length + 1})</span>
           </h2>
           {onBackToHome && (
             <button
               type="button"
               onClick={onBackToHome}
-              className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-sky-600 text-[11px] font-semibold text-slate-300 hover:text-white transition cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-sky-600 text-xs font-bold text-slate-200 hover:text-white transition cursor-pointer border border-slate-700"
               title="Voltar para a Home"
             >
-              <ArrowLeft className="w-3 h-3" />
+              <ArrowLeft className="w-4 h-4" />
               <span>Início</span>
             </button>
           )}
@@ -415,11 +414,11 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
 
         {isLoadingCats ? (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
-            <Loader2 className="w-6 h-6 animate-spin text-emerald-400 mb-2" />
-            <span className="text-xs">Carregando gêneros...</span>
+            <Loader2 className="w-10 h-10 animate-spin text-emerald-400 mb-3" />
+            <span className="text-base font-semibold">Carregando gêneros...</span>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
             {/* Categoria 1: Meus Favoritos */}
             <button
               ref={selectedCategoryIdx === 0 ? activeCategoryBtnRef : null}
@@ -429,21 +428,21 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                 setSelectedCategoryIdx(0);
                 setActiveFocusColumn('grid');
               }}
-              className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer flex items-center justify-between ${
+              className={`w-full text-left px-4 py-3.5 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer flex items-center justify-between ${
                 selectedCategory === 'favorites'
-                  ? 'bg-amber-400 text-black shadow font-bold'
-                  : 'text-amber-300/90 hover:bg-[#1b2234] hover:text-amber-300'
+                  ? 'bg-amber-400 text-black shadow font-black'
+                  : 'text-amber-300 hover:bg-[#1b2234]'
               } ${
                 isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 0
-                  ? 'ring-4 ring-amber-300 shadow-xl scale-102 font-extrabold outline-none bg-amber-400 text-black'
+                  ? 'ring-4 ring-amber-300 shadow-2xl scale-102 font-black outline-none bg-amber-400 text-black'
                   : ''
               }`}
             >
               <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 fill-current text-amber-400" />
+                <Star className="w-5 h-5 fill-current text-amber-400" />
                 <span>Meus Favoritos</span>
               </div>
-              <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-black/30 font-bold">
+              <span className="font-mono text-sm px-2.5 py-0.5 rounded-lg bg-black/40 font-black">
                 {favorites.length}
               </span>
             </button>
@@ -465,13 +464,13 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                     setSelectedCategoryIdx(thisIdx);
                     setActiveFocusColumn('grid');
                   }}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium transition truncate cursor-pointer ${
+                  className={`w-full text-left px-4 py-3.5 rounded-2xl text-base md:text-lg font-bold transition truncate cursor-pointer ${
                     isSelected
-                      ? 'bg-emerald-500 text-black font-bold shadow'
-                      : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
+                      ? 'bg-emerald-500 text-black font-black shadow'
+                      : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
                   } ${
                     isCatFocused
-                      ? 'ring-4 ring-emerald-300 shadow-xl scale-102 font-extrabold outline-none bg-emerald-400 text-black'
+                      ? 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
                       : ''
                   }`}
                 >
@@ -490,20 +489,20 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         }`}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Clapperboard className="w-6 h-6 text-emerald-400" />
+          <h2 className="text-2xl font-black text-white flex items-center gap-2.5">
+            <Clapperboard className="w-7 h-7 text-emerald-400" />
             <span>Catálogo de Séries</span>
             {allSeries.length > 0 && (
-              <span className="text-sm font-normal text-slate-400 ml-1">
+              <span className="text-base font-normal text-slate-400 ml-1">
                 ({displayedSeries.length} de {allSeries.length})
               </span>
             )}
           </h2>
           <div className="text-xs text-slate-400 flex items-center gap-3">
-            <span className="font-mono bg-[#1a2233] px-2.5 py-1 rounded-md text-emerald-400">
+            <span className="font-mono bg-[#1a2233] px-3 py-1.5 rounded-lg text-emerald-400 font-bold">
               [OK] Abrir Série
             </span>
-            <span className="font-mono bg-[#1a2233] px-2.5 py-1 rounded-md text-slate-300">
+            <span className="font-mono bg-[#1a2233] px-3 py-1.5 rounded-lg text-slate-300">
               [◀] Voltar para Gêneros
             </span>
           </div>
@@ -512,15 +511,15 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         {isLoadingSeries ? (
           <div className="w-full h-80 flex flex-col items-center justify-center text-slate-400">
             <Loader2 className="w-12 h-12 animate-spin text-emerald-400 mb-3" />
-            <span className="text-sm">Carregando catálogo de séries...</span>
+            <span className="text-base font-semibold">Carregando catálogo de séries...</span>
           </div>
         ) : allSeries.length === 0 ? (
           <div className="w-full h-80 flex flex-col items-center justify-center text-slate-500 p-6 text-center">
             {selectedCategory === 'favorites' ? (
               <>
                 <Star className="w-16 h-16 mb-3 text-amber-500/40" />
-                <p className="text-base font-semibold text-slate-300">Nenhuma série favoritada ainda.</p>
-                <p className="text-xs text-slate-500 mt-1 max-w-sm">Abra qualquer série e clique no botão [Favoritar] ou aperte a tecla 'F' no controle.</p>
+                <p className="text-lg font-bold text-slate-200">Nenhuma série favoritada ainda.</p>
+                <p className="text-sm text-slate-400 mt-1 max-w-sm">Abra qualquer série e clique no botão [Favoritar] ou aperte a tecla 'F' no controle.</p>
               </>
             ) : (
               <>
@@ -531,7 +530,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
             {displayedSeries.map((series, seriesIdx) => {
               const isSeriesFocused = isFocusedContent && activeFocusColumn === 'grid' && selectedSeriesIdx === seriesIdx;
               const isFav = favorites.includes(series.series_id);
@@ -546,7 +545,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                     setSelectedSeriesIdx(seriesIdx);
                     handleOpenSeries(series);
                   }}
-                  className={`group relative bg-[#121722] border rounded-xl overflow-hidden cursor-pointer transition-all duration-150 shadow-lg text-left ${
+                  className={`group relative bg-[#121722] border rounded-2xl overflow-hidden cursor-pointer transition-all duration-150 shadow-lg text-left ${
                     isSeriesFocused
                       ? 'border-emerald-400 ring-4 ring-emerald-400/80 scale-104 shadow-2xl z-10 bg-[#161d2b]'
                       : 'border-[#2a3449] hover:border-emerald-500/50'
@@ -568,25 +567,25 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                     )}
 
                     {isFav && (
-                      <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-amber-400 z-10">
-                        <Star className="w-3.5 h-3.5 fill-current" />
+                      <div className="absolute top-2.5 right-2.5 p-2 rounded-full bg-black/75 text-amber-400 z-10 shadow">
+                        <Star className="w-4 h-4 fill-current" />
                       </div>
                     )}
 
                     <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition ${
                       isSeriesFocused ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                     }`}>
-                      <div className="w-12 h-12 rounded-full bg-emerald-500 text-black flex items-center justify-center shadow-lg">
-                        <Info className="w-6 h-6 ml-0.5" />
+                      <div className="w-14 h-14 rounded-full bg-emerald-500 text-black flex items-center justify-center shadow-2xl">
+                        <Info className="w-7 h-7 ml-0.5" />
                       </div>
                     </div>
                   </div>
 
-                  <div className={`p-3 ${isSeriesFocused ? 'bg-emerald-500/20' : ''}`}>
-                    <h3 className="text-sm font-semibold text-white truncate">{series.name}</h3>
+                  <div className={`p-3.5 ${isSeriesFocused ? 'bg-emerald-500/20' : ''}`}>
+                    <h3 className="text-base font-bold text-white truncate leading-snug">{series.name}</h3>
                     {series.rating && (
-                      <div className="flex items-center gap-1 text-xs text-amber-400 mt-1">
-                        <Star className="w-3.5 h-3.5 fill-current" />
+                      <div className="flex items-center gap-1.5 text-xs text-amber-400 mt-1 font-semibold">
+                        <Star className="w-4 h-4 fill-current" />
                         <span>{series.rating}</span>
                       </div>
                     )}
@@ -606,47 +605,47 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
             {/* Header da Série: Capa + Sinopse + Botão Favoritar + Botão Fechar */}
             <div className="p-6 border-b border-[#2a3449] flex items-start gap-6 bg-gradient-to-r from-[#161f30] to-[#121722]">
               {selectedSeries.cover && (
-                <div className="w-20 md:w-24 aspect-[2/3] rounded-xl overflow-hidden shrink-0 border border-slate-700 shadow-lg">
+                <div className="w-24 md:w-28 aspect-[2/3] rounded-2xl overflow-hidden shrink-0 border border-slate-700 shadow-xl">
                   <img src={seriesDetails?.info?.cover || selectedSeries.cover} alt={selectedSeries.name} className="w-full h-full object-cover" />
                 </div>
               )}
               <div className="flex-1">
                 <div className="flex items-center justify-between">
                   <h3 className="text-2xl md:text-3xl font-black text-white">{selectedSeries.name}</h3>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <button
                       type="button"
                       tabIndex={0}
                       onClick={() => handleToggleFav(selectedSeries.series_id)}
-                      className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border transition cursor-pointer ${
+                      className={`px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 border transition cursor-pointer ${
                         isCurrentSeriesFav
                           ? 'bg-amber-400/20 text-amber-300 border-amber-400/50 hover:bg-amber-400/30'
                           : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
                       }`}
                     >
-                      <Star className={`w-3.5 h-3.5 ${isCurrentSeriesFav ? 'fill-amber-400 text-amber-400' : ''}`} />
+                      <Star className={`w-4 h-4 ${isCurrentSeriesFav ? 'fill-amber-400 text-amber-400' : ''}`} />
                       <span>{isCurrentSeriesFav ? 'Favoritada' : 'Favoritar'}</span>
                     </button>
                     <button
                       type="button"
                       tabIndex={0}
                       onClick={closeSeriesDetails}
-                      className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                      className="p-2.5 rounded-full bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
                     >
                       <X className="w-6 h-6" />
                     </button>
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-3 mt-2 text-xs text-slate-300">
+                <div className="flex items-center gap-3 mt-2 text-xs md:text-sm text-slate-300">
                   {selectedSeries.rating && (
                     <div className="flex items-center gap-1 text-amber-400 font-bold">
-                      <Star className="w-3.5 h-3.5 fill-current" />
+                      <Star className="w-4 h-4 fill-current" />
                       <span>{selectedSeries.rating}</span>
                     </div>
                   )}
                   {selectedSeries.genre && (
-                    <span className="text-sky-300 bg-sky-950/60 px-2 py-0.5 rounded font-medium">
+                    <span className="text-sky-300 bg-sky-950/60 px-2.5 py-0.5 rounded font-medium">
                       {selectedSeries.genre}
                     </span>
                   )}
@@ -657,7 +656,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                   )}
                 </div>
 
-                <p className="text-xs md:text-sm text-slate-300 mt-2 line-clamp-3 leading-relaxed">
+                <p className="text-sm md:text-base text-slate-200 mt-2.5 line-clamp-3 leading-relaxed">
                   {seriesDetails?.info?.plot || selectedSeries.plot || 'Sinopse não disponível para esta série.'}
                 </p>
               </div>
@@ -668,15 +667,15 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
               {isLoadingDetails ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-slate-400 py-16">
                   <Loader2 className="w-10 h-10 animate-spin text-emerald-400 mb-3" />
-                  <span className="text-sm">Carregando episódios e temporadas...</span>
+                  <span className="text-base font-semibold">Carregando episódios e temporadas...</span>
                 </div>
               ) : (
                 <>
                   {/* Coluna de Temporadas */}
-                  <div className={`w-56 bg-[#161d2b]/80 border-r border-[#2a3449] p-3 overflow-y-auto space-y-1.5 transition ${
+                  <div className={`w-64 bg-[#161d2b]/80 border-r border-[#2a3449] p-4 overflow-y-auto space-y-2 transition ${
                     isFocusedContent && activeFocusColumn === 'seasons' ? 'ring-2 ring-emerald-500/50' : ''
                   }`}>
-                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-2 mb-2">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 px-2 mb-2">
                       Temporadas
                     </h4>
                     {seasonKeys.map((seasonKey, sIdx) => {
@@ -695,7 +694,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                             setActiveFocusColumn('episodes');
                             setSelectedEpisodeIdx(0);
                           }}
-                          className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-bold transition cursor-pointer ${
+                          className={`w-full text-left px-4 py-3 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer ${
                             isSeasonFocused
                               ? 'bg-emerald-400 text-black shadow-xl ring-2 ring-emerald-300 scale-102 font-black'
                               : isSeasonSelected
@@ -710,11 +709,11 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                   </div>
 
                   {/* Lista de Episódios com Botão Play e Foco */}
-                  <div className={`flex-1 p-5 overflow-y-auto space-y-2.5 custom-scrollbar transition ${
+                  <div className={`flex-1 p-5 overflow-y-auto space-y-3 custom-scrollbar transition ${
                     isFocusedContent && activeFocusColumn === 'episodes' ? 'ring-2 ring-emerald-500/50' : ''
                   }`}>
                     <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      <h4 className="text-sm font-black uppercase tracking-wider text-slate-300">
                         Episódios da Temporada {selectedSeason} ({ (seriesDetails?.episodes?.[selectedSeason] || []).length })
                       </h4>
                       <span className="text-xs text-slate-400 font-mono">
@@ -740,29 +739,29 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                           }}
                           className={`w-full flex items-center justify-between p-4 rounded-2xl cursor-pointer transition select-none text-left ${
                             isEpFocused
-                              ? 'bg-emerald-400 text-black font-extrabold shadow-2xl scale-[1.02] ring-4 ring-emerald-300'
+                              ? 'bg-emerald-400 text-black font-black shadow-2xl scale-[1.02] ring-4 ring-emerald-300'
                               : 'bg-[#1b2234]/70 hover:bg-[#1b2234] border border-[#2a3449] text-white'
                           }`}
                         >
-                          <div className="flex items-center gap-3.5">
-                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${
+                          <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm ${
                               isEpFocused ? 'bg-black text-emerald-400' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                             }`}>
                               E{ep.episode_num}
                             </div>
                             <div>
-                              <span className="font-bold text-sm block truncate max-w-lg">{ep.title}</span>
+                              <span className="font-bold text-base md:text-lg block truncate max-w-lg leading-tight">{ep.title}</span>
                               {ep.info?.duration && (
-                                <span className={`text-[11px] ${isEpFocused ? 'text-black/80 font-medium' : 'text-slate-400'}`}>
+                                <span className={`text-xs ${isEpFocused ? 'text-black/80 font-medium' : 'text-slate-400'}`}>
                                   Duração: {ep.info.duration}
                                 </span>
                               )}
                             </div>
                           </div>
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
                             isEpFocused ? 'bg-black text-emerald-400' : 'bg-emerald-500 text-black'
                           }`}>
-                            <Play className="w-4 h-4 fill-current ml-0.5" />
+                            <Play className="w-5 h-5 fill-current ml-0.5" />
                           </div>
                         </button>
                       );

@@ -16,6 +16,7 @@ interface PlayerProps {
   onChannelDown?: () => void;
   onOpenChannelList?: () => void;
   isFullScreen?: boolean;
+  disableSpatialNav?: boolean;
 }
 
 function formatSeconds(sec: number): string {
@@ -41,7 +42,8 @@ export const Player: React.FC<PlayerProps> = ({
   onChannelUp,
   onChannelDown,
   onOpenChannelList,
-  isFullScreen = true
+  isFullScreen = true,
+  disableSpatialNav = false
 }) => {
   const isActuallyLive = isLive !== undefined ? isLive : (channelNum !== undefined);
 
@@ -152,25 +154,8 @@ export const Player: React.FC<PlayerProps> = ({
         onBack();
       }
     },
-    disabled: !isFullScreen || hasError
-  }, [isActuallyLive, onChannelUp, onChannelDown, onOpenChannelList, onBack, isFullScreen, hasError, isPaused, handleSeek, togglePlayPause, showOsdTemporarily]);
-
-  // Histórico popstate para capturar botão VOLTAR nativo do controle remoto
-  useEffect(() => {
-    if (!isFullScreen || !onBack) return;
-
-    window.history.pushState({ modal: 'fullscreen-player' }, '');
-
-    const handlePopState = () => {
-      console.log('[Player] Popstate capturado - saindo da reprodução');
-      onBack();
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [isFullScreen, onBack]);
+    disabled: !isFullScreen || hasError || disableSpatialNav
+  }, [isActuallyLive, onChannelUp, onChannelDown, onOpenChannelList, onBack, isFullScreen, hasError, disableSpatialNav, isPaused, handleSeek, togglePlayPause, showOsdTemporarily]);
 
   // OSD inicial ao carregar
   useEffect(() => {

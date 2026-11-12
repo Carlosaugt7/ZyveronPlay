@@ -4,7 +4,7 @@ import { XtreamCategory, XtreamStream } from '../types';
 import { VirtualList } from '../components/VirtualList';
 import { Player } from '../components/Player';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Star, Tv, Maximize2, Loader2, AlertCircle, ArrowLeft, Heart } from 'lucide-react';
+import { Star, Tv, Maximize2, Loader2, AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, X, List, Layers } from 'lucide-react';
 import { getFavorites, toggleFavorite } from '../lib/storage';
 
 interface LiveTvViewProps {
@@ -34,8 +34,13 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const [selectedChannelIdx, setSelectedChannelIdx] = useState<number>(0);
   const [currentPlayingChannel, setCurrentPlayingChannel] = useState<XtreamStream | null>(null);
   const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
-  const [isQuickGuideOpen, setIsQuickGuideOpen] = useState<boolean>(false);
-  const [quickGuideIdx, setQuickGuideIdx] = useState<number>(0);
+
+  // Gavetas laterais em Tela Cheia (Estilo APK Android TV)
+  const [isChannelDrawerOpen, setIsChannelDrawerOpen] = useState<boolean>(false);
+  const [isCategoryDrawerOpen, setIsCategoryDrawerOpen] = useState<boolean>(false);
+  const [channelDrawerIdx, setChannelDrawerIdx] = useState<number>(0);
+  const [categoryDrawerIdx, setCategoryDrawerIdx] = useState<number>(0);
+
   const [isLoadingChannels, setIsLoadingChannels] = useState<boolean>(true);
   const [favorites, setFavorites] = useState<number[]>(() => getFavorites('live'));
   const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'channels'>('channels');
@@ -44,13 +49,17 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
   const activeChannelBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Notifica o App sobre mudanças em tela cheia para sumir com barras de topo
+  // Notifica o App sobre tela cheia para gerenciar barras do sistema
   const setFullScreenMode = (full: boolean) => {
     setIsFullScreen(full);
     onFullScreenChange?.(full);
+    if (!full) {
+      setIsChannelDrawerOpen(false);
+      setIsCategoryDrawerOpen(false);
+    }
   };
 
-  // Carrega categorias ao iniciar ou quando recarregar lista
+  // Carrega categorias ao iniciar
   useEffect(() => {
     setFavorites(getFavorites('live'));
     client.getLiveCategories()
@@ -156,8 +165,10 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   useSpatialNav({
     onUp: () => {
       if (isFullScreen) {
-        if (isQuickGuideOpen) {
-          setQuickGuideIdx((prev) => Math.max(0, prev - 1));
+        if (isChannelDrawerOpen) {
+          setChannelDrawerIdx((prev) => Math.max(0, prev - 1));
+        } else if (isCategoryDrawerOpen) {
+          setCategoryDrawerIdx((prev) => Math.max(0, prev - 1));
         } else if (filteredChannels.length > 0) {
           // Zapping em tela cheia (Canal Anterior)
           const nextIdx = (selectedChannelIdx - 1 + filteredChannels.length) % filteredChannels.length;
@@ -172,8 +183,10 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     },
     onDown: () => {
       if (isFullScreen) {
-        if (isQuickGuideOpen) {
-          setQuickGuideIdx((prev) => Math.min(filteredChannels.length - 1, prev + 1));
+        if (isChannelDrawerOpen) {
+          setChannelDrawerIdx((prev) => Math.min(filteredChannels.length - 1, prev + 1));
+        } else if (isCategoryDrawerOpen) {
+          setCategoryDrawerIdx((prev) => Math.min(categories.length + 1, prev + 1));
         } else if (filteredChannels.length > 0) {
           // Zapping em tela cheia (Próximo Canal)
           const nextIdx = (selectedChannelIdx + 1) % filteredChannels.length;
@@ -183,15 +196,20 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       } else if (activeFocusColumn === 'channels') {
         setSelectedChannelIdx((prev) => Math.min(filteredChannels.length - 1, prev + 1));
       } else if (activeFocusColumn === 'categories') {
-        // total = 2 (Todos + Favoritos) + categories.length
         setSelectedCategoryIdx((prev) => Math.min(categories.length + 1, prev + 1));
       }
     },
     onLeft: () => {
       if (isFullScreen) {
-        if (!isQuickGuideOpen) {
-          setQuickGuideIdx(selectedChannelIdx);
-          setIsQuickGuideOpen(true);
+        if (isCategoryDrawerOpen) {
+          // Se o menu de categorias estiver aberto, fecha e abre os canais
+          setIsCategoryDrawerOpen(false);
+          setIsChannelDrawerOpen(true);
+          setChannelDrawerIdx(selectedChannelIdx);
+        } else if (!isChannelDrawerOpen) {
+          // Abre a barra lateral esquerda (Lista de Canais da Categoria)
+          setIsChannelDrawerOpen(true);
+          setChannelDrawerIdx(selectedChannelIdx);
         }
         return;
       }
@@ -201,27 +219,39 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     },
     onRight: () => {
       if (isFullScreen) {
-        if (isQuickGuideOpen) {
-          setIsQuickGuideOpen(false);
-        } else {
-          setQuickGuideIdx(selectedChannelIdx);
-          setIsQuickGuideOpen(true);
+        if (isChannelDrawerOpen) {
+          // Se o menu de canais estiver aberto, fecha e abre as categorias
+          setIsChannelDrawerOpen(false);
+          setIsCategoryDrawerOpen(true);
+        } else if (!isCategoryDrawerOpen) {
+          // Abre a barra lateral direita (Menu de Categorias)
+          setIsCategoryDrawerOpen(true);
         }
         return;
       }
       if (activeFocusColumn === 'categories') {
         setActiveFocusColumn('channels');
       } else if (activeFocusColumn === 'channels' && filteredChannels[selectedChannelIdx]) {
-        // Seta para direita no canal confirma tela cheia
         handleChannelSelectOrPlay(filteredChannels[selectedChannelIdx], selectedChannelIdx);
       }
     },
     onSelect: () => {
       if (isFullScreen) {
-        if (isQuickGuideOpen && filteredChannels[quickGuideIdx]) {
-          setSelectedChannelIdx(quickGuideIdx);
-          setCurrentPlayingChannel(filteredChannels[quickGuideIdx]);
-          setIsQuickGuideOpen(false);
+        if (isChannelDrawerOpen && filteredChannels[channelDrawerIdx]) {
+          setSelectedChannelIdx(channelDrawerIdx);
+          setCurrentPlayingChannel(filteredChannels[channelDrawerIdx]);
+          setIsChannelDrawerOpen(false);
+        } else if (isCategoryDrawerOpen) {
+          if (categoryDrawerIdx === 0) {
+            setSelectedCategory('all');
+          } else if (categoryDrawerIdx === 1) {
+            setSelectedCategory('favorites');
+          } else if (categories[categoryDrawerIdx - 2]) {
+            setSelectedCategory(categories[categoryDrawerIdx - 2].category_id);
+          }
+          setIsCategoryDrawerOpen(false);
+          setIsChannelDrawerOpen(true);
+          setChannelDrawerIdx(0);
         }
         return;
       }
@@ -240,8 +270,10 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     },
     onBack: () => {
       if (isFullScreen) {
-        if (isQuickGuideOpen) {
-          setIsQuickGuideOpen(false);
+        if (isChannelDrawerOpen) {
+          setIsChannelDrawerOpen(false);
+        } else if (isCategoryDrawerOpen) {
+          setIsCategoryDrawerOpen(false);
         } else {
           setFullScreenMode(false);
         }
@@ -256,8 +288,10 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     disabled: !isFocusedContent
   }, [
     isFullScreen,
-    isQuickGuideOpen,
-    quickGuideIdx,
+    isChannelDrawerOpen,
+    isCategoryDrawerOpen,
+    channelDrawerIdx,
+    categoryDrawerIdx,
     activeFocusColumn,
     filteredChannels,
     selectedChannelIdx,
@@ -275,9 +309,16 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
 
   const isCurrentPlayingFav = currentPlayingChannel ? favorites.includes(currentPlayingChannel.stream_id) : false;
 
+  const currentCategoryName = selectedCategory === 'all'
+    ? 'Todos os Canais'
+    : selectedCategory === 'favorites'
+    ? 'Meus Favoritos'
+    : categories.find((c) => c.category_id === selectedCategory)?.category_name || 'Canais ao Vivo';
+
   return (
     <div className="w-full h-full flex bg-[#0a0d14] relative overflow-hidden select-none">
-      {/* TELA CHEIA FIXADA (Cobre 100% da tela) */}
+      
+      {/* TELA CHEIA FIXADA (100% da tela) */}
       {isFullScreen && currentPlayingChannel && (
         <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black">
           <Player
@@ -287,48 +328,83 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
             channelNum={currentPlayingChannel.num || selectedChannelIdx + 1}
             logoUrl={currentPlayingChannel.stream_icon}
             isLive={true}
-            onChannelUp={() => {
-              if (filteredChannels.length > 0) {
-                const nextIdx = (selectedChannelIdx - 1 + filteredChannels.length) % filteredChannels.length;
-                setSelectedChannelIdx(nextIdx);
-                setCurrentPlayingChannel(filteredChannels[nextIdx]);
-              }
-            }}
-            onChannelDown={() => {
-              if (filteredChannels.length > 0) {
-                const nextIdx = (selectedChannelIdx + 1) % filteredChannels.length;
-                setSelectedChannelIdx(nextIdx);
-                setCurrentPlayingChannel(filteredChannels[nextIdx]);
-              }
-            }}
-            onOpenChannelList={() => {
-              setQuickGuideIdx(selectedChannelIdx);
-              setIsQuickGuideOpen(true);
-            }}
             onBack={() => setFullScreenMode(false)}
             isFullScreen={true}
+            disableSpatialNav={true}
           />
 
-          {/* GUIA RÁPIDO DE CANAIS EM OVERLAY (Aberto via Seta Esquerda ou Seta Direita no controle) */}
-          {isQuickGuideOpen && (
-            <div className="absolute inset-y-0 left-0 w-80 md:w-96 bg-black/90 backdrop-blur-md border-r border-[#2a3449] z-[10000] flex flex-col p-4 animate-in slide-in-from-left duration-200 shadow-2xl">
+          {/* BARRA LATERAL ESQUERDA CLICÁVEL (Trigger flutuante para abrir Lista de Canais) */}
+          {!isChannelDrawerOpen && (
+            <div
+              onClick={() => {
+                setIsCategoryDrawerOpen(false);
+                setIsChannelDrawerOpen(true);
+                setChannelDrawerIdx(selectedChannelIdx);
+              }}
+              className="absolute left-0 inset-y-0 w-16 md:w-24 z-[10001] flex items-center justify-start cursor-pointer group"
+              title="Abrir Lista de Canais desta Categoria"
+            >
+              <button
+                type="button"
+                className="py-10 px-3 bg-black/75 group-hover:bg-emerald-500 group-hover:text-black text-white rounded-r-2xl border-y border-r border-emerald-500/50 backdrop-blur-md flex flex-col items-center gap-2 transition-all duration-200 shadow-2xl group-hover:scale-105"
+              >
+                <ChevronLeft className="w-6 h-6 text-emerald-400 group-hover:text-black" />
+                <span className="[writing-mode:vertical-lr] text-xs font-black tracking-widest uppercase">
+                  Canais
+                </span>
+              </button>
+            </div>
+          )}
+
+          {/* BARRA LATERAL DIREITA CLICÁVEL (Trigger flutuante para abrir Menu de Categorias) */}
+          {!isCategoryDrawerOpen && (
+            <div
+              onClick={() => {
+                setIsChannelDrawerOpen(false);
+                setIsCategoryDrawerOpen(true);
+              }}
+              className="absolute right-0 inset-y-0 w-16 md:w-24 z-[10001] flex items-center justify-end cursor-pointer group"
+              title="Abrir Menu de Categorias"
+            >
+              <button
+                type="button"
+                className="py-10 px-3 bg-black/75 group-hover:bg-sky-500 group-hover:text-black text-white rounded-l-2xl border-y border-l border-sky-500/50 backdrop-blur-md flex flex-col items-center gap-2 transition-all duration-200 shadow-2xl group-hover:scale-105"
+              >
+                <ChevronRight className="w-6 h-6 text-sky-400 group-hover:text-black" />
+                <span className="[writing-mode:vertical-lr] text-xs font-black tracking-widest uppercase">
+                  Categorias
+                </span>
+              </button>
+            </div>
+          )}
+
+          {/* DRAWER LATERAL ESQUERDO: LISTA DE CANAIS DA CATEGORIA */}
+          {isChannelDrawerOpen && (
+            <div className="absolute inset-y-0 left-0 w-96 md:w-[440px] bg-black/95 backdrop-blur-xl border-r border-[#2a3449] z-[10002] flex flex-col p-5 animate-in slide-in-from-left duration-200 shadow-2xl">
               <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
-                <div className="flex items-center gap-2 text-white">
-                  <Tv className="w-5 h-5 text-emerald-400" />
-                  <span className="font-extrabold text-sm uppercase tracking-wider">Guia Rápido de Canais</span>
+                <div className="flex items-center gap-2.5 text-white">
+                  <List className="w-6 h-6 text-emerald-400" />
+                  <div>
+                    <h3 className="font-extrabold text-base md:text-lg text-white leading-tight">
+                      {currentCategoryName}
+                    </h3>
+                    <p className="text-xs text-slate-400 font-mono">
+                      {filteredChannels.length} canais disponíveis
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setIsQuickGuideOpen(false)}
-                  className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded text-slate-300"
+                  onClick={() => setIsChannelDrawerOpen(false)}
+                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition cursor-pointer"
                 >
-                  Fechar [◀]
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto space-y-1.5 custom-scrollbar pr-1">
+              <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar pr-1">
                 {filteredChannels.map((channel, qIdx) => {
-                  const isQuickFocused = quickGuideIdx === qIdx;
+                  const isQuickFocused = channelDrawerIdx === qIdx;
                   const isNowPlaying = currentPlayingChannel.stream_id === channel.stream_id;
                   const isFav = favorites.includes(channel.stream_id);
 
@@ -340,39 +416,39 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                       onClick={() => {
                         setSelectedChannelIdx(qIdx);
                         setCurrentPlayingChannel(channel);
-                        setIsQuickGuideOpen(false);
+                        setIsChannelDrawerOpen(false);
                       }}
-                      className={`w-full text-left p-3 rounded-xl flex items-center justify-between cursor-pointer transition select-none ${
+                      className={`w-full text-left p-3.5 rounded-2xl flex items-center justify-between cursor-pointer transition select-none ${
                         isQuickFocused
-                          ? 'bg-emerald-400 text-black font-extrabold shadow-xl scale-[1.02] ring-2 ring-emerald-300'
+                          ? 'bg-emerald-400 text-black font-black shadow-2xl scale-[1.02] ring-4 ring-emerald-300'
                           : isNowPlaying
                           ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50'
-                          : 'bg-[#121722]/80 hover:bg-[#1b2234] text-slate-200'
+                          : 'bg-[#121722]/90 hover:bg-[#1b2234] text-slate-200'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5 overflow-hidden">
-                        <span className={`font-mono text-xs font-bold w-7 ${isQuickFocused ? 'text-black' : 'text-slate-400'}`}>
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <span className={`font-mono text-sm font-black w-8 ${isQuickFocused ? 'text-black' : 'text-slate-400'}`}>
                           {channel.num || qIdx + 1}
                         </span>
                         {channel.stream_icon ? (
                           <img
                             src={channel.stream_icon}
                             alt=""
-                            className="w-8 h-8 object-contain rounded bg-black/40 p-0.5"
+                            className="w-10 h-10 object-contain rounded-lg bg-black/40 p-0.5"
                             onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                           />
                         ) : (
-                          <div className="w-8 h-8 rounded bg-slate-800 flex items-center justify-center">
-                            <Tv className="w-4 h-4" />
+                          <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center">
+                            <Tv className="w-5 h-5" />
                           </div>
                         )}
-                        <span className="font-semibold text-xs truncate max-w-[150px]">{channel.name}</span>
+                        <span className="font-bold text-base md:text-lg truncate max-w-[200px]">{channel.name}</span>
                       </div>
 
-                      <div className="flex items-center gap-1.5">
-                        {isFav && <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />}
+                      <div className="flex items-center gap-2">
+                        {isFav && <Star className="w-4 h-4 fill-amber-400 text-amber-400" />}
                         {isNowPlaying && (
-                          <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
                             isQuickFocused ? 'bg-black text-emerald-400' : 'bg-emerald-400 text-black'
                           }`}>
                             Ao Vivo
@@ -384,38 +460,152 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                 })}
               </div>
 
-              <div className="pt-3 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+              <div className="pt-3 border-t border-slate-800 text-xs text-slate-400 flex items-center justify-between">
                 <span>[▲/▼] Navegar • [OK] Trocar</span>
-                <span>[◀/▶] Sair do Guia</span>
+                <span>[▶] Ver Categorias</span>
               </div>
             </div>
           )}
+
+          {/* DRAWER LATERAL DIREITO: MENU DE CATEGORIAS DE CANAIS */}
+          {isCategoryDrawerOpen && (
+            <div className="absolute inset-y-0 right-0 w-96 md:w-[440px] bg-black/95 backdrop-blur-xl border-l border-[#2a3449] z-[10002] flex flex-col p-5 animate-in slide-in-from-right duration-200 shadow-2xl">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
+                <div className="flex items-center gap-2.5 text-white">
+                  <Layers className="w-6 h-6 text-sky-400" />
+                  <div>
+                    <h3 className="font-extrabold text-base md:text-lg text-white leading-tight">
+                      Categorias de Canais
+                    </h3>
+                    <p className="text-xs text-slate-400 font-mono">
+                      Selecione para ver os canais
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryDrawerOpen(false)}
+                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar pr-1">
+                {/* 1. Todos os Canais */}
+                <button
+                  type="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setSelectedCategory('all');
+                    setSelectedCategoryIdx(0);
+                    setIsCategoryDrawerOpen(false);
+                    setIsChannelDrawerOpen(true);
+                  }}
+                  className={`w-full text-left p-4 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer flex items-center justify-between ${
+                    categoryDrawerIdx === 0
+                      ? 'bg-sky-400 text-black font-black scale-[1.02] shadow-2xl ring-4 ring-sky-300'
+                      : selectedCategory === 'all'
+                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/50'
+                      : 'bg-[#121722]/90 hover:bg-[#1b2234] text-slate-200'
+                  }`}
+                >
+                  <span>★ Todos os Canais</span>
+                  <ChevronLeft className="w-5 h-5 opacity-60" />
+                </button>
+
+                {/* 2. Meus Favoritos */}
+                <button
+                  type="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setSelectedCategory('favorites');
+                    setSelectedCategoryIdx(1);
+                    setIsCategoryDrawerOpen(false);
+                    setIsChannelDrawerOpen(true);
+                  }}
+                  className={`w-full text-left p-4 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer flex items-center justify-between ${
+                    categoryDrawerIdx === 1
+                      ? 'bg-amber-400 text-black font-black scale-[1.02] shadow-2xl ring-4 ring-amber-300'
+                      : selectedCategory === 'favorites'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
+                      : 'bg-[#121722]/90 hover:bg-[#1b2234] text-amber-300/90'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Star className="w-5 h-5 fill-current text-amber-400" />
+                    <span>Meus Favoritos</span>
+                  </div>
+                  <span className="font-mono text-sm px-2.5 py-0.5 rounded-lg bg-black/40 font-black">
+                    {favorites.length}
+                  </span>
+                </button>
+
+                {/* 3. Categorias da API */}
+                {categories.map((cat, cIdx) => {
+                  const targetIdx = cIdx + 2;
+                  const isCatFocused = categoryDrawerIdx === targetIdx;
+                  const isCatActive = selectedCategory === cat.category_id;
+
+                  return (
+                    <button
+                      key={cat.category_id}
+                      type="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        setSelectedCategory(cat.category_id);
+                        setSelectedCategoryIdx(targetIdx);
+                        setIsCategoryDrawerOpen(false);
+                        setIsChannelDrawerOpen(true);
+                      }}
+                      className={`w-full text-left p-4 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer flex items-center justify-between ${
+                        isCatFocused
+                          ? 'bg-sky-400 text-black font-black scale-[1.02] shadow-2xl ring-4 ring-sky-300'
+                          : isCatActive
+                          ? 'bg-sky-500/20 text-sky-300 border border-sky-500/50'
+                          : 'bg-[#121722]/90 hover:bg-[#1b2234] text-slate-200'
+                      }`}
+                    >
+                      <span className="truncate max-w-[280px]">{cat.category_name}</span>
+                      <ChevronLeft className="w-5 h-5 opacity-60" />
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="pt-3 border-t border-slate-800 text-xs text-slate-400 flex items-center justify-between">
+                <span>[▲/▼] Navegar • [OK] Selecionar</span>
+                <span>[◀] Ver Canais</span>
+              </div>
+            </div>
+          )}
+
         </div>
       )}
 
-      {/* Coluna 1: Categorias de Canais (com Favoritos no topo) */}
-      <div className={`w-72 h-full bg-[#121722]/80 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 shrink-0 ${
+      {/* Coluna 1: Categorias de Canais (Fonte Aumentada para Idosos e TVs) */}
+      <div className={`w-80 lg:w-88 h-full bg-[#121722]/90 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 shrink-0 ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>
-        <div className="flex items-center justify-between mb-3 px-1">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <span>Categorias TV</span>
-            <span className="text-sky-400 font-mono">({categories.length + 2})</span>
+        <div className="flex items-center justify-between mb-4 px-1">
+          <h2 className="text-sm font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <span>CATEGORIAS TV</span>
+            <span className="text-sky-400 font-mono text-xs">({categories.length + 2})</span>
           </h2>
           {onBackToHome && (
             <button
               type="button"
               onClick={onBackToHome}
-              className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-sky-600 text-[11px] font-semibold text-slate-300 hover:text-white transition cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-sky-600 text-xs font-bold text-slate-200 hover:text-white transition cursor-pointer border border-slate-700"
               title="Voltar para a Home"
             >
-              <ArrowLeft className="w-3 h-3" />
+              <ArrowLeft className="w-4 h-4" />
               <span>Início</span>
             </button>
           )}
         </div>
 
-        <div ref={categoriesContainerRef} className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+        <div ref={categoriesContainerRef} className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
           {/* 1. Todos os Canais */}
           <button
             ref={selectedCategoryIdx === 0 ? activeCategoryBtnRef : null}
@@ -425,13 +615,13 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
               setActiveFocusColumn('channels');
             }}
             tabIndex={0}
-            className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer ${
+            className={`w-full text-left px-4 py-3.5 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer ${
               selectedCategory === 'all'
-                ? 'bg-emerald-500 text-black shadow font-bold'
-                : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
+                ? 'bg-emerald-500 text-black shadow font-black'
+                : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
             } ${
               isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 0
-                ? 'ring-4 ring-emerald-300 shadow-xl scale-102 font-extrabold outline-none bg-emerald-400 text-black'
+                ? 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
                 : ''
             }`}
           >
@@ -447,21 +637,21 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
               setActiveFocusColumn('channels');
             }}
             tabIndex={0}
-            className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer flex items-center justify-between ${
+            className={`w-full text-left px-4 py-3.5 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer flex items-center justify-between ${
               selectedCategory === 'favorites'
-                ? 'bg-amber-400 text-black shadow font-bold'
-                : 'text-amber-300/90 hover:bg-[#1b2234] hover:text-amber-300'
+                ? 'bg-amber-400 text-black shadow font-black'
+                : 'text-amber-300 hover:bg-[#1b2234]'
             } ${
               isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 1
-                ? 'ring-4 ring-amber-300 shadow-xl scale-102 font-extrabold outline-none bg-amber-400 text-black'
+                ? 'ring-4 ring-amber-300 shadow-2xl scale-102 font-black outline-none bg-amber-400 text-black'
                 : ''
             }`}
           >
             <div className="flex items-center gap-2">
-              <Star className="w-4 h-4 fill-current text-amber-400" />
+              <Star className="w-5 h-5 fill-current text-amber-400" />
               <span>Meus Favoritos</span>
             </div>
-            <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-black/30 font-bold">
+            <span className="font-mono text-sm px-2.5 py-0.5 rounded-lg bg-black/40 font-black">
               {favorites.length}
             </span>
           </button>
@@ -482,13 +672,13 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                   setActiveFocusColumn('channels');
                 }}
                 tabIndex={0}
-                className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium transition truncate cursor-pointer ${
+                className={`w-full text-left px-4 py-3.5 rounded-2xl text-base md:text-lg font-bold transition truncate cursor-pointer ${
                   isSelected
-                    ? 'bg-emerald-500 text-black font-bold shadow'
-                    : 'text-slate-300 hover:bg-[#1b2234] hover:text-white'
+                    ? 'bg-emerald-500 text-black font-black shadow'
+                    : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
                 } ${
                   isCatFocused
-                    ? 'ring-4 ring-emerald-300 shadow-xl scale-102 font-extrabold outline-none bg-emerald-400 text-black'
+                    ? 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
                     : ''
                 }`}
               >
@@ -499,36 +689,36 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         </div>
       </div>
 
-      {/* Coluna 2: Lista Virtualizada de Canais */}
-      <div className={`w-96 h-full bg-[#0a0d14] border-r border-[#2a3449] flex flex-col p-4 select-none transition-all shrink-0 ${
+      {/* Coluna 2: Lista Virtualizada de Canais (Fonte Aumentada e Legível) */}
+      <div className={`w-[400px] lg:w-[450px] h-full bg-[#0a0d14] border-r border-[#2a3449] flex flex-col p-4 select-none transition-all shrink-0 ${
         isFocusedContent && activeFocusColumn === 'channels' ? 'ring-2 ring-emerald-500/50' : ''
       }`}>
         <div className="flex items-center justify-between mb-3 px-2">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <span>Canais</span>
-            <span className="text-sky-400 font-mono">({filteredChannels.length})</span>
+          <h2 className="text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <span>CANAIS</span>
+            <span className="text-sky-400 font-mono text-xs">({filteredChannels.length})</span>
           </h2>
-          <span className="text-[11px] text-slate-400 font-mono">
-            [OK] Prévia • [2x OK] Tela Cheia
+          <span className="text-xs text-slate-400 font-mono font-bold">
+            [1º OK] Prévia • [2º OK] Tela Cheia
           </span>
         </div>
 
         {isLoadingChannels ? (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
-            <Loader2 className="w-8 h-8 animate-spin text-emerald-400 mb-2" />
-            <span className="text-sm">Carregando canais...</span>
+            <Loader2 className="w-10 h-10 animate-spin text-emerald-400 mb-3" />
+            <span className="text-base font-semibold">Carregando canais...</span>
           </div>
         ) : filteredChannels.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-6 text-center">
             {selectedCategory === 'favorites' ? (
               <>
-                <Star className="w-12 h-12 mb-2 text-amber-500/50" />
-                <span className="text-sm font-bold text-slate-300">Nenhum canal favoritado ainda.</span>
-                <span className="text-xs text-slate-500 mt-1">Clique na estrela ao lado de um canal ou pressione a tecla 'F' no controle para adicionar.</span>
+                <Star className="w-14 h-14 mb-3 text-amber-500/50" />
+                <span className="text-base font-bold text-slate-200">Nenhum canal favoritado ainda.</span>
+                <span className="text-xs text-slate-400 mt-1.5">Clique na estrela ao lado de um canal ou pressione a tecla 'F' no controle remoto.</span>
               </>
             ) : (
               <>
-                <AlertCircle className="w-8 h-8 mb-2" />
+                <AlertCircle className="w-10 h-10 mb-2" />
                 <span className="text-sm">Nenhum canal nesta categoria.</span>
               </>
             )}
@@ -537,7 +727,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           <div className="flex-1">
             <VirtualList
               items={filteredChannels}
-              itemHeight={64}
+              itemHeight={72}
               containerHeight={window.innerHeight - 80}
               selectedIndex={selectedChannelIdx}
               renderItem={(channel, index, isSelected) => {
@@ -551,39 +741,39 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                     tabIndex={0}
                     ref={isItemFocused ? activeChannelBtnRef : null}
                     onClick={() => handleChannelSelectOrPlay(channel, index)}
-                    className={`w-full h-[58px] px-3 rounded-xl flex items-center justify-between cursor-pointer transition select-none text-left ${
+                    className={`w-full h-[64px] px-3.5 rounded-2xl flex items-center justify-between cursor-pointer transition select-none text-left ${
                       isItemFocused
-                        ? 'bg-emerald-400 text-black font-extrabold shadow-2xl scale-[1.02] ring-4 ring-emerald-300'
+                        ? 'bg-emerald-400 text-black font-black shadow-2xl scale-[1.02] ring-4 ring-emerald-300'
                         : isNowPlayingInPreview
-                        ? 'bg-emerald-500/15 border border-emerald-500/50 text-white'
+                        ? 'bg-emerald-500/20 border-2 border-emerald-500/60 text-white'
                         : isSelected
                         ? 'bg-[#1b2234] border border-slate-700 text-white'
-                        : 'bg-[#121722]/80 hover:bg-[#1b2234] text-slate-200 border border-transparent'
+                        : 'bg-[#121722]/90 hover:bg-[#1b2234] text-slate-200 border border-transparent'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 overflow-hidden">
-                      <span className={`font-mono text-xs font-bold w-7 ${isItemFocused ? 'text-black' : 'text-slate-400'}`}>
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <span className={`font-mono text-sm font-black w-8 ${isItemFocused ? 'text-black' : 'text-slate-400'}`}>
                         {channel.num || index + 1}
                       </span>
                       {channel.stream_icon ? (
                         <img
                           src={channel.stream_icon}
                           alt=""
-                          className="w-9 h-9 object-contain rounded bg-black/40 p-0.5"
+                          className="w-10 h-10 object-contain rounded-xl bg-black/40 p-0.5"
                           onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                         />
                       ) : (
-                        <div className={`w-9 h-9 rounded flex items-center justify-center ${isItemFocused ? 'bg-black/20 text-black' : 'bg-[#1b2234] text-slate-500'}`}>
-                          <Tv className="w-4 h-4" />
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isItemFocused ? 'bg-black/20 text-black' : 'bg-[#1b2234] text-slate-500'}`}>
+                          <Tv className="w-5 h-5" />
                         </div>
                       )}
                       <div className="truncate">
-                        <span className="font-semibold text-sm block truncate max-w-[170px]">{channel.name}</span>
+                        <span className="font-bold text-base md:text-lg block truncate max-w-[210px] leading-tight">{channel.name}</span>
                         {isNowPlayingInPreview && (
-                          <span className={`text-[10px] font-black uppercase tracking-wider block ${
-                            isItemFocused ? 'text-black/80' : 'text-emerald-400'
+                          <span className={`text-[11px] font-black uppercase tracking-wider block mt-0.5 ${
+                            isItemFocused ? 'text-black' : 'text-emerald-400'
                           }`}>
-                            ▶ No Ar {isItemFocused ? '• OK p/ Tela Cheia' : ''}
+                            ▶ No Ar {isItemFocused ? '• [OK Novamente: Tela Cheia]' : ''}
                           </span>
                         )}
                       </div>
@@ -591,12 +781,12 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
 
                     <div
                       onClick={(e) => handleToggleFav(channel.stream_id, e)}
-                      className={`p-2 rounded-lg transition ${
+                      className={`p-2.5 rounded-xl transition ${
                         isItemFocused ? 'text-black hover:bg-black/10' : 'text-slate-400 hover:text-amber-400 hover:bg-slate-800'
                       }`}
                       title={isFav ? "Remover dos Favoritos" : "Favoritar"}
                     >
-                      <Star className={`w-4 h-4 ${isFav ? 'fill-amber-400 text-amber-400' : ''}`} />
+                      <Star className={`w-5 h-5 ${isFav ? 'fill-amber-400 text-amber-400' : ''}`} />
                     </div>
                   </button>
                 );
@@ -615,7 +805,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
               {!isFullScreen && (
                 <div 
                   onClick={() => setFullScreenMode(true)}
-                  className="w-full aspect-video bg-black rounded-2xl overflow-hidden border border-[#2a3449] shadow-2xl relative group cursor-pointer"
+                  className="w-full aspect-video bg-black rounded-3xl overflow-hidden border-2 border-[#2a3449] shadow-2xl relative group cursor-pointer"
                   title="Clique para assistir em tela cheia"
                 >
                   <Player
@@ -632,7 +822,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                       e.stopPropagation();
                       setFullScreenMode(true);
                     }}
-                    className="absolute bottom-4 right-4 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-black rounded-xl font-black text-xs shadow-xl transition flex items-center gap-1.5 cursor-pointer"
+                    className="absolute bottom-4 right-4 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-black rounded-2xl font-black text-sm shadow-2xl transition flex items-center gap-2 cursor-pointer"
                   >
                     <Maximize2 className="w-4 h-4" />
                     <span>Expandir Tela Cheia [OK]</span>
@@ -641,66 +831,66 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
               )}
 
               {/* Informações e Ações do Canal Ativo */}
-              <div className="bg-[#121722] border border-[#2a3449] p-5 rounded-2xl shadow-xl">
-                <div className="flex items-center gap-4">
+              <div className="bg-[#121722] border border-[#2a3449] p-6 rounded-3xl shadow-xl">
+                <div className="flex items-center gap-5">
                   {currentPlayingChannel.stream_icon && (
                     <img
                       src={currentPlayingChannel.stream_icon}
                       alt=""
-                      className="w-16 h-16 object-contain rounded-xl bg-black/40 p-1 border border-slate-700"
+                      className="w-20 h-20 object-contain rounded-2xl bg-black/40 p-1.5 border border-slate-700"
                     />
                   )}
                   <div className="flex-1">
-                    <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded">
+                    <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-xs font-black tracking-wider uppercase rounded-lg">
                       HLS TRANSMISSÃO ATIVA
                     </span>
-                    <h3 className="text-xl font-bold text-white mt-1 leading-snug">
+                    <h3 className="text-2xl font-black text-white mt-1.5 leading-snug">
                       {currentPlayingChannel.name}
                     </h3>
-                    <p className="text-xs text-slate-400 font-mono mt-0.5">
+                    <p className="text-sm text-slate-400 font-mono mt-1">
                       Canal #{currentPlayingChannel.num || selectedChannelIdx + 1} • ID: {currentPlayingChannel.stream_id}
                     </p>
                   </div>
                 </div>
 
                 {/* Botões de Ação na Prévia */}
-                <div className="flex items-center gap-3 mt-4 pt-4 border-t border-slate-800">
+                <div className="flex items-center gap-3 mt-5 pt-4 border-t border-slate-800">
                   <button
                     type="button"
                     onClick={() => setFullScreenMode(true)}
-                    className="flex-1 py-3 px-4 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-black font-black flex items-center justify-center gap-2 cursor-pointer transition shadow-lg text-sm"
+                    className="flex-1 py-4 px-5 rounded-2xl bg-emerald-400 hover:bg-emerald-300 text-black font-black flex items-center justify-center gap-2.5 cursor-pointer transition shadow-xl text-base"
                   >
-                    <Maximize2 className="w-4 h-4" />
+                    <Maximize2 className="w-5 h-5" />
                     <span>Confirmar Tela Cheia [OK]</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={(e) => handleToggleFav(currentPlayingChannel.stream_id, e)}
-                    className={`py-3 px-4 rounded-xl font-bold flex items-center gap-2 cursor-pointer transition border text-sm ${
+                    className={`py-4 px-5 rounded-2xl font-bold flex items-center gap-2.5 cursor-pointer transition border text-base ${
                       isCurrentPlayingFav
                         ? 'bg-amber-400/20 text-amber-300 border-amber-400/50 hover:bg-amber-400/30'
                         : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
                     }`}
                   >
-                    <Star className={`w-4 h-4 ${isCurrentPlayingFav ? 'fill-amber-400 text-amber-400' : ''}`} />
+                    <Star className={`w-5 h-5 ${isCurrentPlayingFav ? 'fill-amber-400 text-amber-400' : ''}`} />
                     <span>{isCurrentPlayingFav ? 'Favoritado' : 'Favoritar'}</span>
                   </button>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="w-full aspect-video bg-[#121722] rounded-2xl flex flex-col items-center justify-center text-slate-500 border border-[#2a3449]">
-              <Tv className="w-16 h-16 mb-2 text-slate-600" />
-              <p>Selecione um canal para carregar a prévia</p>
+            <div className="w-full aspect-video bg-[#121722] rounded-3xl flex flex-col items-center justify-center text-slate-500 border border-[#2a3449]">
+              <Tv className="w-20 h-20 mb-3 text-slate-600" />
+              <p className="text-base font-semibold">Selecione um canal para carregar a prévia</p>
             </div>
           )}
         </div>
 
         {/* Dicas de Controle Remoto */}
-        <div className="bg-[#121722]/60 border border-[#2a3449]/40 p-4 rounded-xl text-xs text-slate-400 flex items-center justify-between mt-4">
-          <span>• <b>1º OK</b>: Carrega prévia • <b>2º OK</b>: Tela cheia • Tecla <b>F</b>: Favoritar</span>
-          <span className="text-emerald-400 font-semibold">Zyveron Live Engine</span>
+        <div className="bg-[#121722]/60 border border-[#2a3449]/40 p-4 rounded-2xl text-xs text-slate-400 flex items-center justify-between mt-4">
+          <span>• <b>1º OK</b>: Prévia • <b>2º OK</b>: Tela cheia • Tecla <b>F</b>: Favoritar</span>
+          <span className="text-emerald-400 font-bold">Zyveron Live Engine</span>
         </div>
       </div>
     </div>
