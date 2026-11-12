@@ -41,13 +41,17 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
   const lastBackRef = useRef<number>(0);
   const longPressTimerRef = useRef<any>(null);
   const isLongPressTriggeredRef = useRef<boolean>(false);
+  const onBackRef = useRef(handlers.onBack);
+  onBackRef.current = handlers.onBack;
+  const disabledRef = useRef(handlers.disabled);
+  disabledRef.current = handlers.disabled;
 
   const triggerBack = useCallback(() => {
     const now = Date.now();
     if (now - lastBackRef.current < 250) return;
     lastBackRef.current = now;
-    handlers.onBack?.();
-  }, [handlers.onBack]);
+    onBackRef.current?.();
+  }, []);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (handlers.disabled) return;
@@ -143,7 +147,7 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
     // Android TV / Box / Fire TV: 4
     // Windows / Chrome: 166 (BrowserBack)
     // PC Keyboard: 27 (Escape), 8 (Backspace)
-    // Philips / Sony / Outros: 65385, 10182
+    // Philips / Sony / Outros: 65385, 10182, 216
     // MSX / Roku: 'BrowserBack', 'GoBack', 'Back', 'Cancel', 'Exit'
     else if (
       key === 'Escape' || 
@@ -163,7 +167,8 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
       code === 461 || 
       code === 283 || 
       code === 10182 || 
-      code === 65385
+      code === 65385 ||
+      code === 216
     ) {
       handled = true;
       triggerBack();
@@ -228,17 +233,45 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
     };
   }, [handleKeyDown, handleKeyUp]);
 
-  // Captura eventos de popstate (disparados nativamente pelo Media Station X ao apertar VOLTAR no controle)
+  // Comunicação com MSX e interceptação do botão Voltar (sem loop de histórico)
   useEffect(() => {
-    if (handlers.disabled || !handlers.onBack) return;
+    if (!handlers.onBack) return;
 
-    window.history.pushState({ nav: 'smart-tv-layer' }, '');
+    // Registra controle de volta junto ao Media Station X
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage('msx:register:back', '*');
+      }
+    } catch {}
 
-    const handlePopState = () => {
-      triggerBack();
+    const handleMessage = (e: MessageEvent) => {
+      if (disabledRef.current) return;
+      if (
+        e.data === 'msx:back' || 
+        e.data === 'back' || 
+        e.data?.action === 'back' || 
+        e.data?.event === 'back'
+      ) {
+        triggerBack();
+      }
     };
 
+    if (window.history.state?.nav !== 'smart-tv-layer') {
+      window.history.pushState({ nav: 'smart-tv-layer' }, '');
+    }
+
+    const handlePopState = () => {
+      if (disabledRef.current) return;
+      triggerBack();
+      window.history.pushState({ nav: 'smart-tv-layer' }, '');
+    };
+
+    window.addEventListener('message', handleMessage);
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [handlers.onBack, handlers.disabled, triggerBack, ...deps]);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [triggerBack, handlers.onBack]);
 }

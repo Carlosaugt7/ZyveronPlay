@@ -54,13 +54,15 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     ext: string;
   } | null>(null);
 
-  // Foco espacial: 'categories' | 'grid' | 'seasons' | 'episodes'
-  const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid' | 'seasons' | 'episodes'>('categories');
+  // Foco espacial: 'categories' | 'grid' | 'details-header' | 'seasons' | 'episodes'
+  const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid' | 'details-header' | 'seasons' | 'episodes'>('categories');
+  const [headerBtnIdx, setHeaderBtnIdx] = useState<number>(0);
 
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
   const activeSeriesBtnRef = useRef<HTMLButtonElement>(null);
   const activeSeasonBtnRef = useRef<HTMLButtonElement>(null);
   const activeEpBtnRef = useRef<HTMLButtonElement>(null);
+  const activeHeaderBtnRef = useRef<HTMLButtonElement>(null);
 
   const displayedSeries = useMemo(() => {
     return allSeries.slice(0, displayedCount);
@@ -174,6 +176,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       } else if (activeFocusColumn === 'grid' && activeSeriesBtnRef.current) {
         activeSeriesBtnRef.current.focus();
         activeSeriesBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (activeFocusColumn === 'details-header' && activeHeaderBtnRef.current) {
+        activeHeaderBtnRef.current.focus();
       } else if (activeFocusColumn === 'seasons' && activeSeasonBtnRef.current) {
         activeSeasonBtnRef.current.focus();
         activeSeasonBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -182,7 +186,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         activeEpBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }
     }
-  }, [selectedCategoryIdx, selectedSeriesIdx, selectedSeasonIdx, selectedEpisodeIdx, activeFocusColumn, isFocusedContent, playingEpisode, displayedSeries.length]);
+  }, [selectedCategoryIdx, selectedSeriesIdx, selectedSeasonIdx, selectedEpisodeIdx, headerBtnIdx, activeFocusColumn, isFocusedContent, playingEpisode, displayedSeries.length]);
 
   // Tecla 'F' para favoritar no controle remoto
   useEffect(() => {
@@ -249,18 +253,30 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       } else if (activeFocusColumn === 'grid') {
         setSelectedSeriesIdx((prev) => Math.max(0, prev - 5));
       } else if (activeFocusColumn === 'seasons') {
-        setSelectedSeasonIdx((prev) => {
-          const next = Math.max(0, prev - 1);
-          if (seasonKeys[next]) setSelectedSeason(seasonKeys[next]);
-          return next;
-        });
+        if (selectedSeasonIdx === 0) {
+          setActiveFocusColumn('details-header');
+          setHeaderBtnIdx(0);
+        } else {
+          setSelectedSeasonIdx((prev) => {
+            const next = Math.max(0, prev - 1);
+            if (seasonKeys[next]) setSelectedSeason(seasonKeys[next]);
+            return next;
+          });
+        }
       } else if (activeFocusColumn === 'episodes') {
-        setSelectedEpisodeIdx((prev) => Math.max(0, prev - 1));
+        if (selectedEpisodeIdx === 0) {
+          setActiveFocusColumn('details-header');
+          setHeaderBtnIdx(0);
+        } else {
+          setSelectedEpisodeIdx((prev) => Math.max(0, prev - 1));
+        }
       }
     },
     onDown: () => {
       if (playingEpisode) return;
-      if (activeFocusColumn === 'categories') {
+      if (activeFocusColumn === 'details-header') {
+        setActiveFocusColumn('seasons');
+      } else if (activeFocusColumn === 'categories') {
         setSelectedCategoryIdx((prev) => Math.min(categories.length, prev + 1));
       } else if (activeFocusColumn === 'grid') {
         setSelectedSeriesIdx((prev) => {
@@ -283,7 +299,9 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     },
     onLeft: () => {
       if (playingEpisode) return;
-      if (activeFocusColumn === 'grid') {
+      if (activeFocusColumn === 'details-header') {
+        setHeaderBtnIdx(0); // Favoritar
+      } else if (activeFocusColumn === 'grid') {
         if (selectedSeriesIdx % 5 === 0 || displayedSeries.length === 0) {
           setActiveFocusColumn('categories');
         } else {
@@ -295,7 +313,9 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     },
     onRight: () => {
       if (playingEpisode) return;
-      if (activeFocusColumn === 'categories') {
+      if (activeFocusColumn === 'details-header') {
+        setHeaderBtnIdx(1); // Fechar
+      } else if (activeFocusColumn === 'categories') {
         if (displayedSeries.length > 0) {
           setActiveFocusColumn('grid');
           setSelectedSeriesIdx(0);
@@ -314,7 +334,13 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     },
     onSelect: () => {
       if (playingEpisode) return;
-      if (activeFocusColumn === 'categories') {
+      if (activeFocusColumn === 'details-header') {
+        if (headerBtnIdx === 0 && selectedSeries) {
+          handleToggleFav(selectedSeries.series_id);
+        } else if (headerBtnIdx === 1) {
+          closeSeriesDetails();
+        }
+      } else if (activeFocusColumn === 'categories') {
         if (selectedCategoryIdx === 0) {
           setSelectedCategory('favorites');
         } else if (categories[selectedCategoryIdx - 1]) {
@@ -337,25 +363,36 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         }
       }
     },
+    onGreen: () => {
+      if (selectedSeries) {
+        handleToggleFav(selectedSeries.series_id);
+      } else if (displayedSeries[selectedSeriesIdx]) {
+        handleToggleFav(displayedSeries[selectedSeriesIdx].series_id);
+      }
+    },
+    onLongSelect: () => {
+      if (selectedSeries) {
+        handleToggleFav(selectedSeries.series_id);
+      } else if (displayedSeries[selectedSeriesIdx]) {
+        handleToggleFav(displayedSeries[selectedSeriesIdx].series_id);
+      }
+    },
     onBack: () => {
       if (playingEpisode) {
         stopPlayingEpisode();
         return;
       }
-      if (activeFocusColumn === 'episodes' || activeFocusColumn === 'seasons') {
+      if (selectedSeries) {
         closeSeriesDetails();
-      } else if (activeFocusColumn === 'grid') {
-        setActiveFocusColumn('categories');
-      } else if (activeFocusColumn === 'categories') {
-        if (onBackToHome) {
-          onBackToHome();
-        }
+        return;
       }
+      onBackToHome?.();
     },
     disabled: !isFocusedContent
   }, [
     playingEpisode,
     activeFocusColumn,
+    headerBtnIdx,
     selectedCategoryIdx,
     selectedSeriesIdx,
     selectedSeasonIdx,
@@ -364,10 +401,12 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     allSeries.length,
     displayedCount,
     categories,
+    selectedSeries,
     seriesDetails,
     seasonKeys,
     selectedSeason,
-    isFocusedContent
+    isFocusedContent,
+    onBackToHome
   ]);
 
   // Player de Episódio (VOD com Seekbar)
@@ -391,19 +430,19 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   return (
     <div className="w-full h-full flex bg-[#0a0d14] overflow-hidden select-none relative">
       {/* Coluna de Categorias (Fonte Aumentada para Idosos e TVs) */}
-      <div className={`w-80 lg:w-88 h-full bg-[#121722]/90 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 shrink-0 ${
+      <div className={`w-84 lg:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 shrink-0 ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>
         <div className="flex items-center justify-between mb-4 px-1">
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+          <h2 className="text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
             <span>GÊNEROS SÉRIES</span>
-            <span className="text-sky-400 font-mono text-xs">({categories.length + 1})</span>
+            <span className="text-sky-400 font-mono text-sm">({categories.length + 1})</span>
           </h2>
           {onBackToHome && (
             <button
               type="button"
               onClick={onBackToHome}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-sky-600 text-xs font-bold text-slate-200 hover:text-white transition cursor-pointer border border-slate-700"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-sky-600 text-xs font-black text-slate-200 hover:text-white transition cursor-pointer border border-slate-700 shadow"
               title="Voltar para a Home"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -418,7 +457,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
             <span className="text-base font-semibold">Carregando gêneros...</span>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
             {/* Categoria 1: Meus Favoritos */}
             <button
               ref={selectedCategoryIdx === 0 ? activeCategoryBtnRef : null}
@@ -428,7 +467,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                 setSelectedCategoryIdx(0);
                 setActiveFocusColumn('grid');
               }}
-              className={`w-full text-left px-4 py-3.5 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer flex items-center justify-between ${
+              className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
                 selectedCategory === 'favorites'
                   ? 'bg-amber-400 text-black shadow font-black'
                   : 'text-amber-300 hover:bg-[#1b2234]'
@@ -439,10 +478,10 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
               }`}
             >
               <div className="flex items-center gap-2">
-                <Star className="w-5 h-5 fill-current text-amber-400" />
+                <Star className="w-6 h-6 fill-current text-amber-400" />
                 <span>Meus Favoritos</span>
               </div>
-              <span className="font-mono text-sm px-2.5 py-0.5 rounded-lg bg-black/40 font-black">
+              <span className="font-mono text-sm px-3 py-1 rounded-lg bg-black/40 font-black">
                 {favorites.length}
               </span>
             </button>
@@ -464,7 +503,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                     setSelectedCategoryIdx(thisIdx);
                     setActiveFocusColumn('grid');
                   }}
-                  className={`w-full text-left px-4 py-3.5 rounded-2xl text-base md:text-lg font-bold transition truncate cursor-pointer ${
+                  className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition truncate cursor-pointer ${
                     isSelected
                       ? 'bg-emerald-500 text-black font-black shadow'
                       : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
@@ -615,22 +654,31 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
+                      ref={activeFocusColumn === 'details-header' && headerBtnIdx === 0 ? activeHeaderBtnRef : null}
                       tabIndex={0}
                       onClick={() => handleToggleFav(selectedSeries.series_id)}
-                      className={`px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 border transition cursor-pointer ${
-                        isCurrentSeriesFav
+                      className={`px-5 py-2.5 rounded-xl font-black text-sm flex items-center gap-2 border transition cursor-pointer ${
+                        activeFocusColumn === 'details-header' && headerBtnIdx === 0
+                          ? 'ring-4 ring-amber-300 scale-105 shadow-2xl bg-amber-400 text-black border-amber-300'
+                          : isCurrentSeriesFav
                           ? 'bg-amber-400/20 text-amber-300 border-amber-400/50 hover:bg-amber-400/30'
                           : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
                       }`}
                     >
-                      <Star className={`w-4 h-4 ${isCurrentSeriesFav ? 'fill-amber-400 text-amber-400' : ''}`} />
+                      <Star className={`w-5 h-5 ${isCurrentSeriesFav || (activeFocusColumn === 'details-header' && headerBtnIdx === 0) ? 'fill-current' : 'text-amber-400'}`} />
                       <span>{isCurrentSeriesFav ? 'Favoritada' : 'Favoritar'}</span>
                     </button>
                     <button
                       type="button"
+                      ref={activeFocusColumn === 'details-header' && headerBtnIdx === 1 ? activeHeaderBtnRef : null}
                       tabIndex={0}
                       onClick={closeSeriesDetails}
-                      className="p-2.5 rounded-full bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                      className={`p-2.5 rounded-full transition cursor-pointer ${
+                        activeFocusColumn === 'details-header' && headerBtnIdx === 1
+                          ? 'ring-4 ring-rose-400 scale-105 shadow-2xl bg-rose-600 text-white'
+                          : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                      }`}
+                      title="Fechar (Voltar)"
                     >
                       <X className="w-6 h-6" />
                     </button>

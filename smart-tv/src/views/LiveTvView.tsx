@@ -50,6 +50,35 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastTimerRef = useRef<any>(null);
 
+  // Controle de visibilidade dos botões laterais em Tela Cheia (some em 2 segundos)
+  const [showLateralTriggers, setShowLateralTriggers] = useState<boolean>(true);
+  const lateralTriggersTimerRef = useRef<any>(null);
+
+  const triggerLateralVisibility = useCallback(() => {
+    setShowLateralTriggers(true);
+    if (lateralTriggersTimerRef.current) clearTimeout(lateralTriggersTimerRef.current);
+    lateralTriggersTimerRef.current = setTimeout(() => {
+      setShowLateralTriggers(false);
+    }, 2000);
+  }, []);
+
+  useEffect(() => {
+    if (!isFullScreen) return;
+    triggerLateralVisibility();
+
+    const handleActivity = () => {
+      triggerLateralVisibility();
+    };
+
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      if (lateralTriggersTimerRef.current) clearTimeout(lateralTriggersTimerRef.current);
+    };
+  }, [isFullScreen, triggerLateralVisibility]);
+
   // Controle de Long-Press para Mouse / Touch
   const longPressMouseTimer = useRef<any>(null);
   const isLongPressMouse = useRef<boolean>(false);
@@ -353,11 +382,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         }
         return;
       }
-      if (activeFocusColumn === 'channels') {
-        setActiveFocusColumn('categories');
-      } else if (activeFocusColumn === 'categories') {
-        onBackToHome?.();
-      }
+      onBackToHome?.();
     },
     disabled: !isFocusedContent
   }, [
@@ -404,7 +429,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
             disableSpatialNav={true}
           />
 
-          {/* BARRA LATERAL ESQUERDA CLICÁVEL (Trigger flutuante para abrir Lista de Canais) */}
+          {/* BARRA LATERAL ESQUERDA CLICÁVEL (Trigger flutuante - Some após 2 segundos de inatividade) */}
           {!isChannelDrawerOpen && (
             <div
               onClick={() => {
@@ -412,7 +437,9 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                 setIsChannelDrawerOpen(true);
                 setChannelDrawerIdx(selectedChannelIdx);
               }}
-              className="absolute left-0 inset-y-0 w-16 md:w-24 z-[10001] flex items-center justify-start cursor-pointer group"
+              className={`absolute left-0 inset-y-0 w-16 md:w-24 z-[10001] flex items-center justify-start cursor-pointer group transition-opacity duration-300 ${
+                showLateralTriggers ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              }`}
               title="Abrir Lista de Canais desta Categoria"
             >
               <button
@@ -427,14 +454,16 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
             </div>
           )}
 
-          {/* BARRA LATERAL DIREITA CLICÁVEL (Trigger flutuante para abrir Menu de Categorias) */}
+          {/* BARRA LATERAL DIREITA CLICÁVEL (Trigger flutuante - Some após 2 segundos de inatividade) */}
           {!isCategoryDrawerOpen && (
             <div
               onClick={() => {
                 setIsChannelDrawerOpen(false);
                 setIsCategoryDrawerOpen(true);
               }}
-              className="absolute right-0 inset-y-0 w-16 md:w-24 z-[10001] flex items-center justify-end cursor-pointer group"
+              className={`absolute right-0 inset-y-0 w-16 md:w-24 z-[10001] flex items-center justify-end cursor-pointer group transition-opacity duration-300 ${
+                showLateralTriggers ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              }`}
               title="Abrir Menu de Categorias"
             >
               <button
@@ -655,19 +684,19 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       )}
 
       {/* Coluna 1: Categorias de Canais (Fonte Aumentada para Idosos e TVs) */}
-      <div className={`w-80 lg:w-88 h-full bg-[#121722]/90 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 shrink-0 ${
+      <div className={`w-84 lg:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 shrink-0 ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>
         <div className="flex items-center justify-between mb-4 px-1">
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+          <h2 className="text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
             <span>CATEGORIAS TV</span>
-            <span className="text-sky-400 font-mono text-xs">({categories.length + 2})</span>
+            <span className="text-sky-400 font-mono text-sm">({categories.length + 2})</span>
           </h2>
           {onBackToHome && (
             <button
               type="button"
               onClick={onBackToHome}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-sky-600 text-xs font-bold text-slate-200 hover:text-white transition cursor-pointer border border-slate-700"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-sky-600 text-xs font-black text-slate-200 hover:text-white transition cursor-pointer border border-slate-700 shadow"
               title="Voltar para a Home"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -676,7 +705,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           )}
         </div>
 
-        <div ref={categoriesContainerRef} className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+        <div ref={categoriesContainerRef} className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
           {/* 1. Todos os Canais */}
           <button
             ref={selectedCategoryIdx === 0 ? activeCategoryBtnRef : null}
@@ -686,7 +715,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
               setActiveFocusColumn('channels');
             }}
             tabIndex={0}
-            className={`w-full text-left px-4 py-3.5 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer ${
+            className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer ${
               selectedCategory === 'all'
                 ? 'bg-emerald-500 text-black shadow font-black'
                 : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
@@ -708,7 +737,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
               setActiveFocusColumn('channels');
             }}
             tabIndex={0}
-            className={`w-full text-left px-4 py-3.5 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer flex items-center justify-between ${
+            className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
               selectedCategory === 'favorites'
                 ? 'bg-amber-400 text-black shadow font-black'
                 : 'text-amber-300 hover:bg-[#1b2234]'
@@ -719,10 +748,10 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
             }`}
           >
             <div className="flex items-center gap-2">
-              <Star className="w-5 h-5 fill-current text-amber-400" />
+              <Star className="w-6 h-6 fill-current text-amber-400" />
               <span>Meus Favoritos</span>
             </div>
-            <span className="font-mono text-sm px-2.5 py-0.5 rounded-lg bg-black/40 font-black">
+            <span className="font-mono text-sm px-3 py-1 rounded-lg bg-black/40 font-black">
               {favorites.length}
             </span>
           </button>
@@ -743,7 +772,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                   setActiveFocusColumn('channels');
                 }}
                 tabIndex={0}
-                className={`w-full text-left px-4 py-3.5 rounded-2xl text-base md:text-lg font-bold transition truncate cursor-pointer ${
+                className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition truncate cursor-pointer ${
                   isSelected
                     ? 'bg-emerald-500 text-black font-black shadow'
                     : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'

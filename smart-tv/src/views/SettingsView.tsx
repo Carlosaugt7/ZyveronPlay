@@ -51,7 +51,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setFocusedBtnIdx((prev) => Math.max(0, prev - 1));
     },
     onDown: () => {
-      setFocusedBtnIdx((prev) => Math.min(2, prev + 1));
+      setFocusedBtnIdx((prev) => Math.min(3, prev + 1));
     },
     onLeft: () => {
       if (onBackToHome) {
@@ -62,10 +62,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     },
     onSelect: () => {
       if (focusedBtnIdx === 0) {
-        handleSync();
+        onBackToHome?.();
       } else if (focusedBtnIdx === 1) {
-        handleClearCache();
+        handleSync();
       } else if (focusedBtnIdx === 2) {
+        handleClearCache();
+      } else if (focusedBtnIdx === 3) {
         onResetDevice();
       }
     },
@@ -77,7 +79,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       }
     },
     disabled: !isFocusedContent
-  }, [focusedBtnIdx, isFocusedContent, onSyncContent, onResetDevice]);
+  }, [focusedBtnIdx, isFocusedContent, onSyncContent, onResetDevice, onBackToHome]);
 
   return (
     <div className={`w-full h-full p-8 bg-[#0a0d14] overflow-y-auto select-none transition-all ${
@@ -99,10 +101,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <button
               type="button"
               onClick={onBackToHome}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-sky-600 text-xs font-bold text-slate-200 hover:text-white transition cursor-pointer"
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-black transition cursor-pointer shadow-lg ${
+                isFocusedContent && focusedBtnIdx === 0
+                  ? 'bg-emerald-400 text-black ring-4 ring-emerald-300 scale-105 shadow-2xl shadow-emerald-500/40'
+                  : 'bg-slate-800 hover:bg-sky-600 text-slate-200 hover:text-white border border-slate-700'
+              }`}
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Voltar ao Início</span>
+              <ArrowLeft className="w-5 h-5" />
+              <span>Voltar ao Início [OK]</span>
             </button>
           )}
         </div>
@@ -154,7 +160,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
           <div className="space-y-4">
             <div className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
-              isFocusedContent && focusedBtnIdx === 0
+              isFocusedContent && focusedBtnIdx === 1
                 ? 'bg-emerald-500/20 border-emerald-400 ring-4 ring-emerald-400/40'
                 : 'bg-[#1b2234]/50 border-slate-800'
             }`}>
@@ -165,7 +171,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <button
                 onClick={handleSync}
                 className={`px-4 py-2 font-semibold rounded-lg flex items-center gap-2 text-sm transition cursor-pointer ${
-                  isFocusedContent && focusedBtnIdx === 0
+                  isFocusedContent && focusedBtnIdx === 1
                     ? 'bg-emerald-400 text-black shadow-lg shadow-emerald-400/40 ring-2 ring-emerald-300'
                     : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                 }`}
@@ -176,7 +182,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             <div className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
-              isFocusedContent && focusedBtnIdx === 1
+              isFocusedContent && focusedBtnIdx === 2
                 ? 'bg-emerald-500/20 border-emerald-400 ring-4 ring-emerald-400/40'
                 : 'bg-[#1b2234]/50 border-slate-800'
             }`}>
@@ -187,7 +193,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <button
                 onClick={handleClearCache}
                 className={`px-4 py-2 font-semibold rounded-lg flex items-center gap-2 text-sm transition cursor-pointer ${
-                  isFocusedContent && focusedBtnIdx === 1
+                  isFocusedContent && focusedBtnIdx === 2
                     ? 'bg-emerald-400 text-black shadow-lg shadow-emerald-400/40 ring-2 ring-emerald-300'
                     : 'bg-slate-800 hover:bg-slate-700 text-white'
                 }`}
@@ -198,7 +204,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             <div className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
-              isFocusedContent && focusedBtnIdx === 2
+              isFocusedContent && focusedBtnIdx === 3
                 ? 'bg-red-500/20 border-red-400 ring-4 ring-red-400/40'
                 : 'bg-[#1b2234]/50 border-red-900/30'
             }`}>
@@ -209,7 +215,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <button
                 onClick={onResetDevice}
                 className={`px-4 py-2 font-semibold rounded-lg text-sm transition cursor-pointer ${
-                  isFocusedContent && focusedBtnIdx === 2
+                  isFocusedContent && focusedBtnIdx === 3
                     ? 'bg-red-500 text-white shadow-lg shadow-red-500/40 ring-2 ring-red-300'
                     : 'bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/30'
                 }`}

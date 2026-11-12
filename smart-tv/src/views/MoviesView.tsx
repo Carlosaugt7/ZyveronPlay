@@ -297,14 +297,16 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         stopPlaying();
         return;
       }
-      if (activeFocusColumn === 'details') {
+      if (activeFocusColumn === 'details' || selectedMovieForDetails) {
         closeMovieDetails();
-      } else if (activeFocusColumn === 'grid') {
-        setActiveFocusColumn('categories');
-      } else if (activeFocusColumn === 'categories') {
-        if (onBackToHome) {
-          onBackToHome();
-        }
+        return;
+      }
+      onBackToHome?.();
+    },
+    onGreen: () => {
+      const targetMovie = selectedMovieForDetails || displayedMovies[selectedMovieIdx];
+      if (targetMovie) {
+        handleToggleFav(targetMovie.stream_id);
       }
     },
     disabled: !isFocusedContent
@@ -319,7 +321,8 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     displayedCount,
     categories,
     selectedMovieForDetails,
-    isFocusedContent
+    isFocusedContent,
+    onBackToHome
   ]);
 
   // Player de Vídeo em Tela Cheia (VOD com Seekbar)
@@ -346,19 +349,19 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   return (
     <div className="w-full h-full flex bg-[#0a0d14] overflow-hidden select-none relative">
       {/* Coluna de Gêneros/Categorias (Fonte Grande para Idosos e TVs) */}
-      <div className={`w-80 lg:w-88 h-full bg-[#121722]/90 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 shrink-0 ${
+      <div className={`w-84 lg:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 shrink-0 ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>
         <div className="flex items-center justify-between mb-4 px-1">
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+          <h2 className="text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
             <span>GÊNEROS VOD</span>
-            <span className="text-sky-400 font-mono text-xs">({categories.length + 1})</span>
+            <span className="text-sky-400 font-mono text-sm">({categories.length + 1})</span>
           </h2>
           {onBackToHome && (
             <button
               type="button"
               onClick={onBackToHome}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-sky-600 text-xs font-bold text-slate-200 hover:text-white transition cursor-pointer border border-slate-700"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-sky-600 text-xs font-black text-slate-200 hover:text-white transition cursor-pointer border border-slate-700 shadow"
               title="Voltar para a Home"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -373,7 +376,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
             <span className="text-base font-semibold">Carregando gêneros...</span>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
             {/* Categoria 1: Meus Favoritos */}
             <button
               ref={selectedCategoryIdx === 0 ? activeCategoryBtnRef : null}
@@ -383,7 +386,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                 setSelectedCategoryIdx(0);
                 setActiveFocusColumn('grid');
               }}
-              className={`w-full text-left px-4 py-3.5 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer flex items-center justify-between ${
+              className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
                 selectedCategory === 'favorites'
                   ? 'bg-amber-400 text-black shadow font-black'
                   : 'text-amber-300 hover:bg-[#1b2234]'
@@ -394,10 +397,10 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
               }`}
             >
               <div className="flex items-center gap-2">
-                <Star className="w-5 h-5 fill-current text-amber-400" />
+                <Star className="w-6 h-6 fill-current text-amber-400" />
                 <span>Meus Favoritos</span>
               </div>
-              <span className="font-mono text-sm px-2.5 py-0.5 rounded-lg bg-black/40 font-black">
+              <span className="font-mono text-sm px-3 py-1 rounded-lg bg-black/40 font-black">
                 {favorites.length}
               </span>
             </button>
@@ -419,7 +422,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                     setSelectedCategoryIdx(thisIdx);
                     setActiveFocusColumn('grid');
                   }}
-                  className={`w-full text-left px-4 py-3.5 rounded-2xl text-base md:text-lg font-bold transition truncate cursor-pointer ${
+                  className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition truncate cursor-pointer ${
                     isSelected
                       ? 'bg-emerald-500 text-black font-black shadow'
                       : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'

@@ -142,70 +142,65 @@ export const HomeView: React.FC<HomeViewProps> = ({
   // Controle Remoto: Navegação Espacial (D-Pad)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'ArrowUp':
-          e.preventDefault();
-          setFocusedId((prev) => {
-            if (prev === 2) return 0; // Séries -> TV ao Vivo
-            if (prev === 3) return 1; // Esportes -> Filmes
-            if (prev >= 20 && prev <= 29) return prev - 10; // Séries Carousel -> VOD Carousel
-            if (prev >= 10 && prev <= 19) return 1; // VOD Carousel -> Filmes Card
-            if (prev === 30 || prev === 31) return 2; // Bottom -> Séries Card
-            return prev;
-          });
-          break;
+      const key = e.key;
+      const code = e.keyCode;
+      const isUp = key === 'ArrowUp' || key === 'Up' || code === 38;
+      const isDown = key === 'ArrowDown' || key === 'Down' || code === 40;
+      const isLeft = key === 'ArrowLeft' || key === 'Left' || code === 37;
+      const isRight = key === 'ArrowRight' || key === 'Right' || code === 39;
+      const isEnter = key === 'Enter' || key === 'Return' || key === 'Select' || key === 'Ok' || key === 'OK' || code === 13;
 
-        case 'ArrowDown':
-          e.preventDefault();
-          setFocusedId((prev) => {
-            if (prev === 0) return 2; // TV ao Vivo -> Séries
-            if (prev === 1) return 3; // Filmes -> Esportes
-            if (prev === 2 || prev === 3) return 30; // Séries/Esportes -> Sincronizar
-            if (prev >= 10 && prev <= 19) return Math.min(20 + featuredSeries.length - 1, prev + 10); // VOD Carousel -> Séries Carousel
-            if (prev >= 20 && prev <= 29) return 31; // Séries Carousel -> Ajustes
-            return prev;
-          });
-          break;
-
-        case 'ArrowLeft':
-          e.preventDefault();
-          setFocusedId((prev) => {
-            if (prev === 1) return 0; // Filmes -> TV ao Vivo
-            if (prev === 3) return 2; // Esportes -> Séries
-            if (prev === 31) return 30; // Ajustes -> Sincronizar
-            if (prev >= 10 && prev <= 19) {
-              if (prev === 10) return 1; // Primeiro do VOD -> Filmes Card
-              return prev - 1;
-            }
-            if (prev >= 20 && prev <= 29) {
-              if (prev === 20) return 3; // Primeiro das Séries -> Esportes Card
-              return prev - 1;
-            }
-            return prev;
-          });
-          break;
-
-        case 'ArrowRight':
-          e.preventDefault();
-          setFocusedId((prev) => {
-            if (prev === 0) return 1; // TV ao Vivo -> Filmes
-            if (prev === 2) return 3; // Séries -> Esportes
-            if (prev === 1) return 10; // Filmes -> Primeiro VOD Carousel
-            if (prev === 3) return 20; // Esportes -> Primeiro Séries Carousel
-            if (prev === 30) return 31; // Sincronizar -> Ajustes
-            if (prev >= 10 && prev < 19 && prev - 10 < featuredVods.length - 1) return prev + 1;
-            if (prev >= 20 && prev < 29 && prev - 20 < featuredSeries.length - 1) return prev + 1;
-            return prev;
-          });
-          break;
-
-        case 'Enter':
-          e.preventDefault();
-          triggerAction(focusedId);
-          break;
-
-        default:
-          break;
+      if (isUp) {
+        e.preventDefault();
+        setFocusedId((prev) => {
+          if (prev === 2) return 0; // Séries -> TV ao Vivo
+          if (prev === 3) return 1; // Esportes -> Filmes
+          if (prev >= 20 && prev <= 29) return prev - 10; // Séries Carousel -> VOD Carousel
+          if (prev >= 10 && prev <= 19) return 1; // VOD Carousel -> Filmes Card
+          if (prev === 30 || prev === 31) return 2; // Bottom -> Séries Card
+          return prev;
+        });
+      } else if (isDown) {
+        e.preventDefault();
+        setFocusedId((prev) => {
+          if (prev === 0) return 2; // TV ao Vivo -> Séries
+          if (prev === 1) return 3; // Filmes -> Esportes
+          if (prev === 2 || prev === 3) return 30; // Séries/Esportes -> Sincronizar
+          if (prev >= 10 && prev <= 19) return Math.min(20 + featuredSeries.length - 1, prev + 10); // VOD Carousel -> Séries Carousel
+          if (prev >= 20 && prev <= 29) return 31; // Séries Carousel -> Ajustes
+          return prev;
+        });
+      } else if (isLeft) {
+        e.preventDefault();
+        setFocusedId((prev) => {
+          if (prev === 1) return 0; // Filmes -> TV ao Vivo
+          if (prev === 3) return 2; // Esportes -> Séries
+          if (prev === 31) return 30; // Ajustes -> Sincronizar
+          if (prev >= 10 && prev <= 19) {
+            if (prev === 10) return 1; // Primeiro do VOD -> Filmes Card
+            return prev - 1;
+          }
+          if (prev >= 20 && prev <= 29) {
+            if (prev === 20) return 3; // Primeiro das Séries -> Esportes Card
+            return prev - 1;
+          }
+          return prev;
+        });
+      } else if (isRight) {
+        e.preventDefault();
+        setFocusedId((prev) => {
+          if (prev === 0) return 1; // TV ao Vivo -> Filmes
+          if (prev === 2) return 3; // Séries -> Esportes
+          if (prev === 1) return 10; // Filmes -> Primeiro VOD Carousel
+          if (prev === 3) return 20; // Esportes -> Primeiro Séries Carousel
+          if (prev === 30) return 31; // Sincronizar -> Ajustes
+          if (prev >= 10 && prev < 19 && prev - 10 < featuredVods.length - 1) return prev + 1;
+          if (prev >= 20 && prev < 29 && prev - 20 < featuredSeries.length - 1) return prev + 1;
+          return prev;
+        });
+      } else if (isEnter) {
+        e.preventDefault();
+        triggerAction(focusedId);
       }
     };
 
