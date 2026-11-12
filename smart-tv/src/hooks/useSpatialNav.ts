@@ -24,6 +24,24 @@ export function isBackKeyEvent(e: KeyboardEvent): boolean {
   const code = e.keyCode || e.which;
   const key = (e.key || '').toLowerCase();
 
+  // 1. Enter / OK nunca é voltar!
+  if (
+    code === 13 ||
+    key === 'enter' ||
+    key === 'ok' ||
+    key === 'select' ||
+    key === 'execute'
+  ) {
+    return false;
+  }
+
+  // 2. Se estiver focado em um input/textarea, Backspace deve apenas apagar texto, não voltar tela
+  const target = e.target as HTMLElement;
+  const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+  if (isInput && (key === 'backspace' || code === 8)) {
+    return false;
+  }
+
   return (
     key === 'escape' ||
     key === 'backspace' ||
@@ -34,9 +52,8 @@ export function isBackKeyEvent(e: KeyboardEvent): boolean {
     key === 'cancel' ||
     key === 'uireturn' ||
     key === 'xf86back' ||
-    (key === 'return' && code !== 13) ||
     code === 27 || // Escape
-    code === 8 || // Backspace
+    code === 8 || // Backspace (fora de input)
     code === 4 || // Android TV / Fire TV KEYCODE_BACK
     code === 166 || // Windows / Chrome BrowserBack
     code === 10009 || // Samsung Tizen Return
@@ -128,7 +145,7 @@ if (typeof window !== 'undefined') {
     } catch {}
   });
 
-  // 7. Interceptação Global das teclas físicas de Voltar (keydown e keyup com capture)
+  // 7. Interceptação Global das teclas físicas de Voltar (apenas keydown aciona ação)
   const handleGlobalBackKeyEvent = (e: KeyboardEvent) => {
     if (isBackKeyEvent(e)) {
       e.preventDefault();
@@ -138,7 +155,12 @@ if (typeof window !== 'undefined') {
   };
 
   window.addEventListener('keydown', handleGlobalBackKeyEvent, { capture: true });
-  window.addEventListener('keyup', handleGlobalBackKeyEvent, { capture: true });
+  window.addEventListener('keyup', (e: KeyboardEvent) => {
+    if (isBackKeyEvent(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, { capture: true });
 
   // 8. Garante camada de histórico para o WebView nunca fechar o app diretamente
   try {
@@ -198,10 +220,18 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (handlers.disabled) return;
 
+    // Se estiver digitando em input ou textarea, não interceptar setas nem navegação do teclado
+    const target = e.target as HTMLElement;
+    const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+
     // Se for tecla de voltar, o listener global cuida
     if (isBackKeyEvent(e)) {
       e.preventDefault();
       e.stopPropagation();
+      return;
+    }
+
+    if (isInput) {
       return;
     }
 
@@ -210,38 +240,48 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
     let handled = false;
 
     // Seta para Cima (38)
-    if (key === 'ArrowUp' || code === 38) {
-      handled = true;
-      handlers.onUp?.();
+    if (key === 'ArrowUp' || code === 38 || key === 'Up') {
+      if (handlers.onUp) {
+        handled = true;
+        handlers.onUp();
+      }
     }
     // Seta para Baixo (40)
-    else if (key === 'ArrowDown' || code === 40) {
-      handled = true;
-      handlers.onDown?.();
+    else if (key === 'ArrowDown' || code === 40 || key === 'Down') {
+      if (handlers.onDown) {
+        handled = true;
+        handlers.onDown();
+      }
     }
     // Seta para Esquerda (37)
-    else if (key === 'ArrowLeft' || code === 37) {
-      handled = true;
-      handlers.onLeft?.();
+    else if (key === 'ArrowLeft' || code === 37 || key === 'Left') {
+      if (handlers.onLeft) {
+        handled = true;
+        handlers.onLeft();
+      }
     }
     // Seta para Direita (39)
-    else if (key === 'ArrowRight' || code === 39) {
-      handled = true;
-      handlers.onRight?.();
+    else if (key === 'ArrowRight' || code === 39 || key === 'Right') {
+      if (handlers.onRight) {
+        handled = true;
+        handlers.onRight();
+      }
     }
     // Seleção / OK / Enter (13)
-    else if (key === 'Enter' || code === 13) {
-      handled = true;
-      if (handlers.onLongSelect) {
-        if (!e.repeat && !longPressTimerRef.current) {
-          isLongPressTriggeredRef.current = false;
-          longPressTimerRef.current = setTimeout(() => {
-            isLongPressTriggeredRef.current = true;
-            handlers.onLongSelect?.();
-          }, 1500);
+    else if (key === 'Enter' || code === 13 || key === 'Ok' || key === 'OK' || key === 'Select') {
+      if (handlers.onSelect || handlers.onLongSelect) {
+        handled = true;
+        if (handlers.onLongSelect) {
+          if (!e.repeat && !longPressTimerRef.current) {
+            isLongPressTriggeredRef.current = false;
+            longPressTimerRef.current = setTimeout(() => {
+              isLongPressTriggeredRef.current = true;
+              handlers.onLongSelect?.();
+            }, 1500);
+          }
+        } else {
+          handlers.onSelect?.();
         }
-      } else {
-        handlers.onSelect?.();
       }
     }
     // Botão Verde (ColorF1Green / 404 / 'g')
@@ -252,8 +292,10 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
       code === 10072 || 
       (!e.ctrlKey && !e.altKey && (key === 'g' || key === 'G'))
     ) {
-      handled = true;
-      handlers.onGreen?.();
+      if (handlers.onGreen) {
+        handled = true;
+        handlers.onGreen();
+      }
     }
     // Botão Amarelo (ColorF2Yellow / 405 / 'y' / 'f')
     else if (
@@ -263,8 +305,10 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
       code === 10073 || 
       (!e.ctrlKey && !e.altKey && (key === 'y' || key === 'Y' || key === 'f' || key === 'F'))
     ) {
-      handled = true;
-      handlers.onYellow?.();
+      if (handlers.onYellow) {
+        handled = true;
+        handlers.onYellow();
+      }
     }
     // Botão Vermelho (ColorF0Red / 403 / 'r')
     else if (
@@ -274,8 +318,10 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
       code === 10071 || 
       (!e.ctrlKey && !e.altKey && (key === 'r' || key === 'R'))
     ) {
-      handled = true;
-      handlers.onRed?.();
+      if (handlers.onRed) {
+        handled = true;
+        handlers.onRed();
+      }
     }
     // Botão Azul (ColorF3Blue / 406 / 'b')
     else if (
@@ -285,30 +331,36 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
       code === 10074 || 
       (!e.ctrlKey && !e.altKey && (key === 'b' || key === 'B'))
     ) {
-      handled = true;
-      handlers.onBlue?.();
+      if (handlers.onBlue) {
+        handled = true;
+        handlers.onBlue();
+      }
     }
     // Play / Pause (LG: 415, 19 | Tizen: 415, 19, 10252)
     else if (code === 415 || code === 19 || code === 10252 || key === 'MediaPlayPause') {
-      handled = true;
-      handlers.onPlayPause?.();
+      if (handlers.onPlayPause) {
+        handled = true;
+        handlers.onPlayPause();
+      }
     }
     // Canal + (33)
     else if (code === 33 || key === 'ChannelUp') {
-      handled = true;
       if (handlers.onChannelUp) {
+        handled = true;
         handlers.onChannelUp();
-      } else {
-        handlers.onUp?.();
+      } else if (handlers.onUp) {
+        handled = true;
+        handlers.onUp();
       }
     }
     // Canal - (34)
     else if (code === 34 || key === 'ChannelDown') {
-      handled = true;
       if (handlers.onChannelDown) {
+        handled = true;
         handlers.onChannelDown();
-      } else {
-        handlers.onDown?.();
+      } else if (handlers.onDown) {
+        handled = true;
+        handlers.onDown();
       }
     }
 
@@ -324,7 +376,7 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
     const code = e.keyCode || e.which;
     const key = e.key;
 
-    if (key === 'Enter' || code === 13) {
+    if (key === 'Enter' || code === 13 || key === 'Ok' || key === 'OK') {
       if (longPressTimerRef.current) {
         clearTimeout(longPressTimerRef.current);
         longPressTimerRef.current = null;
@@ -339,11 +391,11 @@ export function useSpatialNav(handlers: SpatialNavHandler, deps: any[] = []) {
   }, [handlers.disabled, handlers.onSelect, handlers.onLongSelect]);
 
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown, { capture: true });
-    window.addEventListener('keyup', handleKeyUp, { capture: true });
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown, { capture: true });
-      window.removeEventListener('keyup', handleKeyUp, { capture: true });
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
     };
   }, [handleKeyDown, handleKeyUp]);
 }

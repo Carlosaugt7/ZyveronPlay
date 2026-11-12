@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
-import { triggerGlobalBack, isBackKeyEvent } from './hooks/useSpatialNav';
+import { triggerGlobalBack } from './hooks/useSpatialNav';
 
 // Detecção IMEDIATA de Smart TV
 const isSmartTv = /(web0s|webos|tizen|smarttv|smart-tv|viera|bravia|netcast|crkey)/i.test(navigator.userAgent);
@@ -39,34 +39,15 @@ if (isSmartTv) {
   document.documentElement.classList.add('smart-tv');
   document.body.classList.add('smart-tv');
   
-  // Intercepta teclas de navegação física e Voltar no nível de janela
+  // Previne rolagem padrão da página nas setas se não for campo de input
   window.addEventListener('keydown', (e) => {
-    // Se o usuário estiver digitando em um campo de busca/input, deixa as setas funcionarem no texto
     const target = e.target as HTMLElement;
     const isInputFocused = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
-
-    if (isBackKeyEvent(e)) {
-      console.log('[Zyveron] 🛑 Tecla Voltar interceptada em main.tsx');
-      e.preventDefault();
-      e.stopPropagation();
-      triggerGlobalBack();
-      return;
-    }
-    
-    // Previne rolagem padrão do navegador nas setas se não for campo de input
     const code = e.keyCode || e.which;
     if (!isInputFocused && ([37, 38, 39, 40].includes(code) || (e.key && e.key.startsWith('Arrow')))) {
       e.preventDefault();
     }
-  }, { capture: true });
-
-  window.addEventListener('keyup', (e) => {
-    if (isBackKeyEvent(e)) {
-      e.preventDefault();
-      e.stopPropagation();
-      triggerGlobalBack();
-    }
-  }, { capture: true });
+  });
 
   // Força foco após tudo carregar
   const forceFocus = () => {
@@ -87,12 +68,6 @@ if (isSmartTv) {
   }
 } else {
   console.log('[Zyveron] Modo Desktop / Navegador ativado');
-  
-  window.addEventListener('keydown', (e) => {
-    if (isBackKeyEvent(e)) {
-      triggerGlobalBack();
-    }
-  }, { capture: true });
 }
 
 console.log('[Zyveron] ========== INICIALIZANDO APP ==========');
