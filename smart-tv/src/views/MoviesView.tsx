@@ -3,8 +3,8 @@ import { XtreamClient } from '../lib/xtream';
 import { XtreamCategory, XtreamVod } from '../types';
 import { Player } from '../components/Player';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Film, Play, Star, Loader2, ArrowLeft, Heart, Clock, Calendar, Info, Search, X, Lock } from 'lucide-react';
-import { getFavorites, toggleFavorite } from '../lib/storage';
+import { Film, Play, Star, Loader2, ArrowLeft, Heart, Clock, Calendar, Info, Search, X, Lock, History, Sparkles } from 'lucide-react';
+import { getFavorites, toggleFavorite, getRecent, addRecent } from '../lib/storage';
 import { AdultContentHelper } from '../lib/adultContent';
 import { AdultPinModal } from '../components/AdultPinModal';
 
@@ -30,6 +30,9 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('favorites');
   const [selectedCategoryIdx, setSelectedCategoryIdx] = useState<number>(0);
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
+  const [totalMoviesCount, setTotalMoviesCount] = useState<number>(0);
+  const [recentMovieIds, setRecentMovieIds] = useState<number[]>(() => getRecent('vod'));
   const [allMovies, setAllMovies] = useState<XtreamVod[]>([]);
   const [displayedCount, setDisplayedCount] = useState<number>(BATCH_SIZE);
   const [selectedMovieIdx, setSelectedMovieIdx] = useState<number>(0);
@@ -47,8 +50,8 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   const [selectedMovie, setSelectedMovie] = useState<XtreamVod | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
-  // Coluna em foco: 'categories' | 'grid' | 'details'
-  const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid' | 'details'>('categories');
+  // Coluna em foco: 'categories' | 'grid' | 'details' | 'search'
+  const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid' | 'details' | 'search'>('categories');
 
   // Proteção Parental (+18)
   const [showAdultPinModal, setShowAdultPinModal] = useState<boolean>(false);
@@ -57,6 +60,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
   const activeMovieBtnRef = useRef<HTMLButtonElement>(null);
   const activeDetailBtnRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -70,10 +74,11 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     return allMovies.filter((m) => m.name.toLowerCase().includes(q)).slice(0, displayedCount);
   }, [allMovies, displayedCount, searchQuery]);
 
-  // Carrega categorias ao iniciar
+  // Carrega categorias e contagens ao iniciar
   useEffect(() => {
     setIsLoadingCats(true);
     setFavorites(getFavorites('vod'));
+    setRecentMovieIds(getRecent('vod'));
     client.getVodCategories()
       .then((rawCats) => {
         if (rawCats && rawCats.length > 0) {
@@ -84,7 +89,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
             setSelectedCategory('favorites');
             setSelectedCategoryIdx(0);
           } else {
-            setSelectedCategory(sortedCats[0].category_id);
+            setSelectedCategory('recently_watched');
             setSelectedCategoryIdx(1);
           }
         } else {
@@ -96,9 +101,24 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         setCategories([]);
       })
       .finally(() => setIsLoadingCats(false));
+
+    // Carrega estatísticas de filmes por categoria
+    client.getVodStreams()
+      .then((allVods) => {
+        if (allVods && Array.isArray(allVods)) {
+          const counts: Record<string, number> = {};
+          allVods.forEach((m) => {
+            const cid = String(m.category_id);
+            counts[cid] = (counts[cid] || 0) + 1;
+          });
+          setCategoryCounts(counts);
+          setTotalMoviesCount(allVods.length);
+        }
+      })
+      .catch((err) => console.warn("[Movies] Erro ao carregar contagens:", err));
   }, [client]);
 
-  // Carrega filmes da categoria selecionada ou filtra favoritos
+  // Carrega filmes da categoria selecionada ou filtra favoritos/recentes/lançamentos
   useEffect(() => {
     if (!selectedCategory) return;
     
@@ -110,11 +130,60 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       client.getVodStreams()
         .then((data) => {
           const all = data || [];
-          const favs = all.filter((m) => favorites.includes(m.stream_id));
+          const seen = new Set<number>();
+          const favs: XtreamVod[] = [];
+          all.forEach((m) => {
+            const sid = Number(m.stream_id);
+            if (favorites.includes(sid) && !seen.has(sid)) {
+              seen.add(sid);
+              favs.push(m);
+            }
+          });
           setAllMovies(favs);
         })
         .catch((err) => {
           console.error("[Movies] Erro ao carregar filmes favoritos:", err);
+          setAllMovies([]);
+        })
+        .finally(() => setIsLoadingMovies(false));
+    } else if (selectedCategory === 'recently_watched') {
+      const recents = getRecent('vod');
+      setRecentMovieIds(recents);
+      client.getVodStreams()
+        .then((data) => {
+          const all = data || [];
+          const movieMap = new Map<number, XtreamVod>();
+          all.forEach((m) => movieMap.set(Number(m.stream_id), m));
+          const list: XtreamVod[] = [];
+          const seen = new Set<number>();
+          recents.forEach((id) => {
+            const m = movieMap.get(id);
+            if (m && !seen.has(id)) {
+              seen.add(id);
+              list.push(m);
+            }
+          });
+          setAllMovies(list);
+        })
+        .catch((err) => {
+          console.error("[Movies] Erro ao carregar filmes recentes:", err);
+          setAllMovies([]);
+        })
+        .finally(() => setIsLoadingMovies(false));
+    } else if (selectedCategory === 'recently_added') {
+      client.getVodStreams()
+        .then((data) => {
+          const all = [...(data || [])];
+          all.sort((a, b) => {
+            const tA = a.added ? new Date(a.added).getTime() : 0;
+            const tB = b.added ? new Date(b.added).getTime() : 0;
+            if (tB !== tA) return tB - tA;
+            return Number(b.stream_id) - Number(a.stream_id);
+          });
+          setAllMovies(all.slice(0, 100));
+        })
+        .catch((err) => {
+          console.error("[Movies] Erro ao carregar recém adicionados:", err);
           setAllMovies([]);
         })
         .finally(() => setIsLoadingMovies(false));
@@ -170,6 +239,8 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         activeMovieBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       } else if (activeFocusColumn === 'details' && activeDetailBtnRef.current) {
         activeDetailBtnRef.current.focus();
+      } else if (activeFocusColumn === 'search' && searchInputRef.current) {
+        searchInputRef.current.focus();
       }
     }
   }, [selectedCategoryIdx, selectedMovieIdx, detailsButtonIdx, activeFocusColumn, isFocusedContent, isPlaying, displayedMovies.length]);
@@ -230,6 +301,8 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   };
 
   const startPlaying = (movie: XtreamVod) => {
+    addRecent(movie.stream_id, 'vod');
+    setRecentMovieIds(getRecent('vod'));
     setSelectedMovie(movie);
     setIsPlaying(true);
     onFullScreenChange?.(true);
@@ -247,14 +320,22 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       if (activeFocusColumn === 'categories') {
         setSelectedCategoryIdx((prev) => Math.max(0, prev - 1));
       } else if (activeFocusColumn === 'grid') {
-        setSelectedMovieIdx((prev) => Math.max(0, prev - 5));
+        if (selectedMovieIdx < 5) {
+          setActiveFocusColumn('search');
+          searchInputRef.current?.focus();
+        } else {
+          setSelectedMovieIdx((prev) => Math.max(0, prev - 5));
+        }
       }
     },
     onDown: () => {
       if (isPlaying) return;
-      if (activeFocusColumn === 'categories') {
-        // total = 1 (Favoritos) + categories.length
-        setSelectedCategoryIdx((prev) => Math.min(categories.length, prev + 1));
+      if (activeFocusColumn === 'search') {
+        setActiveFocusColumn('grid');
+        searchInputRef.current?.blur();
+      } else if (activeFocusColumn === 'categories') {
+        // total = 3 especiais (Favoritos, Últimos Assistidos, Recém Adicionados) + categories.length
+        setSelectedCategoryIdx((prev) => Math.min(categories.length + 2, prev + 1));
       } else if (activeFocusColumn === 'grid') {
         setSelectedMovieIdx((prev) => {
           const nextIdx = Math.min(allMovies.length - 1, prev + 5);
@@ -267,7 +348,10 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     },
     onLeft: () => {
       if (isPlaying) return;
-      if (activeFocusColumn === 'details') {
+      if (activeFocusColumn === 'search') {
+        setActiveFocusColumn('categories');
+        searchInputRef.current?.blur();
+      } else if (activeFocusColumn === 'details') {
         setDetailsButtonIdx((prev) => Math.max(0, prev - 1));
       } else if (activeFocusColumn === 'grid') {
         if (selectedMovieIdx % 5 === 0 || displayedMovies.length === 0) {
@@ -298,6 +382,10 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     },
     onSelect: () => {
       if (isPlaying) return;
+      if (activeFocusColumn === 'search') {
+        searchInputRef.current?.focus();
+        return;
+      }
       if (activeFocusColumn === 'details') {
         if (detailsButtonIdx === 0 && selectedMovieForDetails) {
           startPlaying(selectedMovieForDetails);
@@ -310,8 +398,14 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         if (selectedCategoryIdx === 0) {
           setSelectedCategory('favorites');
           setActiveFocusColumn('grid');
-        } else if (categories[selectedCategoryIdx - 1]) {
-          const cat = categories[selectedCategoryIdx - 1];
+        } else if (selectedCategoryIdx === 1) {
+          setSelectedCategory('recently_watched');
+          setActiveFocusColumn('grid');
+        } else if (selectedCategoryIdx === 2) {
+          setSelectedCategory('recently_added');
+          setActiveFocusColumn('grid');
+        } else if (categories[selectedCategoryIdx - 3]) {
+          const cat = categories[selectedCategoryIdx - 3];
           handleCategoryClick(cat.category_id, selectedCategoryIdx, cat.category_name);
         }
       } else if (activeFocusColumn === 'grid' && displayedMovies[selectedMovieIdx]) {
@@ -332,9 +426,23 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         closeMovieDetails();
         return;
       }
+      if (activeFocusColumn === 'search') {
+        if (searchQuery) {
+          setSearchQuery('');
+        } else {
+          setActiveFocusColumn('grid');
+        }
+        return;
+      }
       onBackToHome?.();
     },
     onGreen: () => {
+      const targetMovie = selectedMovieForDetails || displayedMovies[selectedMovieIdx];
+      if (targetMovie) {
+        handleToggleFav(targetMovie.stream_id);
+      }
+    },
+    onYellow: () => {
       const targetMovie = selectedMovieForDetails || displayedMovies[selectedMovieIdx];
       if (targetMovie) {
         handleToggleFav(targetMovie.stream_id);
@@ -388,7 +496,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         <div className="flex items-center justify-between mb-4 px-1">
           <h2 className="text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
             <span>GÊNEROS VOD</span>
-            <span className="text-sky-400 font-mono text-sm">({categories.length + 1})</span>
+            <span className="text-sky-400 font-mono text-sm">({categories.length + 3})</span>
           </h2>
           {onBackToHome && (
             <button
@@ -438,9 +546,65 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
               </span>
             </button>
 
+            {/* Categoria 2: Últimos Assistidos */}
+            <button
+              ref={selectedCategoryIdx === 1 ? activeCategoryBtnRef : null}
+              tabIndex={0}
+              onClick={() => {
+                setSelectedCategory('recently_watched');
+                setSelectedCategoryIdx(1);
+                setActiveFocusColumn('grid');
+              }}
+              className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
+                selectedCategory === 'recently_watched'
+                  ? 'bg-sky-400 text-black shadow font-black'
+                  : 'text-sky-300 hover:bg-[#1b2234]'
+              } ${
+                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 1
+                  ? 'ring-4 ring-sky-300 shadow-2xl scale-102 font-black outline-none bg-sky-400 text-black'
+                  : ''
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <History className="w-6 h-6 text-sky-400" />
+                <span>Últimos Assistidos</span>
+              </div>
+              <span className="font-mono text-sm px-3 py-1 rounded-lg bg-black/40 font-black">
+                {recentMovieIds.length}
+              </span>
+            </button>
+
+            {/* Categoria 3: Recém Adicionados */}
+            <button
+              ref={selectedCategoryIdx === 2 ? activeCategoryBtnRef : null}
+              tabIndex={0}
+              onClick={() => {
+                setSelectedCategory('recently_added');
+                setSelectedCategoryIdx(2);
+                setActiveFocusColumn('grid');
+              }}
+              className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
+                selectedCategory === 'recently_added'
+                  ? 'bg-emerald-400 text-black shadow font-black'
+                  : 'text-emerald-300 hover:bg-[#1b2234]'
+              } ${
+                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 2
+                  ? 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
+                  : ''
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-6 h-6 text-emerald-400" />
+                <span>Recém Adicionados</span>
+              </div>
+              <span className="font-mono text-sm px-3 py-1 rounded-lg bg-black/40 font-black">
+                {Math.min(100, totalMoviesCount)}
+              </span>
+            </button>
+
             {/* Categorias da API Xtream */}
             {categories.map((cat, catIdx) => {
-              const thisIdx = catIdx + 1;
+              const thisIdx = catIdx + 3;
               const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === thisIdx;
               const isSelected = selectedCategory === cat.category_id;
               const isAdult = AdultContentHelper.isAdultCategory(cat.category_name);
@@ -464,8 +628,19 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                       : ''
                   }`}
                 >
-                  <span className="truncate">{cat.category_name}</span>
-                  {isAdult && <Lock className="w-4 h-4 ml-2 shrink-0 opacity-80" />}
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="truncate">{cat.category_name}</span>
+                    {isAdult && <Lock className="w-4 h-4 ml-1 shrink-0 opacity-80" />}
+                  </div>
+                  <span className={`font-mono text-xs md:text-sm px-2.5 py-0.5 rounded-lg ml-2 shrink-0 ${
+                    isCatFocused
+                      ? 'bg-black/30 text-black'
+                      : isSelected
+                      ? 'bg-black/40 text-white'
+                      : 'bg-slate-800/80 text-slate-400'
+                  }`}>
+                    {categoryCounts[cat.category_id] ?? 0}
+                  </span>
                 </button>
               );
             })}
@@ -495,14 +670,22 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
 
           <div className="flex items-center gap-4">
             {/* Campo de Busca Rápida de Filmes */}
-            <div className="relative w-72 md:w-80">
+            <div className={`relative w-72 md:w-80 transition-all ${
+              isFocusedContent && activeFocusColumn === 'search' ? 'ring-4 ring-emerald-400 rounded-xl' : ''
+            }`}>
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Buscar filme por título..."
                 value={searchQuery}
+                onFocus={() => setActiveFocusColumn('search')}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 bg-[#121722] border border-slate-700/80 rounded-xl text-xs md:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-emerald-400 transition"
+                className={`w-full pl-9 pr-8 py-2 bg-[#121722] border rounded-xl text-xs md:text-sm text-white placeholder-slate-400 focus:outline-none transition ${
+                  isFocusedContent && activeFocusColumn === 'search'
+                    ? 'border-emerald-400 ring-2 ring-emerald-300'
+                    : 'border-slate-700/80'
+                }`}
               />
               {searchQuery && (
                 <button

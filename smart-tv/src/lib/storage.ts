@@ -11,7 +11,9 @@ const STORAGE_KEYS = {
   FAVORITES: 'zyveron_favorites',
   LAST_CHANNEL: 'zyveron_last_channel',
   SETTINGS: 'zyveron_tv_settings',
-  ACTIVE_DEVICE: 'zyveron_active_device'
+  ACTIVE_DEVICE: 'zyveron_active_device',
+  RECENT_VOD: 'zyveron_recent_vod',
+  RECENT_SERIES: 'zyveron_recent_series'
 };
 
 /**
@@ -80,33 +82,74 @@ export function restoreDeviceIdentity(newMac: string, newDeviceKey: string): boo
 }
 
 /**
- * Gerenciamento de Canais Favoritos
+ * Gerenciamento de Favoritos (Canais, Filmes e Séries)
  */
 export function getFavorites(type: 'live' | 'vod' | 'series' = 'live'): number[] {
   try {
     const raw = localStorage.getItem(`${STORAGE_KEYS.FAVORITES}_${type}`);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return Array.from(new Set(parsed.map((x) => Number(x)).filter((x) => !isNaN(x))));
   } catch {
     return [];
   }
 }
 
-export function toggleFavorite(id: number, type: 'live' | 'vod' | 'series' = 'live'): boolean {
+export function toggleFavorite(id: number | string, type: 'live' | 'vod' | 'series' = 'live'): boolean {
   try {
+    const numId = Number(id);
+    if (isNaN(numId)) return false;
     const favs = getFavorites(type);
-    const index = favs.indexOf(id);
+    const index = favs.indexOf(numId);
     let isNowFav = false;
     if (index >= 0) {
       favs.splice(index, 1);
     } else {
-      favs.push(id);
+      favs.push(numId);
       isNowFav = true;
     }
-    localStorage.setItem(`${STORAGE_KEYS.FAVORITES}_${type}`, JSON.stringify(favs));
+    const uniqueFavs = Array.from(new Set(favs));
+    localStorage.setItem(`${STORAGE_KEYS.FAVORITES}_${type}`, JSON.stringify(uniqueFavs));
     return isNowFav;
   } catch {
     return false;
   }
+}
+
+/**
+ * Gerenciamento de Histórico (Últimos Assistidos)
+ */
+export function getRecent(type: 'vod' | 'series'): number[] {
+  try {
+    const key = type === 'vod' ? STORAGE_KEYS.RECENT_VOD : STORAGE_KEYS.RECENT_SERIES;
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return Array.from(new Set(parsed.map((x) => Number(x)).filter((x) => !isNaN(x))));
+  } catch {
+    return [];
+  }
+}
+
+export function addRecent(id: number | string, type: 'vod' | 'series'): void {
+  try {
+    const numId = Number(id);
+    if (isNaN(numId)) return;
+    const current = getRecent(type).filter((x) => x !== numId);
+    current.unshift(numId); // Coloca o mais recente no topo
+    const trimmed = current.slice(0, 50); // Limita a 50 itens
+    const key = type === 'vod' ? STORAGE_KEYS.RECENT_VOD : STORAGE_KEYS.RECENT_SERIES;
+    localStorage.setItem(key, JSON.stringify(trimmed));
+  } catch {}
+}
+
+export function clearRecent(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.RECENT_VOD);
+    localStorage.removeItem(STORAGE_KEYS.RECENT_SERIES);
+  } catch {}
 }
 
 /**

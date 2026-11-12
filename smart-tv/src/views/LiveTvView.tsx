@@ -8,6 +8,7 @@ import { Star, Tv, Maximize2, Loader2, AlertCircle, ArrowLeft, ChevronLeft, Chev
 import { getFavorites, toggleFavorite } from '../lib/storage';
 import { AdultContentHelper } from '../lib/adultContent';
 import { AdultPinModal } from '../components/AdultPinModal';
+import { sortLiveCategories } from '../lib/categorySorter';
 
 interface LiveTvViewProps {
   client: XtreamClient;
@@ -31,6 +32,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedCategoryIdx, setSelectedCategoryIdx] = useState<number>(0);
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
+  const [totalLiveCount, setTotalLiveCount] = useState<number>(0);
   const [channels, setChannels] = useState<XtreamStream[]>([]);
   const [filteredChannels, setFilteredChannels] = useState<XtreamStream[]>([]);
   const [selectedChannelIdx, setSelectedChannelIdx] = useState<number>(0);
@@ -39,12 +42,12 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
 
   // Guia Unificado em Tela Cheia (Dual-Column: Categorias à Esquerda e Canais à Direita)
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
-  const [guideFocusColumn, setGuideFocusColumn] = useState<'categories' | 'channels'>('channels');
+  const [guideFocusColumn, setGuideFocusColumn] = useState<'categories' | 'channels' | 'search'>('channels');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const [isLoadingChannels, setIsLoadingChannels] = useState<boolean>(true);
   const [favorites, setFavorites] = useState<number[]>(() => getFavorites('live'));
-  const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'channels'>('channels');
+  const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'channels' | 'search'>('channels');
   const [previewConfirmedChannelId, setPreviewConfirmedChannelId] = useState<number | null>(null);
 
   // Controle Parental (PIN 0000 para Conteúdo Adulto)
@@ -109,6 +112,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const backHomeBtnRef = useRef<HTMLButtonElement>(null);
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
   const activeChannelBtnRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const guideSearchInputRef = useRef<HTMLInputElement>(null);
 
   // Notifica o App sobre tela cheia para gerenciar barras do sistema
   const setFullScreenMode = (full: boolean) => {
@@ -136,13 +141,13 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     }
   };
 
-  // Carrega categorias ao iniciar
+  // Carrega categorias e contagens ao iniciar
   useEffect(() => {
     setFavorites(getFavorites('live'));
     client.getLiveCategories()
       .then((rawCats) => {
-        // Ordena colocando categorias adultas SEMPRE no final
-        const sortedCats = AdultContentHelper.partitionAdultCategories(rawCats || [], (c) => c.category_name);
+        // Ordena fiel ao APK Android TV: Regionais & Abertos -> Temáticos -> 24 Horas -> Internacionais -> Adultos (+18)
+        const sortedCats = sortLiveCategories(rawCats || []);
         setCategories(sortedCats);
         if (initialCategoryId && sortedCats && sortedCats.length > 0) {
           if (initialCategoryId === 'sports') {
@@ -164,6 +169,21 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         }
       })
       .catch((err) => console.error("Erro ao carregar categorias:", err));
+
+    // Carrega contagens de canais por categoria
+    client.getLiveStreams()
+      .then((allStreams) => {
+        if (allStreams && Array.isArray(allStreams)) {
+          const counts: Record<string, number> = {};
+          allStreams.forEach((s) => {
+            const cid = String(s.category_id);
+            counts[cid] = (counts[cid] || 0) + 1;
+          });
+          setCategoryCounts(counts);
+          setTotalLiveCount(allStreams.length);
+        }
+      })
+      .catch((err) => console.warn("Erro ao buscar contagens de canais:", err));
   }, [client, reloadKey, initialCategoryId]);
 
   // Carrega canais da categoria selecionada ou filtra por favoritos
@@ -213,6 +233,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         }
       } else if (activeFocusColumn === 'channels' && activeChannelBtnRef.current) {
         activeChannelBtnRef.current.focus();
+      } else if (activeFocusColumn === 'search' && searchInputRef.current) {
+        searchInputRef.current.focus();
       }
     }
   }, [selectedCategoryIdx, selectedChannelIdx, activeFocusColumn, isFocusedContent, isFullScreen]);
@@ -249,16 +271,26 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     onUp: () => {
       if (isFullScreen) {
         if (isGuideOpen) {
-          if (guideFocusColumn === 'categories') {
-            setSelectedCategoryIdx((prev) => {
-              const next = Math.max(0, prev - 1);
-              if (next === 0) setSelectedCategory('all');
-              else if (next === 1) setSelectedCategory('favorites');
-              else if (categories[next - 2]) setSelectedCategory(categories[next - 2].category_id);
-              return next;
-            });
-          } else {
-            setSelectedChannelIdx((prev) => Math.max(0, prev - 1));
+          if (guideFocusColumn === 'channels') {
+            if (selectedChannelIdx === 0) {
+              setGuideFocusColumn('search');
+              guideSearchInputRef.current?.focus();
+            } else {
+              setSelectedChannelIdx((prev) => Math.max(0, prev - 1));
+            }
+          } else if (guideFocusColumn === 'categories') {
+            if (selectedCategoryIdx === 0) {
+              setGuideFocusColumn('search');
+              guideSearchInputRef.current?.focus();
+            } else {
+              setSelectedCategoryIdx((prev) => {
+                const next = Math.max(0, prev - 1);
+                if (next === 0) setSelectedCategory('all');
+                else if (next === 1) setSelectedCategory('favorites');
+                else if (categories[next - 2]) setSelectedCategory(categories[next - 2].category_id);
+                return next;
+              });
+            }
           }
         } else if (displayedChannels.length > 0) {
           // Zapping em tela cheia (Canal Anterior)
@@ -267,11 +299,18 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           setCurrentPlayingChannel(displayedChannels[nextIdx]);
         }
       } else if (activeFocusColumn === 'channels') {
-        setSelectedChannelIdx((prev) => {
-          const next = Math.max(0, prev - 1);
-          setPreviewConfirmedChannelId(null);
-          return next;
-        });
+        if (selectedChannelIdx === 0) {
+          setActiveFocusColumn('search');
+          searchInputRef.current?.focus();
+        } else {
+          setSelectedChannelIdx((prev) => {
+            const next = Math.max(0, prev - 1);
+            setPreviewConfirmedChannelId(null);
+            return next;
+          });
+        }
+      } else if (activeFocusColumn === 'search') {
+        // Já no topo do campo de busca
       } else if (activeFocusColumn === 'categories') {
         setSelectedCategoryIdx((prev) => {
           // Permite subir foco até o botão Voltar/Início (-1)
@@ -283,7 +322,10 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     onDown: () => {
       if (isFullScreen) {
         if (isGuideOpen) {
-          if (guideFocusColumn === 'categories') {
+          if (guideFocusColumn === 'search') {
+            setGuideFocusColumn('channels');
+            guideSearchInputRef.current?.blur();
+          } else if (guideFocusColumn === 'categories') {
             setSelectedCategoryIdx((prev) => {
               const next = Math.min(categories.length + 1, prev + 1);
               if (next === 0) setSelectedCategory('all');
@@ -300,6 +342,9 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           setSelectedChannelIdx(nextIdx);
           setCurrentPlayingChannel(displayedChannels[nextIdx]);
         }
+      } else if (activeFocusColumn === 'search') {
+        setActiveFocusColumn('channels');
+        searchInputRef.current?.blur();
       } else if (activeFocusColumn === 'channels') {
         setSelectedChannelIdx((prev) => {
           const next = Math.min(displayedChannels.length - 1, prev + 1);
@@ -318,13 +363,15 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         if (!isGuideOpen) {
           setIsGuideOpen(true);
           setGuideFocusColumn('categories');
-        } else if (guideFocusColumn === 'channels') {
+        } else if (guideFocusColumn === 'channels' || guideFocusColumn === 'search') {
           setGuideFocusColumn('categories');
+          guideSearchInputRef.current?.blur();
         }
         return;
       }
-      if (activeFocusColumn === 'channels') {
+      if (activeFocusColumn === 'channels' || activeFocusColumn === 'search') {
         setActiveFocusColumn('categories');
+        searchInputRef.current?.blur();
       }
     },
     onRight: () => {
@@ -350,6 +397,10 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           setGuideFocusColumn('channels');
           return;
         }
+        if (guideFocusColumn === 'search') {
+          guideSearchInputRef.current?.focus();
+          return;
+        }
         if (guideFocusColumn === 'categories') {
           if (selectedCategoryIdx === 0) {
             setSelectedCategory('all');
@@ -363,6 +414,10 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           setCurrentPlayingChannel(displayedChannels[selectedChannelIdx]);
           setIsGuideOpen(false);
         }
+        return;
+      }
+      if (activeFocusColumn === 'search') {
+        searchInputRef.current?.focus();
         return;
       }
       if (activeFocusColumn === 'categories') {
@@ -434,6 +489,14 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       }
       if (isFullScreen) {
         if (isGuideOpen) {
+          if (guideFocusColumn === 'search') {
+            if (searchQuery) {
+              setSearchQuery('');
+            } else {
+              setGuideFocusColumn('channels');
+            }
+            return;
+          }
           if (guideFocusColumn === 'channels') {
             setGuideFocusColumn('categories');
           } else {
@@ -442,6 +505,14 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           return;
         }
         setFullScreenMode(false);
+        return;
+      }
+      if (activeFocusColumn === 'search') {
+        if (searchQuery) {
+          setSearchQuery('');
+        } else {
+          setActiveFocusColumn('channels');
+        }
         return;
       }
       onBackToHome?.();
@@ -534,14 +605,22 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
 
                 <div className="flex items-center gap-3">
                   {/* Busca Rápida */}
-                  <div className="relative w-56 md:w-64">
+                  <div className={`relative w-56 md:w-64 transition-all ${
+                    guideFocusColumn === 'search' ? 'ring-4 ring-emerald-400 rounded-xl' : ''
+                  }`}>
                     <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
+                      ref={guideSearchInputRef}
                       type="text"
                       placeholder="Buscar canal..."
                       value={searchQuery}
+                      onFocus={() => setGuideFocusColumn('search')}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-7 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
+                      className={`w-full pl-9 pr-7 py-1.5 bg-slate-900 border rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none transition ${
+                        guideFocusColumn === 'search'
+                          ? 'border-emerald-400 ring-2 ring-emerald-300'
+                          : 'border-slate-700'
+                      }`}
                     />
                     {searchQuery && (
                       <button
@@ -583,7 +662,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                       setSelectedCategoryIdx(0);
                       setGuideFocusColumn('channels');
                     }}
-                    className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-bold transition cursor-pointer ${
+                    className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-bold transition cursor-pointer flex items-center justify-between ${
                       guideFocusColumn === 'categories' && selectedCategoryIdx === 0
                         ? 'bg-emerald-400 text-black font-black ring-2 ring-emerald-300 shadow'
                         : selectedCategory === 'all'
@@ -591,7 +670,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                         : 'text-slate-300 hover:bg-slate-800'
                     }`}
                   >
-                    ★ Todos os Canais
+                    <span>★ Todos os Canais</span>
+                    <span className="text-xs font-mono font-black">{totalLiveCount}</span>
                   </button>
 
                   {/* 2. Meus favoritos */}
@@ -629,7 +709,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                           setSelectedCategoryIdx(targetIdx);
                           setGuideFocusColumn('channels');
                         }}
-                        className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-bold transition cursor-pointer truncate ${
+                        className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-bold transition cursor-pointer flex items-center justify-between ${
                           isFocused
                             ? 'bg-emerald-400 text-black font-black ring-2 ring-emerald-300 shadow'
                             : isSelected
@@ -637,7 +717,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                             : 'text-slate-300 hover:bg-slate-800'
                         }`}
                       >
-                        {cat.category_name}
+                        <span className="truncate">{cat.category_name}</span>
+                        <span className="text-xs font-mono font-black shrink-0 ml-1.5 opacity-80">{categoryCounts[cat.category_id] ?? 0}</span>
                       </button>
                     );
                   })}
@@ -768,7 +849,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
               setActiveFocusColumn('channels');
             }}
             tabIndex={0}
-            className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer ${
+            className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
               selectedCategory === 'all'
                 ? 'bg-emerald-500 text-black shadow font-black'
                 : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
@@ -778,7 +859,16 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                 : ''
             }`}
           >
-            ★ Todos os Canais
+            <span>★ Todos os Canais</span>
+            <span className={`font-mono text-xs md:text-sm px-2.5 py-0.5 rounded-lg ${
+              isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 0
+                ? 'bg-black/30 text-black'
+                : selectedCategory === 'all'
+                ? 'bg-black/40 text-white'
+                : 'bg-slate-800/80 text-slate-400'
+            }`}>
+              {totalLiveCount}
+            </span>
           </button>
 
           {/* 2. Meus Favoritos */}
@@ -834,8 +924,19 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                     : ''
                 }`}
               >
-                <span className="truncate">{cat.category_name}</span>
-                {isAdult && <Lock className="w-4 h-4 ml-2 shrink-0 opacity-80" />}
+                <div className="flex items-center gap-2 truncate">
+                  <span className="truncate">{cat.category_name}</span>
+                  {isAdult && <Lock className="w-4 h-4 ml-1 shrink-0 opacity-80" />}
+                </div>
+                <span className={`font-mono text-xs md:text-sm px-2.5 py-0.5 rounded-lg ml-2 shrink-0 ${
+                  isCatFocused
+                    ? 'bg-black/30 text-black'
+                    : isSelected
+                    ? 'bg-black/40 text-white'
+                    : 'bg-slate-800/80 text-slate-400'
+                }`}>
+                  {categoryCounts[cat.category_id] ?? 0}
+                </span>
               </button>
             );
           })}
@@ -857,14 +958,22 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         </div>
 
         {/* Campo de Pesquisa em Canais */}
-        <div className="relative mb-3">
+        <div className={`relative mb-3 transition-all ${
+          isFocusedContent && activeFocusColumn === 'search' ? 'ring-4 ring-emerald-400 rounded-xl' : ''
+        }`}>
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
+            ref={searchInputRef}
             type="text"
             placeholder="Pesquisar canal ou número..."
             value={searchQuery}
+            onFocus={() => setActiveFocusColumn('search')}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-8 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition"
+            className={`w-full pl-9 pr-8 py-2.5 bg-slate-900 border rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none transition ${
+              isFocusedContent && activeFocusColumn === 'search'
+                ? 'border-emerald-400 ring-2 ring-emerald-300'
+                : 'border-slate-700'
+            }`}
           />
           {searchQuery && (
             <button

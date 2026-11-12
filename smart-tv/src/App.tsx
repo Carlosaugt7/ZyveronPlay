@@ -91,6 +91,9 @@ export default function App() {
   // exatamente como no aplicativo oficial para Android TV / TV Box.
   // Pressionar o botão VOLTAR no controle remoto a partir de qualquer seção retorna para a Home.
   const handleBackToHome = () => {
+    setSelectedLiveCategory(undefined);
+    setSelectedVodId(undefined);
+    setSelectedSeriesId(undefined);
     setCurrentSection('home');
   };
 
@@ -164,15 +167,9 @@ export default function App() {
               client={xtreamClient}
               device={activeDevice}
               onNavigate={(section, extra) => {
-                if (extra?.categoryId) {
-                  setSelectedLiveCategory(extra.categoryId);
-                } else {
-                  setSelectedLiveCategory(undefined);
-                }
-                if (extra?.streamId) {
-                  if (section === 'vod') setSelectedVodId(extra.streamId);
-                  if (section === 'series') setSelectedSeriesId(extra.streamId);
-                }
+                setSelectedLiveCategory(extra?.categoryId);
+                setSelectedVodId(section === 'vod' ? extra?.streamId : undefined);
+                setSelectedSeriesId(section === 'series' ? extra?.streamId : undefined);
                 setCurrentSection(section);
               }}
               onSyncContent={handleSyncContent}

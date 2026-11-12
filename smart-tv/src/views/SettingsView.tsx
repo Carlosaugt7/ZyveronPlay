@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { DeviceActivation } from '../types';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Settings, Tv, Key, Globe, Shield, RefreshCw, Trash2, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Settings, Tv, Key, Globe, Shield, RefreshCw, Trash2, CheckCircle, ArrowLeft, History } from 'lucide-react';
+import { clearRecent } from '../lib/storage';
 
 interface SettingsViewProps {
   device: DeviceActivation;
@@ -21,6 +22,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onBackToHome
 }) => {
   const [clearedSuccess, setClearedSuccess] = useState(false);
+  const [recentClearedSuccess, setRecentClearedSuccess] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [focusedBtnIdx, setFocusedBtnIdx] = useState<number>(0);
@@ -33,6 +35,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setSyncSuccess(true);
       setTimeout(() => setSyncSuccess(false), 3000);
     }, 1200);
+  };
+
+  const handleClearRecent = () => {
+    try {
+      clearRecent();
+      setRecentClearedSuccess(true);
+      setTimeout(() => setRecentClearedSuccess(false), 3000);
+    } catch {}
   };
 
   const handleClearCache = () => {
@@ -51,7 +61,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setFocusedBtnIdx((prev) => Math.max(0, prev - 1));
     },
     onDown: () => {
-      setFocusedBtnIdx((prev) => Math.min(3, prev + 1));
+      setFocusedBtnIdx((prev) => Math.min(4, prev + 1));
     },
     onLeft: () => {
       if (onBackToHome) {
@@ -66,8 +76,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       } else if (focusedBtnIdx === 1) {
         handleSync();
       } else if (focusedBtnIdx === 2) {
-        handleClearCache();
+        handleClearRecent();
       } else if (focusedBtnIdx === 3) {
+        handleClearCache();
+      } else if (focusedBtnIdx === 4) {
         onResetDevice();
       }
     },
@@ -188,13 +200,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 : 'bg-[#1b2234]/50 border-slate-800'
             }`}>
               <div>
+                <h3 className="font-semibold text-white">Limpar Últimos Assistidos</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Remove o histórico de filmes e séries assistidos recentemente</p>
+              </div>
+              <button
+                onClick={handleClearRecent}
+                className={`px-4 py-2 font-semibold rounded-lg flex items-center gap-2 text-sm transition cursor-pointer ${
+                  isFocusedContent && focusedBtnIdx === 2
+                    ? 'bg-emerald-400 text-black shadow-lg shadow-emerald-400/40 ring-2 ring-emerald-300'
+                    : 'bg-slate-800 hover:bg-slate-700 text-white'
+                }`}
+              >
+                {recentClearedSuccess ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <History className="w-4 h-4" />}
+                {recentClearedSuccess ? 'Histórico Limpo!' : 'Limpar Histórico'}
+              </button>
+            </div>
+
+            <div className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+              isFocusedContent && focusedBtnIdx === 3
+                ? 'bg-emerald-500/20 border-emerald-400 ring-4 ring-emerald-400/40'
+                : 'bg-[#1b2234]/50 border-slate-800'
+            }`}>
+              <div>
                 <h3 className="font-semibold text-white">Limpar Cache e Histórico</h3>
                 <p className="text-xs text-slate-400 mt-0.5">Limpa lista de favoritos e memória temporária da TV</p>
               </div>
               <button
                 onClick={handleClearCache}
                 className={`px-4 py-2 font-semibold rounded-lg flex items-center gap-2 text-sm transition cursor-pointer ${
-                  isFocusedContent && focusedBtnIdx === 2
+                  isFocusedContent && focusedBtnIdx === 3
                     ? 'bg-emerald-400 text-black shadow-lg shadow-emerald-400/40 ring-2 ring-emerald-300'
                     : 'bg-slate-800 hover:bg-slate-700 text-white'
                 }`}
@@ -205,7 +239,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             <div className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
-              isFocusedContent && focusedBtnIdx === 3
+              isFocusedContent && focusedBtnIdx === 4
                 ? 'bg-red-500/20 border-red-400 ring-4 ring-red-400/40'
                 : 'bg-[#1b2234]/50 border-red-900/30'
             }`}>
@@ -216,7 +250,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <button
                 onClick={onResetDevice}
                 className={`px-4 py-2 font-semibold rounded-lg text-sm transition cursor-pointer ${
-                  isFocusedContent && focusedBtnIdx === 3
+                  isFocusedContent && focusedBtnIdx === 4
                     ? 'bg-red-500 text-white shadow-lg shadow-red-500/40 ring-2 ring-red-300'
                     : 'bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/30'
                 }`}

@@ -3,8 +3,8 @@ import { XtreamClient } from '../lib/xtream';
 import { XtreamCategory, XtreamSeries, XtreamSeason, XtreamEpisode } from '../types';
 import { Player } from '../components/Player';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Clapperboard, Play, Star, Loader2, X, ArrowLeft, Calendar, Info, Heart, Search, Lock } from 'lucide-react';
-import { getFavorites, toggleFavorite } from '../lib/storage';
+import { Clapperboard, Play, Star, Loader2, X, ArrowLeft, Calendar, Info, Heart, Search, Lock, History, Sparkles } from 'lucide-react';
+import { getFavorites, toggleFavorite, getRecent, addRecent } from '../lib/storage';
 import { AdultContentHelper } from '../lib/adultContent';
 import { AdultPinModal } from '../components/AdultPinModal';
 
@@ -30,6 +30,9 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('favorites');
   const [selectedCategoryIdx, setSelectedCategoryIdx] = useState<number>(0);
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
+  const [totalSeriesCount, setTotalSeriesCount] = useState<number>(0);
+  const [recentSeriesIds, setRecentSeriesIds] = useState<number[]>(() => getRecent('series'));
   const [allSeries, setAllSeries] = useState<XtreamSeries[]>([]);
   const [displayedCount, setDisplayedCount] = useState<number>(BATCH_SIZE);
   const [selectedSeriesIdx, setSelectedSeriesIdx] = useState<number>(0);
@@ -78,8 +81,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     });
   };
 
-  // Foco espacial: 'categories' | 'grid' | 'details-header' | 'seasons' | 'episodes'
-  const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid' | 'details-header' | 'seasons' | 'episodes'>('categories');
+  // Foco espacial: 'categories' | 'grid' | 'details-header' | 'seasons' | 'episodes' | 'search'
+  const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid' | 'details-header' | 'seasons' | 'episodes' | 'search'>('categories');
   const [headerBtnIdx, setHeaderBtnIdx] = useState<number>(0);
 
   // Proteção Parental (+18)
@@ -91,6 +94,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   const activeSeasonBtnRef = useRef<HTMLButtonElement>(null);
   const activeEpBtnRef = useRef<HTMLButtonElement>(null);
   const activeHeaderBtnRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -106,10 +110,11 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     return Object.keys(seriesDetails?.episodes || {});
   }, [seriesDetails]);
 
-  // Carrega categorias ao iniciar
+  // Carrega categorias e contagens ao iniciar
   useEffect(() => {
     setIsLoadingCats(true);
     setFavorites(getFavorites('series'));
+    setRecentSeriesIds(getRecent('series'));
     client.getSeriesCategories()
       .then((rawCats) => {
         if (rawCats && rawCats.length > 0) {
@@ -120,7 +125,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
             setSelectedCategory('favorites');
             setSelectedCategoryIdx(0);
           } else {
-            setSelectedCategory(sortedCats[0].category_id);
+            setSelectedCategory('recently_watched');
             setSelectedCategoryIdx(1);
           }
         } else {
@@ -132,9 +137,24 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         setCategories([]);
       })
       .finally(() => setIsLoadingCats(false));
+
+    // Carrega estatísticas de séries por categoria
+    client.getSeries()
+      .then((allSeriesData) => {
+        if (allSeriesData && Array.isArray(allSeriesData)) {
+          const counts: Record<string, number> = {};
+          allSeriesData.forEach((s) => {
+            const cid = String(s.category_id);
+            counts[cid] = (counts[cid] || 0) + 1;
+          });
+          setCategoryCounts(counts);
+          setTotalSeriesCount(allSeriesData.length);
+        }
+      })
+      .catch((err) => console.warn("[Series] Erro ao carregar contagens:", err));
   }, [client]);
 
-  // Carrega séries da categoria selecionada ou filtra por favoritos
+  // Carrega séries da categoria selecionada ou filtra por favoritos/recentes/lançamentos
   useEffect(() => {
     if (!selectedCategory) return;
     
@@ -146,11 +166,60 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       client.getSeries()
         .then((data) => {
           const all = data || [];
-          const favs = all.filter((s) => favorites.includes(s.series_id));
+          const seen = new Set<number>();
+          const favs: XtreamSeries[] = [];
+          all.forEach((s) => {
+            const sid = Number(s.series_id);
+            if (favorites.includes(sid) && !seen.has(sid)) {
+              seen.add(sid);
+              favs.push(s);
+            }
+          });
           setAllSeries(favs);
         })
         .catch((err) => {
           console.error("[Series] Erro ao carregar séries favoritas:", err);
+          setAllSeries([]);
+        })
+        .finally(() => setIsLoadingSeries(false));
+    } else if (selectedCategory === 'recently_watched') {
+      const recents = getRecent('series');
+      setRecentSeriesIds(recents);
+      client.getSeries()
+        .then((data) => {
+          const all = data || [];
+          const seriesMap = new Map<number, XtreamSeries>();
+          all.forEach((s) => seriesMap.set(Number(s.series_id), s));
+          const list: XtreamSeries[] = [];
+          const seen = new Set<number>();
+          recents.forEach((id) => {
+            const s = seriesMap.get(id);
+            if (s && !seen.has(id)) {
+              seen.add(id);
+              list.push(s);
+            }
+          });
+          setAllSeries(list);
+        })
+        .catch((err) => {
+          console.error("[Series] Erro ao carregar séries recentes:", err);
+          setAllSeries([]);
+        })
+        .finally(() => setIsLoadingSeries(false));
+    } else if (selectedCategory === 'recently_added') {
+      client.getSeries()
+        .then((data) => {
+          const all = [...(data || [])];
+          all.sort((a, b) => {
+            const tA = a.last_modified ? new Date(a.last_modified).getTime() : 0;
+            const tB = b.last_modified ? new Date(b.last_modified).getTime() : 0;
+            if (tB !== tA) return tB - tA;
+            return Number(b.series_id) - Number(a.series_id);
+          });
+          setAllSeries(all.slice(0, 100));
+        })
+        .catch((err) => {
+          console.error("[Series] Erro ao carregar séries recém adicionadas:", err);
           setAllSeries([]);
         })
         .finally(() => setIsLoadingSeries(false));
@@ -219,6 +288,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       } else if (activeFocusColumn === 'episodes' && activeEpBtnRef.current) {
         activeEpBtnRef.current.focus();
         activeEpBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (activeFocusColumn === 'search' && searchInputRef.current) {
+        searchInputRef.current.focus();
       }
     }
   }, [selectedCategoryIdx, selectedSeriesIdx, selectedSeasonIdx, selectedEpisodeIdx, headerBtnIdx, activeFocusColumn, isFocusedContent, playingEpisode, displayedSeries.length]);
@@ -282,6 +353,10 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   };
 
   const startPlayingEpisode = (epData: { id: string; title: string; ext: string; season: string; episodeIdx: number }) => {
+    if (selectedSeries) {
+      addRecent(selectedSeries.series_id, 'series');
+      setRecentSeriesIds(getRecent('series'));
+    }
     setPlayingEpisode(epData);
     onFullScreenChange?.(true);
   };
@@ -385,7 +460,12 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       if (activeFocusColumn === 'categories') {
         setSelectedCategoryIdx((prev) => Math.max(0, prev - 1));
       } else if (activeFocusColumn === 'grid') {
-        setSelectedSeriesIdx((prev) => Math.max(0, prev - 5));
+        if (selectedSeriesIdx < 5) {
+          setActiveFocusColumn('search');
+          searchInputRef.current?.focus();
+        } else {
+          setSelectedSeriesIdx((prev) => Math.max(0, prev - 5));
+        }
       } else if (activeFocusColumn === 'seasons') {
         if (selectedSeasonIdx === 0) {
           setActiveFocusColumn('details-header');
@@ -408,10 +488,14 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     },
     onDown: () => {
       if (playingEpisode) return;
-      if (activeFocusColumn === 'details-header') {
+      if (activeFocusColumn === 'search') {
+        setActiveFocusColumn('grid');
+        searchInputRef.current?.blur();
+      } else if (activeFocusColumn === 'details-header') {
         setActiveFocusColumn('seasons');
       } else if (activeFocusColumn === 'categories') {
-        setSelectedCategoryIdx((prev) => Math.min(categories.length, prev + 1));
+        // total = 3 especiais (Favoritos, Últimos Assistidos, Recém Adicionados) + categories.length
+        setSelectedCategoryIdx((prev) => Math.min(categories.length + 2, prev + 1));
       } else if (activeFocusColumn === 'grid') {
         setSelectedSeriesIdx((prev) => {
           const nextIdx = Math.min(allSeries.length - 1, prev + 5);
@@ -433,7 +517,10 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     },
     onLeft: () => {
       if (playingEpisode) return;
-      if (activeFocusColumn === 'details-header') {
+      if (activeFocusColumn === 'search') {
+        setActiveFocusColumn('categories');
+        searchInputRef.current?.blur();
+      } else if (activeFocusColumn === 'details-header') {
         setHeaderBtnIdx(0); // Favoritar
       } else if (activeFocusColumn === 'grid') {
         if (selectedSeriesIdx % 5 === 0 || displayedSeries.length === 0) {
@@ -468,6 +555,10 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     },
     onSelect: () => {
       if (playingEpisode) return;
+      if (activeFocusColumn === 'search') {
+        searchInputRef.current?.focus();
+        return;
+      }
       if (activeFocusColumn === 'details-header') {
         if (headerBtnIdx === 0 && selectedSeries) {
           handleToggleFav(selectedSeries.series_id);
@@ -478,8 +569,14 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         if (selectedCategoryIdx === 0) {
           setSelectedCategory('favorites');
           setActiveFocusColumn('grid');
-        } else if (categories[selectedCategoryIdx - 1]) {
-          const cat = categories[selectedCategoryIdx - 1];
+        } else if (selectedCategoryIdx === 1) {
+          setSelectedCategory('recently_watched');
+          setActiveFocusColumn('grid');
+        } else if (selectedCategoryIdx === 2) {
+          setSelectedCategory('recently_added');
+          setActiveFocusColumn('grid');
+        } else if (categories[selectedCategoryIdx - 3]) {
+          const cat = categories[selectedCategoryIdx - 3];
           handleCategoryClick(cat.category_id, selectedCategoryIdx, cat.category_name);
         }
       } else if (activeFocusColumn === 'grid' && displayedSeries[selectedSeriesIdx]) {
@@ -507,6 +604,13 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         handleToggleFav(displayedSeries[selectedSeriesIdx].series_id);
       }
     },
+    onYellow: () => {
+      if (selectedSeries) {
+        handleToggleFav(selectedSeries.series_id);
+      } else if (displayedSeries[selectedSeriesIdx]) {
+        handleToggleFav(displayedSeries[selectedSeriesIdx].series_id);
+      }
+    },
     onLongSelect: () => {
       if (selectedSeries) {
         handleToggleFav(selectedSeries.series_id);
@@ -528,6 +632,14 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         closeSeriesDetails();
         return;
       }
+      if (activeFocusColumn === 'search') {
+        if (searchQuery) {
+          setSearchQuery('');
+        } else {
+          setActiveFocusColumn('grid');
+        }
+        return;
+      }
       onBackToHome?.();
     },
     disabled: !isFocusedContent || showAdultPinModal,
@@ -546,8 +658,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     categories,
     selectedSeries,
     seriesDetails,
-    seasonKeys,
     selectedSeason,
+    seasonKeys,
     isFocusedContent,
     showAdultPinModal,
     onBackToHome
@@ -587,7 +699,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         <div className="flex items-center justify-between mb-4 px-1">
           <h2 className="text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
             <span>GÊNEROS SÉRIES</span>
-            <span className="text-sky-400 font-mono text-sm">({categories.length + 1})</span>
+            <span className="text-sky-400 font-mono text-sm">({categories.length + 3})</span>
           </h2>
           {onBackToHome && (
             <button
@@ -637,9 +749,65 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
               </span>
             </button>
 
+            {/* Categoria 2: Últimos Assistidos */}
+            <button
+              ref={selectedCategoryIdx === 1 ? activeCategoryBtnRef : null}
+              tabIndex={0}
+              onClick={() => {
+                setSelectedCategory('recently_watched');
+                setSelectedCategoryIdx(1);
+                setActiveFocusColumn('grid');
+              }}
+              className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
+                selectedCategory === 'recently_watched'
+                  ? 'bg-sky-400 text-black shadow font-black'
+                  : 'text-sky-300 hover:bg-[#1b2234]'
+              } ${
+                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 1
+                  ? 'ring-4 ring-sky-300 shadow-2xl scale-102 font-black outline-none bg-sky-400 text-black'
+                  : ''
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <History className="w-6 h-6 text-sky-400" />
+                <span>Últimos Assistidos</span>
+              </div>
+              <span className="font-mono text-sm px-3 py-1 rounded-lg bg-black/40 font-black">
+                {recentSeriesIds.length}
+              </span>
+            </button>
+
+            {/* Categoria 3: Recém Adicionados */}
+            <button
+              ref={selectedCategoryIdx === 2 ? activeCategoryBtnRef : null}
+              tabIndex={0}
+              onClick={() => {
+                setSelectedCategory('recently_added');
+                setSelectedCategoryIdx(2);
+                setActiveFocusColumn('grid');
+              }}
+              className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition cursor-pointer flex items-center justify-between ${
+                selectedCategory === 'recently_added'
+                  ? 'bg-emerald-400 text-black shadow font-black'
+                  : 'text-emerald-300 hover:bg-[#1b2234]'
+              } ${
+                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === 2
+                  ? 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
+                  : ''
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-6 h-6 text-emerald-400" />
+                <span>Recém Adicionados</span>
+              </div>
+              <span className="font-mono text-sm px-3 py-1 rounded-lg bg-black/40 font-black">
+                {Math.min(100, totalSeriesCount)}
+              </span>
+            </button>
+
             {/* Categorias da API Xtream */}
             {categories.map((cat, catIdx) => {
-              const thisIdx = catIdx + 1;
+              const thisIdx = catIdx + 3;
               const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === thisIdx;
               const isSelected = selectedCategory === cat.category_id;
               const isAdult = AdultContentHelper.isAdultCategory(cat.category_name);
@@ -663,8 +831,19 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                       : ''
                   }`}
                 >
-                  <span className="truncate">{cat.category_name}</span>
-                  {isAdult && <Lock className="w-4 h-4 ml-2 shrink-0 opacity-80" />}
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="truncate">{cat.category_name}</span>
+                    {isAdult && <Lock className="w-4 h-4 ml-1 shrink-0 opacity-80" />}
+                  </div>
+                  <span className={`font-mono text-xs md:text-sm px-2.5 py-0.5 rounded-lg ml-2 shrink-0 ${
+                    isCatFocused
+                      ? 'bg-black/30 text-black'
+                      : isSelected
+                      ? 'bg-black/40 text-white'
+                      : 'bg-slate-800/80 text-slate-400'
+                  }`}>
+                    {categoryCounts[cat.category_id] ?? 0}
+                  </span>
                 </button>
               );
             })}
@@ -693,14 +872,22 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
 
           <div className="flex items-center gap-4">
             {/* Campo de Busca Rápida de Séries */}
-            <div className="relative w-72 md:w-80">
+            <div className={`relative w-72 md:w-80 transition-all ${
+              isFocusedContent && activeFocusColumn === 'search' ? 'ring-4 ring-emerald-400 rounded-xl' : ''
+            }`}>
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Buscar série por título..."
                 value={searchQuery}
+                onFocus={() => setActiveFocusColumn('search')}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 bg-[#121722] border border-slate-700/80 rounded-xl text-xs md:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-emerald-400 transition"
+                className={`w-full pl-9 pr-8 py-2 bg-[#121722] border rounded-xl text-xs md:text-sm text-white placeholder-slate-400 focus:outline-none transition ${
+                  isFocusedContent && activeFocusColumn === 'search'
+                    ? 'border-emerald-400 ring-2 ring-emerald-300'
+                    : 'border-slate-700/80'
+                }`}
               />
               {searchQuery && (
                 <button
