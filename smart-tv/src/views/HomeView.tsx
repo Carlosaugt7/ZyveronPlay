@@ -55,10 +55,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   // Foco do Controle Remoto / Teclado
   // grid: 0 (Live), 1 (Vod), 2 (Series), 3 (Sports)
-  // vodCarousel: 10 + index (0..7)
-  // seriesCarousel: 20 + index (0..7)
+  // vodCarousel: 10 + index (0..9)
+  // seriesCarousel: 20 + index (0..9)
   // bottom: 30 (Sync), 31 (Settings)
   const [focusedId, setFocusedId] = useState<number>(0);
+  const activeCarouselRef = useRef<HTMLButtonElement>(null);
+
+  // Auto-scroll para manter o item do carrossel visível no centro da Smart TV
+  useEffect(() => {
+    if (activeCarouselRef.current && ((focusedId >= 10 && focusedId <= 19) || (focusedId >= 20 && focusedId <= 29))) {
+      activeCarouselRef.current.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    }
+  }, [focusedId]);
 
   // Relógio e Saudação Dinâmica
   useEffect(() => {
@@ -140,8 +148,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
           setFocusedId((prev) => {
             if (prev === 2) return 0; // Séries -> TV ao Vivo
             if (prev === 3) return 1; // Esportes -> Filmes
-            if (prev >= 20 && prev <= 27) return prev - 10; // Séries Carousel -> VOD Carousel
-            if (prev >= 10 && prev <= 17) return 1; // VOD Carousel -> Filmes Card
+            if (prev >= 20 && prev <= 29) return prev - 10; // Séries Carousel -> VOD Carousel
+            if (prev >= 10 && prev <= 19) return 1; // VOD Carousel -> Filmes Card
             if (prev === 30 || prev === 31) return 2; // Bottom -> Séries Card
             return prev;
           });
@@ -153,8 +161,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
             if (prev === 0) return 2; // TV ao Vivo -> Séries
             if (prev === 1) return 3; // Filmes -> Esportes
             if (prev === 2 || prev === 3) return 30; // Séries/Esportes -> Sincronizar
-            if (prev >= 10 && prev <= 17) return prev + 10; // VOD Carousel -> Séries Carousel
-            if (prev >= 20 && prev <= 27) return 31; // Séries Carousel -> Ajustes
+            if (prev >= 10 && prev <= 19) return Math.min(20 + featuredSeries.length - 1, prev + 10); // VOD Carousel -> Séries Carousel
+            if (prev >= 20 && prev <= 29) return 31; // Séries Carousel -> Ajustes
             return prev;
           });
           break;
@@ -165,11 +173,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
             if (prev === 1) return 0; // Filmes -> TV ao Vivo
             if (prev === 3) return 2; // Esportes -> Séries
             if (prev === 31) return 30; // Ajustes -> Sincronizar
-            if (prev >= 10 && prev <= 17) {
+            if (prev >= 10 && prev <= 19) {
               if (prev === 10) return 1; // Primeiro do VOD -> Filmes Card
               return prev - 1;
             }
-            if (prev >= 20 && prev <= 27) {
+            if (prev >= 20 && prev <= 29) {
               if (prev === 20) return 3; // Primeiro das Séries -> Esportes Card
               return prev - 1;
             }
@@ -185,8 +193,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
             if (prev === 1) return 10; // Filmes -> Primeiro VOD Carousel
             if (prev === 3) return 20; // Esportes -> Primeiro Séries Carousel
             if (prev === 30) return 31; // Sincronizar -> Ajustes
-            if (prev >= 10 && prev < 17 && prev - 10 < featuredVods.length - 1) return prev + 1;
-            if (prev >= 20 && prev < 27 && prev - 20 < featuredSeries.length - 1) return prev + 1;
+            if (prev >= 10 && prev < 19 && prev - 10 < featuredVods.length - 1) return prev + 1;
+            if (prev >= 20 && prev < 29 && prev - 20 < featuredSeries.length - 1) return prev + 1;
             return prev;
           });
           break;
@@ -212,12 +220,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
     else if (id === 3) onNavigate('live', { categoryId: 'sports' });
     else if (id === 30) onSyncContent();
     else if (id === 31) onNavigate('settings');
-    else if (id >= 10 && id <= 17) {
+    else if (id >= 10 && id <= 19) {
       const idx = id - 10;
       if (featuredVods[idx]) {
         onNavigate('vod', { streamId: featuredVods[idx].stream_id });
       }
-    } else if (id >= 20 && id <= 27) {
+    } else if (id >= 20 && id <= 29) {
       const idx = id - 20;
       if (featuredSeries[idx]) {
         onNavigate('series', { streamId: featuredSeries[idx].series_id });
@@ -290,8 +298,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* 3. CORPO PRINCIPAL (Esquerda: Grid 2x2 | Direita: Carrosséis de Destaque) */}
       <main className="w-full flex-1 min-h-0 grid grid-cols-12 gap-4 items-stretch mb-3">
         
-        {/* --- COLUNA ESQUERDA: GRID 2x2 DE CARDS PRINCIPAIS (7 Colunas) --- */}
-        <div className="col-span-12 lg:col-span-7 grid grid-cols-2 gap-3.5 h-full">
+        {/* --- COLUNA ESQUERDA: GRID 2x2 DE CARDS PRINCIPAIS (6 Colunas) --- */}
+        <div className="col-span-12 lg:col-span-6 grid grid-cols-2 gap-3.5 h-full">
           
           {/* 1. CANAIS AO VIVO */}
           <button
@@ -439,44 +447,45 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
         </div>
 
-        {/* --- COLUNA DIREITA: CARROSSÉIS DE DESTAQUES (5 Colunas) --- */}
-        <div className="col-span-12 lg:col-span-5 flex flex-col justify-between gap-3 h-full overflow-hidden">
+        {/* --- COLUNA DIREITA: CARROSSÉIS DE DESTAQUES (6 Colunas Otimizadas para Preencher a Tela) --- */}
+        <div className="col-span-12 lg:col-span-6 flex flex-col justify-between gap-3.5 h-full overflow-hidden">
           
           {/* Seção 1: Filmes em Destaque */}
-          <div className="flex-1 flex flex-col justify-between bg-[#121722]/60 border border-[#222d42]/80 rounded-2xl p-3 overflow-hidden">
+          <div className="flex-1 flex flex-col justify-between bg-[#121722]/80 border border-[#222d42] rounded-2xl p-3.5 overflow-hidden shadow-xl">
             <div className="flex items-center justify-between mb-2 shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-sky-400 tracking-wider">
+                <span className="text-xs md:text-sm font-black text-sky-400 tracking-wider">
                   🎬 FILMES EM DESTAQUE
                 </span>
-                <span className="text-[10px] text-slate-400 hidden sm:inline">
-                  • Lançamentos e Cinema
+                <span className="text-[11px] text-slate-400 hidden sm:inline">
+                  • Cinema e Lançamentos
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigate('vod')}
-                className="text-[11px] text-sky-400 hover:text-white flex items-center gap-0.5"
+                className="text-xs text-sky-400 hover:text-white flex items-center gap-1 font-semibold cursor-pointer"
               >
-                Ver todos <ArrowRight className="w-3 h-3" />
+                Ver todos <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            <div className="flex-1 flex items-center gap-2.5 overflow-x-auto no-scrollbar py-1">
+            <div className="flex-1 flex items-center gap-3 overflow-x-auto no-scrollbar py-1">
               {featuredVods.length > 0 ? (
-                featuredVods.slice(0, 8).map((vod, idx) => {
+                featuredVods.slice(0, 10).map((vod, idx) => {
                   const targetId = 10 + idx;
                   const isItemFocused = focusedId === targetId;
                   return (
                     <button
                       key={vod.stream_id}
                       type="button"
+                      ref={isItemFocused ? activeCarouselRef : null}
                       onClick={() => onNavigate('vod', { streamId: vod.stream_id })}
                       onMouseEnter={() => setFocusedId(targetId)}
-                      className={`shrink-0 w-20 md:w-24 h-28 md:h-32 rounded-xl overflow-hidden relative transition-all duration-200 cursor-pointer focus:outline-none ${
+                      className={`shrink-0 w-28 md:w-32 lg:w-36 h-[95%] max-h-[195px] rounded-2xl overflow-hidden relative transition-all duration-200 cursor-pointer focus:outline-none ${
                         isItemFocused
-                          ? 'scale-105 border-2 border-white shadow-xl shadow-sky-500/40 ring-2 ring-sky-400'
-                          : 'border border-slate-700/60 opacity-80 hover:opacity-100'
+                          ? 'scale-105 border-2 border-white shadow-2xl shadow-sky-500/50 ring-4 ring-sky-400 z-10'
+                          : 'border border-slate-700/60 opacity-85 hover:opacity-100 hover:border-slate-500'
                       }`}
                     >
                       {vod.stream_icon ? (
@@ -490,18 +499,23 @@ export const HomeView: React.FC<HomeViewProps> = ({
                           }}
                         />
                       ) : (
-                        <div className="w-full h-full bg-slate-800 flex items-center justify-center text-xl">
+                        <div className="w-full h-full bg-slate-800 flex items-center justify-center text-2xl">
                           🎬
                         </div>
                       )}
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-1.5 text-left">
-                        <p className="text-[10px] font-bold text-white truncate">{vod.name}</p>
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-2 text-left">
+                        <p className="text-[11px] font-bold text-white truncate">{vod.name}</p>
+                        {vod.rating && (
+                          <p className="text-[9px] text-amber-400 font-semibold flex items-center gap-0.5 mt-0.5">
+                            ★ {vod.rating}
+                          </p>
+                        )}
                       </div>
                     </button>
                   );
                 })
               ) : (
-                <div className="w-full h-24 flex items-center justify-center text-slate-500 text-xs">
+                <div className="w-full h-28 flex items-center justify-center text-slate-500 text-xs">
                   Carregando lançamentos...
                 </div>
               )}
@@ -509,40 +523,41 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
 
           {/* Seção 2: Séries em Destaque */}
-          <div className="flex-1 flex flex-col justify-between bg-[#121722]/60 border border-[#222d42]/80 rounded-2xl p-3 overflow-hidden">
+          <div className="flex-1 flex flex-col justify-between bg-[#121722]/80 border border-[#222d42] rounded-2xl p-3.5 overflow-hidden shadow-xl">
             <div className="flex items-center justify-between mb-2 shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-sky-400 tracking-wider">
+                <span className="text-xs md:text-sm font-black text-sky-400 tracking-wider">
                   📺 SÉRIES EM DESTAQUE
                 </span>
-                <span className="text-[10px] text-slate-400 hidden sm:inline">
-                  • Temporadas e Séries
+                <span className="text-[11px] text-slate-400 hidden sm:inline">
+                  • Temporadas Completas
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigate('series')}
-                className="text-[11px] text-sky-400 hover:text-white flex items-center gap-0.5"
+                className="text-xs text-sky-400 hover:text-white flex items-center gap-1 font-semibold cursor-pointer"
               >
-                Ver todas <ArrowRight className="w-3 h-3" />
+                Ver todas <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            <div className="flex-1 flex items-center gap-2.5 overflow-x-auto no-scrollbar py-1">
+            <div className="flex-1 flex items-center gap-3 overflow-x-auto no-scrollbar py-1">
               {featuredSeries.length > 0 ? (
-                featuredSeries.slice(0, 8).map((series, idx) => {
+                featuredSeries.slice(0, 10).map((series, idx) => {
                   const targetId = 20 + idx;
                   const isItemFocused = focusedId === targetId;
                   return (
                     <button
                       key={series.series_id}
                       type="button"
+                      ref={isItemFocused ? activeCarouselRef : null}
                       onClick={() => onNavigate('series', { streamId: series.series_id })}
                       onMouseEnter={() => setFocusedId(targetId)}
-                      className={`shrink-0 w-20 md:w-24 h-28 md:h-32 rounded-xl overflow-hidden relative transition-all duration-200 cursor-pointer focus:outline-none ${
+                      className={`shrink-0 w-28 md:w-32 lg:w-36 h-[95%] max-h-[195px] rounded-2xl overflow-hidden relative transition-all duration-200 cursor-pointer focus:outline-none ${
                         isItemFocused
-                          ? 'scale-105 border-2 border-white shadow-xl shadow-sky-500/40 ring-2 ring-sky-400'
-                          : 'border border-slate-700/60 opacity-80 hover:opacity-100'
+                          ? 'scale-105 border-2 border-white shadow-2xl shadow-sky-500/50 ring-4 ring-sky-400 z-10'
+                          : 'border border-slate-700/60 opacity-85 hover:opacity-100 hover:border-slate-500'
                       }`}
                     >
                       {series.cover ? (
@@ -556,18 +571,23 @@ export const HomeView: React.FC<HomeViewProps> = ({
                           }}
                         />
                       ) : (
-                        <div className="w-full h-full bg-slate-800 flex items-center justify-center text-xl">
+                        <div className="w-full h-full bg-slate-800 flex items-center justify-center text-2xl">
                           📺
                         </div>
                       )}
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-1.5 text-left">
-                        <p className="text-[10px] font-bold text-white truncate">{series.name}</p>
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-2 text-left">
+                        <p className="text-[11px] font-bold text-white truncate">{series.name}</p>
+                        {series.rating && (
+                          <p className="text-[9px] text-amber-400 font-semibold flex items-center gap-0.5 mt-0.5">
+                            ★ {series.rating}
+                          </p>
+                        )}
                       </div>
                     </button>
                   );
                 })
               ) : (
-                <div className="w-full h-24 flex items-center justify-center text-slate-500 text-xs">
+                <div className="w-full h-28 flex items-center justify-center text-slate-500 text-xs">
                   Carregando séries...
                 </div>
               )}

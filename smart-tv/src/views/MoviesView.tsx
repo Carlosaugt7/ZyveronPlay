@@ -3,7 +3,7 @@ import { XtreamClient } from '../lib/xtream';
 import { XtreamCategory, XtreamVod } from '../types';
 import { Player } from '../components/Player';
 import { useSpatialNav } from '../hooks/useSpatialNav';
-import { Film, Play, Star, Loader2, ArrowLeft } from 'lucide-react';
+import { Film, Play, Star, Loader2, ArrowLeft, Heart, Clock, Calendar, Check, Info } from 'lucide-react';
 
 interface MoviesViewProps {
   client: XtreamClient;
@@ -14,7 +14,7 @@ interface MoviesViewProps {
   initialStreamId?: number;
 }
 
-const BATCH_SIZE = 30; // Limita o DOM a 30 filmes por vez para não estourar a memória da Smart TV LG
+const BATCH_SIZE = 30; // Proteção de memória RAM para Smart TVs
 
 export const MoviesView: React.FC<MoviesViewProps> = ({
   client,
@@ -32,12 +32,31 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   const [selectedMovieIdx, setSelectedMovieIdx] = useState<number>(0);
   const [isLoadingCats, setIsLoadingCats] = useState<boolean>(true);
   const [isLoadingMovies, setIsLoadingMovies] = useState<boolean>(false);
+
+  // Detalhes do Filme
+  const [selectedMovieForDetails, setSelectedMovieForDetails] = useState<XtreamVod | null>(null);
+  const [movieDetails, setMovieDetails] = useState<any | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState<boolean>(false);
+  const [detailsButtonIdx, setDetailsButtonIdx] = useState<number>(0); // 0: Assistir, 1: Favorito, 2: Voltar
+  const [favorites, setFavorites] = useState<number[]>(() => {
+    try {
+      const saved = localStorage.getItem('zyveron_vod_favs');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Player de Vídeo
   const [selectedMovie, setSelectedMovie] = useState<XtreamVod | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid'>('categories');
+
+  // Coluna em foco: 'categories' | 'grid' | 'details'
+  const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid' | 'details'>('categories');
 
   const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
   const activeMovieBtnRef = useRef<HTMLButtonElement>(null);
+  const activeDetailBtnRef = useRef<HTMLButtonElement>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
   // Filmes atualmente renderizados no DOM (paginação progressiva leve)
@@ -45,18 +64,16 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     return allMovies.slice(0, displayedCount);
   }, [allMovies, displayedCount]);
 
-  // Carrega categorias ao iniciar e seleciona a primeira categoria disponível
+  // Carrega categorias ao iniciar
   useEffect(() => {
     setIsLoadingCats(true);
     client.getVodCategories()
       .then((cats) => {
-        console.log('[Movies] Categorias VOD recebidas:', cats?.length || 0);
         if (cats && cats.length > 0) {
           setCategories(cats);
           setSelectedCategory(cats[0].category_id);
           setSelectedCategoryIdx(0);
         } else {
-          console.warn('[Movies] Nenhuma categoria VOD retornada pela API');
           setCategories([]);
         }
       })
@@ -69,19 +86,14 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
 
   // Carrega filmes da categoria selecionada
   useEffect(() => {
-    if (!selectedCategory) {
-      console.log('[Movies] Aguardando seleção de categoria...');
-      return;
-    }
+    if (!selectedCategory) return;
     
-    console.log('[Movies] Carregando filmes da categoria:', selectedCategory);
     setIsLoadingMovies(true);
     setDisplayedCount(BATCH_SIZE);
     setSelectedMovieIdx(0);
 
     client.getVodStreams(selectedCategory)
       .then((data) => {
-        console.log('[Movies] Filmes recebidos:', data?.length || 0);
         setAllMovies(data || []);
       })
       .catch((err) => {
@@ -91,7 +103,36 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       .finally(() => setIsLoadingMovies(false));
   }, [client, selectedCategory]);
 
-  // Sincroniza o foco real do DOM na TV LG para desativar ponteiro de mouse e guiar o D-Pad
+  // Se receber initialStreamId (vindo dos destaques da Home), abre direto os detalhes
+  useEffect(() => {
+    if (!initialStreamId) return;
+
+    // Busca dados diretos via getVodInfo
+    client.getVodInfo(initialStreamId)
+      .then((infoData) => {
+        if (infoData?.info) {
+          const fakeVod: XtreamVod = {
+            num: 0,
+            name: infoData.info.name || 'Filme em Destaque',
+            stream_type: 'movie',
+            stream_id: initialStreamId,
+            stream_icon: infoData.info.movie_image || infoData.info.cover_big || '',
+            rating: infoData.info.rating || '',
+            rating_5based: infoData.info.rating_5based || 0,
+            added: infoData.info.release_date || '',
+            category_id: '',
+            container_extension: 'mp4'
+          };
+          setSelectedMovieForDetails(fakeVod);
+          setMovieDetails(infoData);
+          setActiveFocusColumn('details');
+          setDetailsButtonIdx(0);
+        }
+      })
+      .catch((err) => console.warn('[Movies] Erro ao carregar stream inicial:', err));
+  }, [initialStreamId, client]);
+
+  // Sincroniza o foco real do DOM na Smart TV para navegação com D-Pad
   useEffect(() => {
     if (!isPlaying && isFocusedContent) {
       if (activeFocusColumn === 'categories' && activeCategoryBtnRef.current) {
@@ -100,9 +141,46 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       } else if (activeFocusColumn === 'grid' && activeMovieBtnRef.current) {
         activeMovieBtnRef.current.focus();
         activeMovieBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (activeFocusColumn === 'details' && activeDetailBtnRef.current) {
+        activeDetailBtnRef.current.focus();
       }
     }
-  }, [selectedCategoryIdx, selectedMovieIdx, activeFocusColumn, isFocusedContent, isPlaying, displayedMovies.length]);
+  }, [selectedCategoryIdx, selectedMovieIdx, detailsButtonIdx, activeFocusColumn, isFocusedContent, isPlaying, displayedMovies.length]);
+
+  const openMovieDetails = async (movie: XtreamVod) => {
+    setSelectedMovieForDetails(movie);
+    setActiveFocusColumn('details');
+    setDetailsButtonIdx(0);
+    setIsLoadingDetails(true);
+    setMovieDetails(null);
+
+    try {
+      const data = await client.getVodInfo(movie.stream_id);
+      setMovieDetails(data);
+    } catch (err) {
+      console.warn('[Movies] Erro ao buscar detalhes VOD:', err);
+    } finally {
+      setIsLoadingDetails(false);
+    }
+  };
+
+  const closeMovieDetails = () => {
+    setSelectedMovieForDetails(null);
+    setMovieDetails(null);
+    setActiveFocusColumn('grid');
+  };
+
+  const toggleFavorite = (streamId: number) => {
+    setFavorites((prev) => {
+      const next = prev.includes(streamId)
+        ? prev.filter((id) => id !== streamId)
+        : [...prev, streamId];
+      try {
+        localStorage.setItem('zyveron_vod_favs', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
 
   const startPlaying = (movie: XtreamVod) => {
     setSelectedMovie(movie);
@@ -132,7 +210,6 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       } else if (activeFocusColumn === 'grid') {
         setSelectedMovieIdx((prev) => {
           const nextIdx = Math.min(allMovies.length - 1, prev + 5);
-          // Se estiver chegando ao final dos filmes exibidos, carrega o próximo lote
           if (nextIdx >= displayedCount - 5 && displayedCount < allMovies.length) {
             setDisplayedCount((c) => Math.min(allMovies.length, c + BATCH_SIZE));
           }
@@ -141,13 +218,10 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       }
     },
     onLeft: () => {
-      if (isPlaying) {
-        stopPlaying();
-        return;
-      }
-      if (activeFocusColumn === 'categories') {
-        // Seta para a esquerda na coluna de categorias foca o Menu Lateral
-        onRequestFocusSidebar?.();
+      if (isPlaying) return;
+      if (activeFocusColumn === 'details') {
+        // Alterna entre botões de ação na tela de detalhes
+        setDetailsButtonIdx((prev) => Math.max(0, prev - 1));
       } else if (activeFocusColumn === 'grid') {
         if (selectedMovieIdx % 5 === 0 || displayedMovies.length === 0) {
           setActiveFocusColumn('categories');
@@ -155,10 +229,13 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
           setSelectedMovieIdx((prev) => Math.max(0, prev - 1));
         }
       }
+      // Seta para esquerda nas categorias NÃO faz nada (evita sair ou bugar o menu)
     },
     onRight: () => {
       if (isPlaying) return;
-      if (activeFocusColumn === 'categories') {
+      if (activeFocusColumn === 'details') {
+        setDetailsButtonIdx((prev) => Math.min(2, prev + 1));
+      } else if (activeFocusColumn === 'categories') {
         if (displayedMovies.length > 0) {
           setActiveFocusColumn('grid');
           setSelectedMovieIdx(0);
@@ -175,13 +252,22 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     },
     onSelect: () => {
       if (isPlaying) return;
-      if (activeFocusColumn === 'categories') {
+      if (activeFocusColumn === 'details') {
+        if (detailsButtonIdx === 0 && selectedMovieForDetails) {
+          startPlaying(selectedMovieForDetails);
+        } else if (detailsButtonIdx === 1 && selectedMovieForDetails) {
+          toggleFavorite(selectedMovieForDetails.stream_id);
+        } else if (detailsButtonIdx === 2) {
+          closeMovieDetails();
+        }
+      } else if (activeFocusColumn === 'categories') {
         if (categories[selectedCategoryIdx]) {
           setSelectedCategory(categories[selectedCategoryIdx].category_id);
           setActiveFocusColumn('grid');
         }
       } else if (activeFocusColumn === 'grid' && displayedMovies[selectedMovieIdx]) {
-        startPlaying(displayedMovies[selectedMovieIdx]);
+        // Abre primeiro a tela de detalhes com sinopse e capa
+        openMovieDetails(displayedMovies[selectedMovieIdx]);
       }
     },
     onBack: () => {
@@ -189,13 +275,14 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         stopPlaying();
         return;
       }
-      if (activeFocusColumn === 'grid') {
+      if (activeFocusColumn === 'details') {
+        closeMovieDetails();
+      } else if (activeFocusColumn === 'grid') {
         setActiveFocusColumn('categories');
       } else if (activeFocusColumn === 'categories') {
+        // Botão Físico VOLTAR retorna para o Menu Principal
         if (onBackToHome) {
           onBackToHome();
-        } else {
-          onRequestFocusSidebar?.();
         }
       }
     },
@@ -203,23 +290,29 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   }, [
     isPlaying,
     activeFocusColumn,
+    detailsButtonIdx,
     selectedCategoryIdx,
     selectedMovieIdx,
     displayedMovies,
     allMovies.length,
     displayedCount,
     categories,
+    selectedMovieForDetails,
     isFocusedContent
   ]);
 
-  // Player de Vídeo em Tela Cheia
+  // Player de Vídeo em Tela Cheia (Modo VOD com Barra de Avanço / Retrocesso)
   if (isPlaying && selectedMovie) {
+    const vodInfo = movieDetails?.info;
+    const movieGenre = vodInfo?.genre || 'Filme On Demand';
     return (
       <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black">
         <Player
           streamUrl={client.buildVodUrl(selectedMovie.stream_id, selectedMovie.container_extension)}
           title={selectedMovie.name}
+          subtitle={movieGenre}
           logoUrl={selectedMovie.stream_icon}
+          isLive={false}
           onBack={stopPlaying}
           isFullScreen={true}
         />
@@ -227,10 +320,12 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     );
   }
 
+  const isCurrentFav = selectedMovieForDetails ? favorites.includes(selectedMovieForDetails.stream_id) : false;
+
   return (
-    <div className="w-full h-full flex bg-[#0a0d14] overflow-hidden select-none">
+    <div className="w-full h-full flex bg-[#0a0d14] overflow-hidden select-none relative">
       {/* Coluna de Gêneros/Categorias */}
-      <div className={`w-72 h-full bg-[#121722]/80 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 ${
+      <div className={`w-72 h-full bg-[#121722]/80 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 shrink-0 ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>
         <div className="flex items-center justify-between mb-3 px-1">
@@ -308,7 +403,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
           </h2>
           <div className="text-xs text-slate-400 flex items-center gap-3">
             <span className="font-mono bg-[#1a2233] px-2.5 py-1 rounded-md text-emerald-400">
-              [OK] Assistir
+              [OK] Detalhes
             </span>
             <span className="font-mono bg-[#1a2233] px-2.5 py-1 rounded-md text-slate-300">
               [◀] Voltar para Gêneros
@@ -331,6 +426,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {displayedMovies.map((movie, movieIdx) => {
               const isMovieFocused = isFocusedContent && activeFocusColumn === 'grid' && selectedMovieIdx === movieIdx;
+              const isFav = favorites.includes(movie.stream_id);
 
               return (
                 <button
@@ -340,7 +436,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                   ref={isMovieFocused ? activeMovieBtnRef : null}
                   onClick={() => {
                     setSelectedMovieIdx(movieIdx);
-                    startPlaying(movie);
+                    openMovieDetails(movie);
                   }}
                   className={`group relative bg-[#121722] border rounded-xl overflow-hidden cursor-pointer transition-all duration-150 shadow-lg text-left ${
                     isMovieFocused
@@ -362,11 +458,18 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                         <Film className="w-12 h-12" />
                       </div>
                     )}
+
+                    {isFav && (
+                      <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-red-500 z-10">
+                        <Heart className="w-3.5 h-3.5 fill-current" />
+                      </div>
+                    )}
+
                     <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition ${
                       isMovieFocused ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                     }`}>
                       <div className="w-12 h-12 rounded-full bg-emerald-500 text-black flex items-center justify-center shadow-lg">
-                        <Play className="w-6 h-6 fill-current ml-0.5" />
+                        <Info className="w-6 h-6 ml-0.5" />
                       </div>
                     </div>
                   </div>
@@ -386,6 +489,156 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* MODAL / TELA DE DETALHES DO FILME (SINOPSE + CAPA + BOTÕES DE AÇÃO) */}
+      {selectedMovieForDetails && (
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-6 md:p-12 animate-in fade-in duration-200">
+          {/* Backdrop de Fundo com Blur */}
+          {movieDetails?.info?.backdrop_path?.[0] && (
+            <div 
+              className="absolute inset-0 bg-cover bg-center opacity-20 filter blur-xl"
+              style={{ backgroundImage: `url(${movieDetails.info.backdrop_path[0]})` }}
+            />
+          )}
+
+          <div className="relative w-full max-w-5xl bg-[#121722]/95 border border-[#2a3449] rounded-3xl p-6 md:p-8 shadow-2xl overflow-hidden flex flex-col md:flex-row gap-8 items-start">
+            
+            {/* Pôster Grande */}
+            <div className="w-56 md:w-72 shrink-0 aspect-[2/3] rounded-2xl overflow-hidden bg-slate-900 border-2 border-slate-700/80 shadow-2xl relative">
+              {selectedMovieForDetails.stream_icon ? (
+                <img
+                  src={movieDetails?.info?.movie_image || selectedMovieForDetails.stream_icon}
+                  alt={selectedMovieForDetails.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-slate-600">
+                  <Film className="w-16 h-16" />
+                </div>
+              )}
+            </div>
+
+            {/* Informações & Sinopse */}
+            <div className="flex-1 flex flex-col justify-between h-full space-y-4">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-wide leading-tight">
+                  {movieDetails?.info?.name || selectedMovieForDetails.name}
+                </h1>
+
+                {/* Metadados: Ano, Duração, Classificação, Gênero */}
+                <div className="flex flex-wrap items-center gap-3 mt-3 text-xs md:text-sm text-slate-300 font-medium">
+                  {movieDetails?.info?.release_date && (
+                    <div className="flex items-center gap-1 bg-[#1a2233] px-2.5 py-1 rounded-lg border border-slate-700">
+                      <Calendar className="w-3.5 h-3.5 text-sky-400" />
+                      <span>{movieDetails.info.release_date.substring(0, 4)}</span>
+                    </div>
+                  )}
+
+                  {movieDetails?.info?.duration && (
+                    <div className="flex items-center gap-1 bg-[#1a2233] px-2.5 py-1 rounded-lg border border-slate-700">
+                      <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>{movieDetails.info.duration}</span>
+                    </div>
+                  )}
+
+                  {(movieDetails?.info?.rating || selectedMovieForDetails.rating) && (
+                    <div className="flex items-center gap-1 bg-[#1a2233] px-2.5 py-1 rounded-lg border border-slate-700 text-amber-400">
+                      <Star className="w-3.5 h-3.5 fill-current" />
+                      <span>{movieDetails?.info?.rating || selectedMovieForDetails.rating}</span>
+                    </div>
+                  )}
+
+                  {movieDetails?.info?.genre && (
+                    <span className="text-sky-300 bg-sky-950/60 border border-sky-800/60 px-2.5 py-1 rounded-lg font-semibold">
+                      {movieDetails.info.genre}
+                    </span>
+                  )}
+                </div>
+
+                {/* Sinopse */}
+                <div className="mt-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Sinopse
+                  </h3>
+                  {isLoadingDetails ? (
+                    <div className="flex items-center gap-2 text-slate-400 text-sm py-4">
+                      <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
+                      <span>Buscando sinopse do filme...</span>
+                    </div>
+                  ) : (
+                    <p className="text-sm md:text-base text-slate-200 leading-relaxed max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                      {movieDetails?.info?.plot || movieDetails?.info?.description || 'Nenhuma sinopse disponível para este título no servidor.'}
+                    </p>
+                  )}
+                </div>
+
+                {/* Diretor / Elenco */}
+                {movieDetails?.info?.cast && (
+                  <div className="mt-2 text-xs text-slate-400">
+                    <span className="font-semibold text-slate-300">Elenco: </span>
+                    <span className="line-clamp-1">{movieDetails.info.cast}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Botões de Ação com Foco D-Pad */}
+              <div className="flex items-center gap-3 pt-4 border-t border-slate-800">
+                {/* 0. Botão Assistir */}
+                <button
+                  type="button"
+                  tabIndex={0}
+                  ref={detailsButtonIdx === 0 ? activeDetailBtnRef : null}
+                  onClick={() => startPlaying(selectedMovieForDetails)}
+                  className={`flex items-center gap-2.5 px-6 py-3.5 rounded-2xl font-black text-sm md:text-base cursor-pointer transition-all duration-200 ${
+                    detailsButtonIdx === 0
+                      ? 'bg-emerald-400 text-black scale-105 shadow-2xl ring-4 ring-emerald-300'
+                      : 'bg-emerald-600/90 text-white hover:bg-emerald-500'
+                  }`}
+                >
+                  <Play className="w-5 h-5 fill-current" />
+                  <span>Assistir Filme</span>
+                </button>
+
+                {/* 1. Botão Favorito */}
+                <button
+                  type="button"
+                  tabIndex={0}
+                  ref={detailsButtonIdx === 1 ? activeDetailBtnRef : null}
+                  onClick={() => toggleFavorite(selectedMovieForDetails.stream_id)}
+                  className={`flex items-center gap-2 px-5 py-3.5 rounded-2xl font-bold text-sm cursor-pointer transition-all duration-200 border ${
+                    detailsButtonIdx === 1
+                      ? 'bg-white text-black scale-105 shadow-xl ring-4 ring-sky-400 border-white'
+                      : isCurrentFav
+                      ? 'bg-red-500/20 text-red-400 border-red-500/40 hover:bg-red-500/30'
+                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  }`}
+                >
+                  <Heart className={`w-4 h-4 ${isCurrentFav ? 'fill-current text-red-500' : ''}`} />
+                  <span>{isCurrentFav ? 'Favoritado' : 'Favorito'}</span>
+                </button>
+
+                {/* 2. Botão Voltar */}
+                <button
+                  type="button"
+                  tabIndex={0}
+                  ref={detailsButtonIdx === 2 ? activeDetailBtnRef : null}
+                  onClick={closeMovieDetails}
+                  className={`flex items-center gap-2 px-5 py-3.5 rounded-2xl font-bold text-sm cursor-pointer transition-all duration-200 border ${
+                    detailsButtonIdx === 2
+                      ? 'bg-slate-200 text-black scale-105 shadow-xl ring-4 ring-slate-300 border-white'
+                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  }`}
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Voltar</span>
+                </button>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -11,6 +11,7 @@ export class XtreamClient {
   private baseDns: string;
   private user: string;
   private pass: string;
+  private cache = new Map<string, { data: any; timestamp: number }>();
 
   constructor(dns: string, user: string, pass: string) {
     let cleanDns = dns.trim().replace(/\/+$/, '').replace(/:80$/, '');
@@ -37,6 +38,13 @@ export class XtreamClient {
   }
 
   private async fetchJson<T>(action: string, extraParams: Record<string, string | number> = {}): Promise<T> {
+    const cacheKey = `${action}_${JSON.stringify(extraParams)}`;
+    const cached = this.cache.get(cacheKey);
+    // Cache de 5 minutos na memória da TV para transição instantânea (0ms)
+    if (cached && Date.now() - cached.timestamp < 300000) {
+      return cached.data as T;
+    }
+
     let targetUrl = `${this.apiUrl}&action=${action}`;
     for (const [key, value] of Object.entries(extraParams)) {
       targetUrl += `&${key}=${encodeURIComponent(value)}`;
@@ -53,7 +61,9 @@ export class XtreamClient {
       });
 
       if (response.ok) {
-        return await response.json();
+        const data = await response.json();
+        this.cache.set(cacheKey, { data, timestamp: Date.now() });
+        return data;
       }
       console.warn(`[Xtream] Resposta HTTP ${response.status} na conexão direta para ${action}. Tentando fallback...`);
     } catch (directErr: any) {
@@ -76,7 +86,9 @@ export class XtreamClient {
         throw new Error(`HTTP ${proxyResponse.status} ao consultar ${action}`);
       }
 
-      return await proxyResponse.json();
+      const data = await proxyResponse.json();
+      this.cache.set(cacheKey, { data, timestamp: Date.now() });
+      return data;
     } catch (proxyErr: any) {
       console.error(`[Xtream] Falha total ao consultar ${action}:`, proxyErr.message);
       throw proxyErr;
@@ -116,6 +128,28 @@ export class XtreamClient {
       params.category_id = categoryId;
     }
     return this.fetchJson<XtreamVod[]>('get_vod_streams', params);
+  }
+
+  async getVodInfo(vodId: number): Promise<{
+    info?: {
+      name?: string;
+      description?: string;
+      plot?: string;
+      cast?: string;
+      director?: string;
+      genre?: string;
+      release_date?: string;
+      duration?: string;
+      duration_secs?: number;
+      rating?: string;
+      rating_5based?: number;
+      movie_image?: string;
+      backdrop_path?: string[];
+      cover_big?: string;
+    };
+    movie_data?: any;
+  }> {
+    return this.fetchJson('get_vod_info', { vod_id: String(vodId) });
   }
 
   buildVodUrl(streamId: number, extension: string = 'mp4'): string {

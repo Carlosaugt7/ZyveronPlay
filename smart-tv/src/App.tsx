@@ -4,14 +4,13 @@ import { listenDeviceActivation } from './lib/firebase';
 import { DeviceActivation } from './types';
 import { XtreamClient } from './lib/xtream';
 import { ActivationScreen } from './components/ActivationScreen';
-import { NavigationBar, MainSection } from './components/NavigationBar';
+import { MainSection } from './components/NavigationBar';
 import { HomeView } from './views/HomeView';
 import { LiveTvView } from './views/LiveTvView';
 import { MoviesView } from './views/MoviesView';
 import { SeriesView } from './views/SeriesView';
 import { SettingsView } from './views/SettingsView';
 import { TitleBar } from './components/TitleBar';
-import { useSpatialNav } from './hooks/useSpatialNav';
 import { Loader2 } from 'lucide-react';
 
 const SECTIONS: MainSection[] = ['home', 'live', 'vod', 'series', 'settings'];
@@ -25,7 +24,6 @@ export default function App() {
   );
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [currentSection, setCurrentSection] = useState<MainSection>('home');
-  const [focusZone, setFocusZone] = useState<'sidebar' | 'content'>('content');
   const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
 
   // Filtros dinâmicos passados pela Home
@@ -89,31 +87,12 @@ export default function App() {
     return new XtreamClient(activeDevice.activeDns, activeDevice.username, activeDevice.password);
   }, [activeDevice?.activeDns, activeDevice?.username, activeDevice?.password]);
 
-  // Navegação D-Pad na Sidebar quando a barra lateral estiver em foco
-  useSpatialNav({
-    onUp: () => {
-      const idx = SECTIONS.indexOf(currentSection);
-      const nextIdx = (idx - 1 + SECTIONS.length) % SECTIONS.length;
-      setCurrentSection(SECTIONS[nextIdx]);
-    },
-    onDown: () => {
-      const idx = SECTIONS.indexOf(currentSection);
-      const nextIdx = (idx + 1) % SECTIONS.length;
-      setCurrentSection(SECTIONS[nextIdx]);
-    },
-    onRight: () => {
-      setFocusZone('content');
-    },
-    onSelect: () => {
-      setFocusZone('content');
-    },
-    onBack: () => {
-      // Retorna para a tela Home quando apertar Voltar no Menu Lateral
-      setCurrentSection('home');
-      setFocusZone('content');
-    },
-    disabled: focusZone !== 'sidebar' || currentSection === 'home' || activationStatus !== 'active' || isFullScreen
-  }, [focusZone, currentSection, activationStatus, isFullScreen]);
+  // Cada seção do app (Live TV, Filmes, Séries) ocupa 100% da tela cheia sem sidebar,
+  // exatamente como no aplicativo oficial para Android TV / TV Box.
+  // Pressionar o botão VOLTAR no controle remoto a partir de qualquer seção retorna para a Home.
+  const handleBackToHome = () => {
+    setCurrentSection('home');
+  };
 
   // Força revalidação no Firestore caso o usuário clique em "Verificar Agora"
   const handleRefreshActivation = () => {
@@ -177,20 +156,9 @@ export default function App() {
   return (
     <div className="w-screen h-screen flex flex-col bg-[#0a0d14] overflow-hidden select-none">
       <TitleBar isFullScreen={isFullScreen} />
-      <div className="flex-1 flex bg-[#0a0d14] overflow-hidden relative">
-        {/* Barra de Menu Lateral - Ocultada na Home e quando o vídeo estiver em tela cheia */}
-        {!isFullScreen && currentSection !== 'home' && (
-          <NavigationBar
-            currentSection={currentSection}
-            onSelectSection={(sec) => {
-              setCurrentSection(sec);
-              setFocusZone('content');
-            }}
-            isFocused={focusZone === 'sidebar'}
-          />
-        )}
-
-        <main className="flex-1 h-full overflow-hidden">
+      <div className="flex-1 flex bg-[#0a0d14] overflow-hidden relative w-full h-full">
+        {/* Conteúdo da Seção em 100% da tela (sem sidebar persistente para reproduzir fielmente o APK Android TV) */}
+        <main className="w-full h-full overflow-hidden">
           {currentSection === 'home' && (
             <HomeView
               client={xtreamClient}
@@ -206,7 +174,6 @@ export default function App() {
                   if (section === 'series') setSelectedSeriesId(extra.streamId);
                 }
                 setCurrentSection(section);
-                setFocusZone('content');
               }}
               onSyncContent={handleSyncContent}
             />
@@ -214,9 +181,8 @@ export default function App() {
           {currentSection === 'live' && (
             <LiveTvView
               client={xtreamClient}
-              isFocusedContent={focusZone === 'content'}
-              onRequestFocusSidebar={() => setFocusZone('sidebar')}
-              onBackToHome={() => setCurrentSection('home')}
+              isFocusedContent={true}
+              onBackToHome={handleBackToHome}
               initialCategoryId={selectedLiveCategory}
               reloadKey={contentReloadKey}
               onFullScreenChange={setIsFullScreen}
@@ -225,9 +191,8 @@ export default function App() {
           {currentSection === 'vod' && (
             <MoviesView
               client={xtreamClient}
-              isFocusedContent={focusZone === 'content'}
-              onRequestFocusSidebar={() => setFocusZone('sidebar')}
-              onBackToHome={() => setCurrentSection('home')}
+              isFocusedContent={true}
+              onBackToHome={handleBackToHome}
               initialStreamId={selectedVodId}
               onFullScreenChange={setIsFullScreen}
             />
@@ -235,9 +200,8 @@ export default function App() {
           {currentSection === 'series' && (
             <SeriesView
               client={xtreamClient}
-              isFocusedContent={focusZone === 'content'}
-              onRequestFocusSidebar={() => setFocusZone('sidebar')}
-              onBackToHome={() => setCurrentSection('home')}
+              isFocusedContent={true}
+              onBackToHome={handleBackToHome}
               initialStreamId={selectedSeriesId}
               onFullScreenChange={setIsFullScreen}
             />
@@ -245,9 +209,8 @@ export default function App() {
           {currentSection === 'settings' && (
             <SettingsView
               device={activeDevice}
-              isFocusedContent={focusZone === 'content'}
-              onRequestFocusSidebar={() => setFocusZone('sidebar')}
-              onBackToHome={() => setCurrentSection('home')}
+              isFocusedContent={true}
+              onBackToHome={handleBackToHome}
               onSyncContent={handleSyncContent}
               onResetDevice={handleResetDevice}
             />

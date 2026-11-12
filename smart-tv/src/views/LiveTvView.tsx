@@ -34,6 +34,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const [selectedChannelIdx, setSelectedChannelIdx] = useState<number>(0);
   const [currentPlayingChannel, setCurrentPlayingChannel] = useState<XtreamStream | null>(null);
   const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
+  const [isQuickGuideOpen, setIsQuickGuideOpen] = useState<boolean>(false);
+  const [quickGuideIdx, setQuickGuideIdx] = useState<number>(0);
   const [isLoadingChannels, setIsLoadingChannels] = useState<boolean>(true);
   const [favorites, setFavorites] = useState<number[]>([]);
   const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'channels'>('channels');
@@ -108,8 +110,10 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   useSpatialNav({
     onUp: () => {
       if (isFullScreen) {
-        // Zapping em tela cheia (Canal Anterior)
-        if (filteredChannels.length > 0) {
+        if (isQuickGuideOpen) {
+          setQuickGuideIdx((prev) => Math.max(0, prev - 1));
+        } else if (filteredChannels.length > 0) {
+          // Zapping em tela cheia (Canal Anterior)
           const nextIdx = (selectedChannelIdx - 1 + filteredChannels.length) % filteredChannels.length;
           setSelectedChannelIdx(nextIdx);
           setCurrentPlayingChannel(filteredChannels[nextIdx]);
@@ -122,8 +126,10 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     },
     onDown: () => {
       if (isFullScreen) {
-        // Zapping em tela cheia (Próximo Canal)
-        if (filteredChannels.length > 0) {
+        if (isQuickGuideOpen) {
+          setQuickGuideIdx((prev) => Math.min(filteredChannels.length - 1, prev + 1));
+        } else if (filteredChannels.length > 0) {
+          // Zapping em tela cheia (Próximo Canal)
           const nextIdx = (selectedChannelIdx + 1) % filteredChannels.length;
           setSelectedChannelIdx(nextIdx);
           setCurrentPlayingChannel(filteredChannels[nextIdx]);
@@ -136,19 +142,30 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     },
     onLeft: () => {
       if (isFullScreen) {
-        // Sai de tela cheia para exibir o menu e canais ao apertar seta para o lado
-        setFullScreenMode(false);
+        if (!isQuickGuideOpen) {
+          // Em tela cheia, seta para a esquerda abre o Guia Rápido de Canais
+          setQuickGuideIdx(selectedChannelIdx);
+          setIsQuickGuideOpen(true);
+        }
         return;
       }
       if (activeFocusColumn === 'channels') {
         setActiveFocusColumn('categories');
-      } else if (activeFocusColumn === 'categories') {
-        // Seta para esquerda nas categorias abre o Menu Lateral (Sidebar)
-        onRequestFocusSidebar?.();
       }
+      // Dentro de categorias, seta para a esquerda NÃO faz nada (apenas botão Voltar volta para o menu)
     },
     onRight: () => {
-      if (isFullScreen) return;
+      if (isFullScreen) {
+        if (isQuickGuideOpen) {
+          // Fecha o guia rápido e volta à tela cheia
+          setIsQuickGuideOpen(false);
+        } else {
+          // Abre o guia rápido de canais
+          setQuickGuideIdx(selectedChannelIdx);
+          setIsQuickGuideOpen(true);
+        }
+        return;
+      }
       if (activeFocusColumn === 'categories') {
         setActiveFocusColumn('channels');
       } else if (activeFocusColumn === 'channels' && filteredChannels[selectedChannelIdx]) {
@@ -157,7 +174,14 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       }
     },
     onSelect: () => {
-      if (isFullScreen) return;
+      if (isFullScreen) {
+        if (isQuickGuideOpen && filteredChannels[quickGuideIdx]) {
+          setSelectedChannelIdx(quickGuideIdx);
+          setCurrentPlayingChannel(filteredChannels[quickGuideIdx]);
+          setIsQuickGuideOpen(false);
+        }
+        return;
+      }
       if (activeFocusColumn === 'categories') {
         if (selectedCategoryIdx === 0) {
           setSelectedCategory('all');
@@ -172,22 +196,25 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     },
     onBack: () => {
       if (isFullScreen) {
-        setFullScreenMode(false);
+        if (isQuickGuideOpen) {
+          setIsQuickGuideOpen(false);
+        } else {
+          setFullScreenMode(false);
+        }
         return;
       }
       if (activeFocusColumn === 'channels') {
         setActiveFocusColumn('categories');
       } else if (activeFocusColumn === 'categories') {
-        if (onBackToHome) {
-          onBackToHome();
-        } else {
-          onRequestFocusSidebar?.();
-        }
+        // Botão físico VOLTAR retorna para a tela inicial (Home / Menu Principal)
+        onBackToHome?.();
       }
     },
     disabled: !isFocusedContent
   }, [
     isFullScreen,
+    isQuickGuideOpen,
+    quickGuideIdx,
     activeFocusColumn,
     filteredChannels,
     selectedChannelIdx,
@@ -204,7 +231,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
 
   return (
     <div className="w-full h-full flex bg-[#0a0d14] relative overflow-hidden select-none">
-      {/* TELA CHEIA FIXADA (Cobre 100% da tela, sobrepondo a NavigationBar e tudo mais) */}
+      {/* TELA CHEIA FIXADA (Cobre 100% da tela) */}
       {isFullScreen && currentPlayingChannel && (
         <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black">
           <Player
@@ -213,9 +240,115 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
             title={currentPlayingChannel.name}
             channelNum={currentPlayingChannel.num || selectedChannelIdx + 1}
             logoUrl={currentPlayingChannel.stream_icon}
-            onBack={() => setFullScreenMode(false)}
+            isLive={true}
+            onChannelUp={() => {
+              if (filteredChannels.length > 0) {
+                const nextIdx = (selectedChannelIdx - 1 + filteredChannels.length) % filteredChannels.length;
+                setSelectedChannelIdx(nextIdx);
+                setCurrentPlayingChannel(filteredChannels[nextIdx]);
+              }
+            }}
+            onChannelDown={() => {
+              if (filteredChannels.length > 0) {
+                const nextIdx = (selectedChannelIdx + 1) % filteredChannels.length;
+                setSelectedChannelIdx(nextIdx);
+                setCurrentPlayingChannel(filteredChannels[nextIdx]);
+              }
+            }}
+            onOpenChannelList={() => {
+              setQuickGuideIdx(selectedChannelIdx);
+              setIsQuickGuideOpen(true);
+            }}
+            onBack={() => {
+              if (isQuickGuideOpen) {
+                setIsQuickGuideOpen(false);
+              } else {
+                setFullScreenMode(false);
+              }
+            }}
             isFullScreen={true}
           />
+
+          {/* Guia Rápido de Canais Overlay (Acionado por Seta Esquerda/Direita) */}
+          {isQuickGuideOpen && (
+            <div className="absolute inset-y-0 left-0 w-80 md:w-96 bg-black/90 backdrop-blur-xl border-r border-[#2a3449] p-5 z-[10000] flex flex-col justify-between shadow-2xl animate-in slide-in-from-left duration-200">
+              <div className="flex-1 flex flex-col min-h-0">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+                  <div>
+                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                      GUIA RÁPIDO • AO VIVO
+                    </span>
+                    <h3 className="text-sm font-extrabold text-white truncate">
+                      {selectedCategory === 'all' ? 'Todos os Canais' : (categories.find(c => c.category_id === selectedCategory)?.category_name || 'Canais')}
+                    </h3>
+                  </div>
+                  <span className="text-xs font-mono text-slate-400">
+                    {quickGuideIdx + 1}/{filteredChannels.length}
+                  </span>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-1.5 py-3 pr-1 custom-scrollbar">
+                  {filteredChannels.map((channel, idx) => {
+                    const isSelected = idx === quickGuideIdx;
+                    const isPlaying = channel.stream_id === currentPlayingChannel.stream_id;
+                    return (
+                      <button
+                        key={channel.stream_id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedChannelIdx(idx);
+                          setCurrentPlayingChannel(channel);
+                          setIsQuickGuideOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between p-2.5 rounded-xl transition text-left cursor-pointer ${
+                          isSelected
+                            ? 'bg-emerald-500 text-black font-extrabold shadow-lg shadow-emerald-500/30 scale-102 ring-2 ring-emerald-300'
+                            : isPlaying
+                            ? 'bg-slate-800/90 text-emerald-400 font-bold border border-emerald-500/30'
+                            : 'bg-slate-900/60 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {channel.stream_icon ? (
+                            <img
+                              src={channel.stream_icon}
+                              alt=""
+                              className="w-8 h-8 rounded-lg object-contain bg-black/50 p-0.5 shrink-0"
+                              onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-xs shrink-0 font-bold">
+                              {channel.num || idx + 1}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <span className="text-xs truncate block">{channel.name}</span>
+                            <span className={`text-[10px] ${isSelected ? 'text-black/80' : 'text-slate-500'}`}>
+                              CH {channel.num || idx + 1}
+                            </span>
+                          </div>
+                        </div>
+                        {isPlaying && (
+                          <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-black' : 'bg-emerald-400 animate-ping'} shrink-0`} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between shrink-0">
+                <span>[▲▼] Navegar • [OK] Assistir</span>
+                <button
+                  type="button"
+                  onClick={() => setIsQuickGuideOpen(false)}
+                  className="text-emerald-400 hover:text-white font-bold cursor-pointer"
+                >
+                  [▶ / VOLTAR] Fechar
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
