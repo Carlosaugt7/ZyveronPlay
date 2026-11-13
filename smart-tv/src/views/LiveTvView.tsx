@@ -636,6 +636,14 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     // Botão Azul: Recarregar Lista
     onBlue: () => {
       showToast('Sincronizando grade de canais...');
+      client.clearCache();
+      setIsLoadingChannels(true);
+      client.getLiveCategories().then((cats) => {
+        if (cats) setCategories(AdultContentHelper.partitionAdultCategories(cats, (c) => c.category_name));
+      });
+      client.getLiveStreams(selectedCategory === 'all' ? undefined : selectedCategory).then((data) => {
+        if (data) setChannels(data);
+      }).finally(() => setIsLoadingChannels(false));
     },
     onBack: () => {
       if (showAdultPinModal) {

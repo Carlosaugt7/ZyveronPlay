@@ -9,7 +9,8 @@ import {
   serverTimestamp,
   Unsubscribe 
 } from "firebase/firestore";
-import { DeviceActivation } from "../types";
+import { DeviceActivation, PlaylistAccount } from "../types";
+import { getSelectedPlaylistIndex } from "./storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD_keI8HrRiu2zmXXi0JybhBFBu7xn8cbw",
@@ -40,6 +41,15 @@ export type DeviceStatusCallback = (state: {
   device?: DeviceActivation;
 }) => void;
 
+function normalizeDns(url: string): string {
+  if (!url) return '';
+  let clean = url.trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(clean)) {
+    clean = `http://${clean}`;
+  }
+  return clean;
+}
+
 /**
  * Escuta o estado do dispositivo em tempo real
  */
@@ -61,20 +71,20 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
       const status = data.status || 'active';
       const expirationDate = data.expirationDate || '';
       const serverId = data.serverId || '';
-      let username = data.username || '';
-      let password = data.password || '';
-      let serverName = data.serverName || 'Servidor 1';
-      let activeDns = data.serverDns || data.activeDns || data.dns || data.serverUrl || '';
+      let username = (data.username || '').trim();
+      let password = (data.password || '').trim();
+      let serverName = (data.serverName || 'Lista 1').trim();
+      let rawServerDns = (data.serverDns || data.activeDns || data.dns || data.serverUrl || '').trim();
 
-      // Se a conta 1 estiver vazia, tenta conta 2
-      if (!username && data.username2) {
-        username = data.username2;
-        password = data.password2 || '';
-        serverName = data.serverName2 || 'Servidor 2';
-        activeDns = data.serverDns2 || data.activeDns2 || activeDns;
-      }
+      // Lista 2
+      const serverId2 = data.serverId2 || '';
+      let username2 = (data.username2 || '').trim();
+      let password2 = (data.password2 || '').trim();
+      let serverName2 = (data.serverName2 || 'Lista 2').trim();
+      let rawServerDns2 = (data.serverDns2 || data.activeDns2 || data.dns2 || data.url2 || '').trim();
+      const expirationDate2 = data.expirationDate2 || '';
 
-      // Busca o nome do servidor na coleção servers se tiver serverId
+      // Busca dados do servidor 1 na coleção servers se tiver serverId
       if (serverId) {
         try {
           const serverDocRef = doc(firestore, "servers", serverId);
@@ -82,12 +92,29 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
           if (serverSnap.exists()) {
             const sData = serverSnap.data();
             if (sData.name) serverName = sData.name;
-            if (!activeDns || activeDns.trim() === '') {
-              activeDns = sData.activeDns || sData.serverDns || sData.dns || sData.serverUrl || '';
+            if (!rawServerDns) {
+              rawServerDns = sData.activeDns || sData.serverDns || sData.dns || sData.serverUrl || '';
             }
           }
         } catch (err) {
-          console.error("Erro ao carregar dados do servidor:", err);
+          console.error("Erro ao carregar dados do servidor 1:", err);
+        }
+      }
+
+      // Busca dados do servidor 2 na coleção servers se tiver serverId2
+      if (serverId2) {
+        try {
+          const server2DocRef = doc(firestore, "servers", serverId2);
+          const server2Snap = await getDoc(server2DocRef);
+          if (server2Snap.exists()) {
+            const s2Data = server2Snap.data();
+            if (s2Data.name) serverName2 = s2Data.name;
+            if (!rawServerDns2) {
+              rawServerDns2 = s2Data.activeDns || s2Data.serverDns || s2Data.dns || s2Data.serverUrl || '';
+            }
+          }
+        } catch (err) {
+          console.error("Erro ao carregar dados do servidor 2:", err);
         }
       }
 
@@ -98,33 +125,66 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
         return;
       }
 
-      // Validação de validade
-      if (expirationDate) {
-        const expDate = new Date(expirationDate);
-        if (!isNaN(expDate.getTime()) && expDate < new Date()) {
-          listenerSignature = "expired";
-          callback({ status: 'expired', message: `Mensalidade vencida em ${expDate.toLocaleDateString('pt-BR')}` });
-          return;
-        }
+      // Fallback cruzado de DNS resiliente (idêntico ao Android TV)
+      const effectiveDns1 = normalizeDns(rawServerDns || rawServerDns2);
+      const effectiveDns2 = normalizeDns(rawServerDns2 || rawServerDns);
+
+      // Constrói lista de playlists disponíveis
+      const playlists: PlaylistAccount[] = [];
+      if (username && effectiveDns1) {
+        playlists.push({
+          listIndex: 1,
+          serverName: serverName || 'Lista 1',
+          serverDns: effectiveDns1,
+          username,
+          password,
+          expirationDate
+        });
       }
 
-      if (!activeDns || !username || !password) {
+      if (username2 && effectiveDns2) {
+        playlists.push({
+          listIndex: 2,
+          serverName: serverName2 || 'Lista 2',
+          serverDns: effectiveDns2,
+          username: username2,
+          password: password2,
+          expirationDate: expirationDate2 || expirationDate
+        });
+      }
+
+      if (playlists.length === 0) {
         listenerSignature = "unregistered_no_creds";
         callback({ 
           status: 'unregistered', 
-          message: 'Aparelho cadastrado, mas lista ou DNS ainda não atribuídos no painel.' 
+          message: 'Aparelho cadastrado, mas nenhuma lista ou DNS configurado no painel.' 
         });
         return;
       }
 
-      // Limpa protocolo duplo se existir
-      activeDns = activeDns.trim().replace(/\/+$/, '');
-      if (!/^https?:\/\//i.test(activeDns)) {
-        activeDns = `http://${activeDns}`;
+      // Recupera o índice de lista salvo
+      const savedIdx = getSelectedPlaylistIndex();
+      const safeIdx = savedIdx >= 0 && savedIdx < playlists.length ? savedIdx : 0;
+      const activeAccount = playlists[safeIdx];
+
+      // Validação de validade da mensalidade da conta ativa
+      if (activeAccount.expirationDate) {
+        const expDate = new Date(activeAccount.expirationDate);
+        if (!isNaN(expDate.getTime()) && expDate < new Date()) {
+          listenerSignature = `expired_${safeIdx}`;
+          callback({ 
+            status: 'expired', 
+            message: `Mensalidade (${activeAccount.serverName}) vencida em ${expDate.toLocaleDateString('pt-BR')}` 
+          });
+          return;
+        }
       }
 
-      // Assinatura de autenticação única para evitar loops infinitos de renderização
-      const currentSignature = `${cleanMac}|${status}|${expirationDate}|${serverId}|${username}|${password}|${activeDns}|${serverName}`;
+      // Assinatura única incluindo ambas as listas e o índice ativo
+      const playlistsSig = playlists
+        .map((p) => `${p.listIndex}:${p.serverDns}:${p.username}:${p.password}:${p.expirationDate}:${p.serverName}`)
+        .join(';');
+      const currentSignature = `${cleanMac}|${status}|${safeIdx}|${playlistsSig}`;
       if (currentSignature === listenerSignature) {
         // Nada de relevante mudou; ignora alterações de heartbeat/lastSeen
         return;
@@ -135,12 +195,20 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
         mac: cleanMac,
         deviceKey: data.deviceKey || '',
         status: 'active',
-        expirationDate,
-        serverId,
-        serverName,
-        activeDns,
-        username,
-        password
+        expirationDate: activeAccount.expirationDate || expirationDate,
+        serverId: safeIdx === 0 ? serverId : (serverId2 || serverId),
+        serverName: activeAccount.serverName,
+        activeDns: activeAccount.serverDns,
+        username: activeAccount.username,
+        password: activeAccount.password,
+        serverId2,
+        serverName2,
+        serverDns2: effectiveDns2,
+        username2,
+        password2,
+        expirationDate2,
+        playlists,
+        activePlaylistIndex: safeIdx
       };
 
       callback({ status: 'active', device: activeDevice });

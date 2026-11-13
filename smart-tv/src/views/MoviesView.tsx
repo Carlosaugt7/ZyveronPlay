@@ -16,6 +16,7 @@ interface MoviesViewProps {
   onFullScreenChange?: (full: boolean) => void;
   onBackToHome?: () => void;
   initialStreamId?: number;
+  reloadKey?: number;
 }
 
 const BATCH_SIZE = 30; // Proteção de memória RAM para Smart TVs
@@ -26,7 +27,8 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   onRequestFocusSidebar,
   onFullScreenChange,
   onBackToHome,
-  initialStreamId
+  initialStreamId,
+  reloadKey = 0
 }) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('favorites');
@@ -174,7 +176,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         }
       })
       .catch((err) => console.warn("[Movies] Erro ao carregar contagens:", err));
-  }, [client]);
+  }, [client, reloadKey]);
 
   // Carrega filmes da categoria selecionada ou filtra favoritos/recentes/lançamentos
   useEffect(() => {

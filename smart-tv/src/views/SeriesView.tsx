@@ -16,6 +16,7 @@ interface SeriesViewProps {
   onFullScreenChange?: (full: boolean) => void;
   onBackToHome?: () => void;
   initialStreamId?: number;
+  reloadKey?: number;
 }
 
 const BATCH_SIZE = 30; // Proteção de memória para Smart TVs
@@ -26,7 +27,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   onRequestFocusSidebar,
   onFullScreenChange,
   onBackToHome,
-  initialStreamId
+  initialStreamId,
+  reloadKey = 0
 }) => {
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('favorites');
@@ -211,7 +213,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         }
       })
       .catch((err) => console.warn("[Series] Erro ao carregar contagens:", err));
-  }, [client]);
+  }, [client, reloadKey]);
 
   // Carrega séries da categoria selecionada ou filtra por favoritos/recentes/lançamentos
   useEffect(() => {

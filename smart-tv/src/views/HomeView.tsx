@@ -11,13 +11,17 @@ interface HomeViewProps {
   device: DeviceActivation | null;
   onNavigate: (section: 'live' | 'vod' | 'series' | 'settings', extra?: { categoryId?: string; streamId?: number }) => void;
   onSyncContent: () => void;
+  reloadKey?: number;
+  onSwitchPlaylist?: (index: number) => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
   client,
   device,
   onNavigate,
-  onSyncContent
+  onSyncContent,
+  reloadKey = 0,
+  onSwitchPlaylist
 }) => {
   // Contagens
   const [liveCount, setLiveCount] = useState<number>(() => {
@@ -52,14 +56,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
   });
 
   const [isLoading, setIsLoading] = useState<boolean>(liveCount === 0 && vodCount === 0);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string>('');
   const network = useNetworkQuality();
+
+  const hasMultiplePlaylists = Boolean(device?.playlists && device.playlists.length > 1);
 
   // Foco do Controle Remoto / Teclado
   // grid: 0 (Live), 1 (Vod), 2 (Series), 3 (Sports)
   // vodCarousel: 10 + index (0..9)
   // seriesCarousel: 20 + index (0..9)
-  // bottom: 30 (Sync), 31 (Settings), 32 (Exit)
+  // bottom: 30 (Sync), 33 (Switch Playlist), 31 (Settings), 32 (Exit)
   const [focusedId, setFocusedId] = useState<number>(0);
   const [showExitConfirmModal, setShowExitConfirmModal] = useState<boolean>(false);
   const [exitModalBtnIdx, setExitModalBtnIdx] = useState<number>(0); // 0: Cancelar, 1: Sair
@@ -71,7 +79,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
       activeCarouselRef.current.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
     }
   }, [focusedId]);
-
 
   // Relógio e Saudação Dinâmica
   useEffect(() => {
@@ -142,7 +149,50 @@ export const HomeView: React.FC<HomeViewProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [client]);
+  }, [client, reloadKey]);
+
+  // Handler de sincronização com feedback visual em tempo real
+  const handleSyncCatalog = async () => {
+    setIsSyncing(true);
+    setSyncFeedback(null);
+    onSyncContent();
+
+    try {
+      const [streams, vods, seriesList] = await Promise.all([
+        client.getLiveStreams().catch(() => null),
+        client.getVodStreams().catch(() => null),
+        client.getSeries().catch(() => null),
+      ]);
+
+      if (streams) {
+        setLiveCount(streams.length);
+        localStorage.setItem('zyveron_live_count', String(streams.length));
+      }
+      if (vods) {
+        setVodCount(vods.length);
+        localStorage.setItem('zyveron_vod_count', String(vods.length));
+        setFeaturedVods(vods.slice(0, 10));
+        try {
+          localStorage.setItem('zyveron_featured_vods', JSON.stringify(vods.slice(0, 10)));
+        } catch {}
+      }
+      if (seriesList) {
+        setSeriesCount(seriesList.length);
+        localStorage.setItem('zyveron_series_count', String(seriesList.length));
+        setFeaturedSeries(seriesList.slice(0, 10));
+        try {
+          localStorage.setItem('zyveron_featured_series', JSON.stringify(seriesList.slice(0, 10)));
+        } catch {}
+      }
+
+      setSyncFeedback('Catálogo Atualizado!');
+    } catch {
+      setSyncFeedback('Sincronizado!');
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncFeedback(null), 3500);
+    }
+  };
 
   // Ações de cada item selecionado na Home
   const triggerAction = useCallback((id: number) => {
@@ -150,7 +200,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
     else if (id === 1) onNavigate('vod');
     else if (id === 2) onNavigate('series');
     else if (id === 3) onNavigate('live', { categoryId: 'sports' });
-    else if (id === 30) onSyncContent();
+    else if (id === 30) handleSyncCatalog();
+    else if (id === 33 && device?.playlists && device.playlists.length > 1) {
+      onSwitchPlaylist?.(device.activePlaylistIndex === 0 ? 1 : 0);
+    }
     else if (id === 31) onNavigate('settings');
     else if (id >= 10 && id <= 19) {
       const idx = id - 10;
@@ -163,7 +216,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         onNavigate('series', { streamId: featuredSeries[idx].series_id });
       }
     }
-  }, [onNavigate, onSyncContent, featuredVods, featuredSeries]);
+  }, [onNavigate, onSyncContent, client, featuredVods, featuredSeries, device, onSwitchPlaylist]);
 
   // Controle Remoto: Navegação Espacial completa integrada ao useSpatialNav
   useSpatialNav({
@@ -174,7 +227,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         if (prev === 3) return 1; // Esportes -> Filmes
         if (prev >= 20 && prev <= 29) return prev - 10; // Séries Carousel -> VOD Carousel
         if (prev >= 10 && prev <= 19) return 1; // VOD Carousel -> Filmes Card
-        if (prev === 30 || prev === 31 || prev === 32) return 2; // Bottom -> Séries Card
+        if (prev === 30 || prev === 31 || prev === 32 || prev === 33) return 2; // Bottom -> Séries Card
         return prev;
       });
     },
@@ -198,7 +251,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
         if (prev === 1) return 0; // Filmes -> TV ao Vivo
         if (prev === 3) return 2; // Esportes -> Séries
         if (prev === 32) return 31; // Sair -> Ajustes
-        if (prev === 31) return 30; // Ajustes -> Sincronizar
+        if (prev === 31) return hasMultiplePlaylists ? 33 : 30; // Ajustes -> Alternar Lista (ou Sincronizar)
+        if (prev === 33) return 30; // Alternar Lista -> Sincronizar
         if (prev >= 10 && prev <= 19) {
           if (prev === 10) return 1; // Primeiro do VOD -> Filmes Card
           return prev - 1;
@@ -220,7 +274,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
         if (prev === 2) return 3; // Séries -> Esportes
         if (prev === 1) return 10; // Filmes -> Primeiro VOD Carousel
         if (prev === 3) return 20; // Esportes -> Primeiro Séries Carousel
-        if (prev === 30) return 31; // Sincronizar -> Ajustes
+        if (prev === 30) return hasMultiplePlaylists ? 33 : 31; // Sincronizar -> Alternar Lista (ou Ajustes)
+        if (prev === 33) return 31; // Alternar Lista -> Ajustes
         if (prev === 31) return 32; // Ajustes -> Sair
         if (prev >= 10 && prev < 19 && prev - 10 < featuredVods.length - 1) return prev + 1;
         if (prev >= 20 && prev < 29 && prev - 20 < featuredSeries.length - 1) return prev + 1;
@@ -255,7 +310,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       setExitModalBtnIdx(0);
     },
     priority: 0
-  }, [focusedId, featuredVods, featuredSeries, triggerAction, showExitConfirmModal, exitModalBtnIdx]);
+  }, [focusedId, featuredVods, featuredSeries, triggerAction, showExitConfirmModal, exitModalBtnIdx, hasMultiplePlaylists]);
 
   return (
     <div className="w-full h-full min-h-[100dvh] bg-[#0a0d14] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900/40 via-[#0a0d14] to-[#07090e] text-white flex flex-col justify-between p-3 sm:p-4 md:p-6 select-none overflow-y-auto lg:overflow-hidden custom-scrollbar">
@@ -305,11 +360,26 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Badge do Servidor Ativo */}
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
-            <span>📋</span>
-            <span>{device?.serverName || 'Servidor Oficial'}</span>
-          </div>
+          {/* Badge / Seletor do Servidor e Lista Ativa */}
+          {hasMultiplePlaylists ? (
+            <button
+              type="button"
+              onClick={() => onSwitchPlaylist?.(device?.activePlaylistIndex === 0 ? 1 : 0)}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition cursor-pointer shadow-md"
+              title="Clique para alternar para a outra lista"
+            >
+              <span>📋</span>
+              <span>Lista {(device?.activePlaylistIndex ?? 0) + 1}/2: {device?.serverName || `Lista ${(device?.activePlaylistIndex ?? 0) + 1}`}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/30 text-sky-200 border border-sky-400/30 font-semibold ml-1">
+                Trocar [OK]
+              </span>
+            </button>
+          ) : (
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
+              <span>📋</span>
+              <span>{device?.serverName || 'Servidor Oficial'}</span>
+            </div>
+          )}
 
           {/* Indicador de Sinal de Internet em Tempo Real */}
           <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-inner">
@@ -625,18 +695,35 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* 4. BARRA INFERIOR DE ATALHOS RÁPIDOS */}
       <footer className="w-full shrink-0 flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800/80">
         <div className="flex items-center gap-3">
-          {/* Botão Sincronizar */}
+          {/* Botão Sincronizar com Feedback */}
           <button
             type="button"
-            onClick={onSyncContent}
+            onClick={handleSyncCatalog}
             onMouseEnter={() => setFocusedId(30)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors cursor-pointer focus:outline-none ${
               focusedId === 30 ? 'bg-sky-500 text-black font-bold ring-2 ring-white' : 'bg-slate-800/80 text-slate-300 hover:text-white'
             }`}
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Sincronizar Catálogo</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-sky-400' : ''}`} />
+            <span>{isSyncing ? 'Sincronizando...' : syncFeedback || 'Sincronizar Catálogo'}</span>
           </button>
+
+          {/* Botão Alternar Lista (quando há 2 listas configuradas) */}
+          {hasMultiplePlaylists && (
+            <button
+              type="button"
+              onClick={() => onSwitchPlaylist?.(device?.activePlaylistIndex === 0 ? 1 : 0)}
+              onMouseEnter={() => setFocusedId(33)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors cursor-pointer focus:outline-none ${
+                focusedId === 33
+                  ? 'bg-emerald-400 text-black font-bold ring-2 ring-white'
+                  : 'bg-emerald-950/40 text-emerald-300 hover:text-white border border-emerald-500/30'
+              }`}
+            >
+              <span>📋</span>
+              <span>Usar {device?.activePlaylistIndex === 0 ? (device?.playlists[1]?.serverName || 'Lista 2') : (device?.playlists[0]?.serverName || 'Lista 1')}</span>
+            </button>
+          )}
 
           {/* Botão Ajustes */}
           <button

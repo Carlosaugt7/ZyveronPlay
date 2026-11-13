@@ -1,3 +1,12 @@
+export interface PlaylistAccount {
+  listIndex: number; // 1 ou 2
+  serverName: string;
+  serverDns: string;
+  username: string;
+  password: string;
+  expirationDate?: string;
+}
+
 export interface DeviceActivation {
   mac: string;
   deviceKey: string;
@@ -10,6 +19,16 @@ export interface DeviceActivation {
   username?: string;
   password?: string;
   serverName?: string;
+  // Campos Lista 2
+  serverId2?: string;
+  serverName2?: string;
+  serverDns2?: string;
+  username2?: string;
+  password2?: string;
+  expirationDate2?: string;
+  // Lista de contas disponíveis e índice ativo
+  playlists: PlaylistAccount[];
+  activePlaylistIndex: number;
 }
 
 export interface XtreamCategory {

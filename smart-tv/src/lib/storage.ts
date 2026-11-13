@@ -13,7 +13,8 @@ const STORAGE_KEYS = {
   SETTINGS: 'zyveron_tv_settings',
   ACTIVE_DEVICE: 'zyveron_active_device',
   RECENT_VOD: 'zyveron_recent_vod',
-  RECENT_SERIES: 'zyveron_recent_series'
+  RECENT_SERIES: 'zyveron_recent_series',
+  SELECTED_PLAYLIST: 'zyveron_selected_playlist_idx'
 };
 
 /**
@@ -173,4 +174,21 @@ export function saveCachedDevice(device: DeviceActivation | null): void {
     }
   } catch {}
 }
+
+export function getSelectedPlaylistIndex(): number {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.SELECTED_PLAYLIST);
+    const parsed = raw !== null ? parseInt(raw, 10) : 0;
+    return isNaN(parsed) ? 0 : parsed;
+  } catch {
+    return 0;
+  }
+}
+
+export function setSelectedPlaylistIndex(index: number): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.SELECTED_PLAYLIST, String(index));
+  } catch {}
+}
+
 

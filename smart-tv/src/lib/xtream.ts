@@ -33,6 +33,13 @@ export class XtreamClient {
     this.pass = pass.trim();
   }
 
+  /**
+   * Limpa o cache em memória de requisições Xtream
+   */
+  public clearCache(): void {
+    this.cache.clear();
+  }
+
   private get apiUrl(): string {
     return `${this.baseDns}/player_api.php?username=${encodeURIComponent(this.user)}&password=${encodeURIComponent(this.pass)}`;
   }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getOrCreateDeviceIdentity, getCachedDevice, saveCachedDevice } from './lib/storage';
+import { getOrCreateDeviceIdentity, getCachedDevice, saveCachedDevice, setSelectedPlaylistIndex } from './lib/storage';
 import { listenDeviceActivation } from './lib/firebase';
 import { DeviceActivation } from './types';
 import { XtreamClient } from './lib/xtream';
@@ -105,8 +105,57 @@ export default function App() {
     setAuthReloadKey((prev) => prev + 1);
   };
 
-  // Sincroniza a lista de canais sem deslogar ou travar a tela
+  // Alterna entre Lista 1 e Lista 2
+  const handleSwitchPlaylist = (newIndex: number) => {
+    if (!activeDevice || !activeDevice.playlists || !activeDevice.playlists[newIndex]) return;
+    setSelectedPlaylistIndex(newIndex);
+
+    // Limpa o cache em memória do Xtream
+    if (xtreamClient) {
+      xtreamClient.clearCache();
+    }
+
+    // Limpa caches temporários de contagem no localStorage para forçar recálculo na nova lista
+    localStorage.removeItem('zyveron_live_count');
+    localStorage.removeItem('zyveron_vod_count');
+    localStorage.removeItem('zyveron_series_count');
+    localStorage.removeItem('zyveron_featured_vods');
+    localStorage.removeItem('zyveron_featured_series');
+
+    const targetAccount = activeDevice.playlists[newIndex];
+    const updatedDevice: DeviceActivation = {
+      ...activeDevice,
+      activePlaylistIndex: newIndex,
+      serverName: targetAccount.serverName,
+      activeDns: targetAccount.serverDns,
+      username: targetAccount.username,
+      password: targetAccount.password,
+      expirationDate: targetAccount.expirationDate || activeDevice.expirationDate
+    };
+
+    saveCachedDevice(updatedDevice);
+    setActiveDevice(updatedDevice);
+    setContentReloadKey((prev) => prev + 1);
+  };
+
+  // Sincroniza o catálogo, limpa o cache em memória e revalida os dados no Firestore
   const handleSyncContent = () => {
+    // 1. Limpa o cache em memória do cliente Xtream
+    if (xtreamClient) {
+      xtreamClient.clearCache();
+    }
+
+    // 2. Limpa dados em cache de contagem no localStorage
+    localStorage.removeItem('zyveron_live_count');
+    localStorage.removeItem('zyveron_vod_count');
+    localStorage.removeItem('zyveron_series_count');
+    localStorage.removeItem('zyveron_featured_vods');
+    localStorage.removeItem('zyveron_featured_series');
+
+    // 3. Força revalidação no Firestore (re-executa listener para buscar 2ª lista ou alterações de DNS/servidor)
+    setAuthReloadKey((prev) => prev + 1);
+
+    // 4. Incrementa contentReloadKey para re-executar as buscas das views
     setContentReloadKey((prev) => prev + 1);
   };
 
@@ -179,6 +228,8 @@ export default function App() {
                   setCurrentSection(section);
                 }}
                 onSyncContent={handleSyncContent}
+                reloadKey={contentReloadKey}
+                onSwitchPlaylist={handleSwitchPlaylist}
               />
             )}
             {currentSection === 'live' && (
@@ -197,6 +248,7 @@ export default function App() {
                 isFocusedContent={true}
                 onBackToHome={handleBackToHome}
                 initialStreamId={selectedVodId}
+                reloadKey={contentReloadKey}
                 onFullScreenChange={setIsFullScreen}
               />
             )}
@@ -206,6 +258,7 @@ export default function App() {
                 isFocusedContent={true}
                 onBackToHome={handleBackToHome}
                 initialStreamId={selectedSeriesId}
+                reloadKey={contentReloadKey}
                 onFullScreenChange={setIsFullScreen}
               />
             )}
@@ -216,6 +269,7 @@ export default function App() {
                 onBackToHome={handleBackToHome}
                 onSyncContent={handleSyncContent}
                 onResetDevice={handleResetDevice}
+                onSwitchPlaylist={handleSwitchPlaylist}
               />
             )}
           </ErrorBoundary>
