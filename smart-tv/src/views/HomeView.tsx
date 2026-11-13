@@ -15,6 +15,64 @@ interface HomeViewProps {
   onSwitchPlaylist?: (index: number) => void;
 }
 
+function cleanTitle(rawName: string): string {
+  if (!rawName) return '';
+  return rawName
+    .toLowerCase()
+    .replace(/[\[\(][^\]\)]*[\]\)]/g, ' ') // Remove conteúdo entre colchetes/parênteses (tags, anos, resoluções)
+    .replace(/\b(4k|fhd|hd|sd|1080p|720p|2160p|hevc|x264|x265|dublado|legendado|dual|leg|dub|nacional|web-?dl|bluray)\b/gi, ' ')
+    .replace(/[^a-z0-9]/gi, '') // Remove caracteres especiais e pontuações
+    .trim();
+}
+
+export function deduplicateVods(vods: XtreamVod[], limit = 10): XtreamVod[] {
+  if (!vods || !Array.isArray(vods)) return [];
+  const result: XtreamVod[] = [];
+  const seenIds = new Set<number>();
+  const seenTitles = new Set<string>();
+
+  for (const item of vods) {
+    if (!item || !item.stream_id || seenIds.has(item.stream_id)) continue;
+
+    const clean = cleanTitle(item.name || '');
+    const titleKey = clean.length >= 2 ? clean : (item.name || '').toLowerCase().trim();
+
+    if (titleKey && seenTitles.has(titleKey)) continue;
+
+    seenIds.add(item.stream_id);
+    if (titleKey) seenTitles.add(titleKey);
+    result.push(item);
+
+    if (result.length >= limit) break;
+  }
+
+  return result;
+}
+
+export function deduplicateSeries(seriesList: XtreamSeries[], limit = 10): XtreamSeries[] {
+  if (!seriesList || !Array.isArray(seriesList)) return [];
+  const result: XtreamSeries[] = [];
+  const seenIds = new Set<number>();
+  const seenTitles = new Set<string>();
+
+  for (const item of seriesList) {
+    if (!item || !item.series_id || seenIds.has(item.series_id)) continue;
+
+    const clean = cleanTitle(item.name || '');
+    const titleKey = clean.length >= 2 ? clean : (item.name || '').toLowerCase().trim();
+
+    if (titleKey && seenTitles.has(titleKey)) continue;
+
+    seenIds.add(item.series_id);
+    if (titleKey) seenTitles.add(titleKey);
+    result.push(item);
+
+    if (result.length >= limit) break;
+  }
+
+  return result;
+}
+
 export const HomeView: React.FC<HomeViewProps> = ({
   client,
   device,
@@ -37,11 +95,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
     return cached ? parseInt(cached, 10) : 0;
   });
 
-  // Destaques
+  // Destaques (Deduplicados)
   const [featuredVods, setFeaturedVods] = useState<XtreamVod[]>(() => {
     try {
       const cached = localStorage.getItem('zyveron_featured_vods');
-      return cached ? JSON.parse(cached) : [];
+      return cached ? deduplicateVods(JSON.parse(cached), 10) : [];
     } catch {
       return [];
     }
@@ -49,7 +107,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [featuredSeries, setFeaturedSeries] = useState<XtreamSeries[]>(() => {
     try {
       const cached = localStorage.getItem('zyveron_featured_series');
-      return cached ? JSON.parse(cached) : [];
+      return cached ? deduplicateSeries(JSON.parse(cached), 10) : [];
     } catch {
       return [];
     }
@@ -114,12 +172,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
           }
         }).catch((err) => console.warn('[HomeView] Erro ao carregar canais:', err));
 
-        // 2. Filmes
+        // 2. Filmes (Deduplicados)
         client.getVodStreams().then((vods) => {
           if (isMounted && vods) {
             setVodCount(vods.length);
             localStorage.setItem('zyveron_vod_count', String(vods.length));
-            const topVods = vods.slice(0, 10);
+            const topVods = deduplicateVods(vods, 10);
             setFeaturedVods(topVods);
             try {
               localStorage.setItem('zyveron_featured_vods', JSON.stringify(topVods));
@@ -127,12 +185,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
           }
         }).catch((err) => console.warn('[HomeView] Erro ao carregar filmes:', err));
 
-        // 3. Séries
+        // 3. Séries (Deduplicadas)
         client.getSeries().then((seriesList) => {
           if (isMounted && seriesList) {
             setSeriesCount(seriesList.length);
             localStorage.setItem('zyveron_series_count', String(seriesList.length));
-            const topSeries = seriesList.slice(0, 10);
+            const topSeries = deduplicateSeries(seriesList, 10);
             setFeaturedSeries(topSeries);
             try {
               localStorage.setItem('zyveron_featured_series', JSON.stringify(topSeries));
@@ -171,17 +229,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
       if (vods) {
         setVodCount(vods.length);
         localStorage.setItem('zyveron_vod_count', String(vods.length));
-        setFeaturedVods(vods.slice(0, 10));
+        const topVods = deduplicateVods(vods, 10);
+        setFeaturedVods(topVods);
         try {
-          localStorage.setItem('zyveron_featured_vods', JSON.stringify(vods.slice(0, 10)));
+          localStorage.setItem('zyveron_featured_vods', JSON.stringify(topVods));
         } catch {}
       }
       if (seriesList) {
         setSeriesCount(seriesList.length);
         localStorage.setItem('zyveron_series_count', String(seriesList.length));
-        setFeaturedSeries(seriesList.slice(0, 10));
+        const topSeries = deduplicateSeries(seriesList, 10);
+        setFeaturedSeries(topSeries);
         try {
-          localStorage.setItem('zyveron_featured_series', JSON.stringify(seriesList.slice(0, 10)));
+          localStorage.setItem('zyveron_featured_series', JSON.stringify(topSeries));
         } catch {}
       }
 
@@ -571,7 +631,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   const isItemFocused = focusedId === targetId;
                   return (
                     <button
-                      key={vod.stream_id}
+                      key={`vod-${vod.stream_id}-${idx}`}
                       type="button"
                       ref={isItemFocused ? activeCarouselRef : null}
                       onClick={() => onNavigate('vod', { streamId: vod.stream_id })}
@@ -643,7 +703,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   const isItemFocused = focusedId === targetId;
                   return (
                     <button
-                      key={series.series_id}
+                      key={`series-${series.series_id}-${idx}`}
                       type="button"
                       ref={isItemFocused ? activeCarouselRef : null}
                       onClick={() => onNavigate('series', { streamId: series.series_id })}

@@ -79,22 +79,26 @@ export const Player: React.FC<PlayerProps> = ({
   const seekFeedbackTimerRef = useRef<any>(null);
   const osdTimerRef = useRef<any>(null);
 
-  // Autoplay Inteligente (Restrição Apple WebKit / iOS Safari em Mobile)
+  // Autoplay Inteligente (Restrição Apple WebKit / iOS Safari em Mobile e Smart TVs)
   const [isMutedByAutoplay, setIsMutedByAutoplay] = useState<boolean>(false);
 
   const handleUnmute = useCallback(() => {
-    if (videoRef.current) {
-      videoRef.current.muted = false;
+    const vid = videoRef.current;
+    if (vid) {
+      vid.muted = false;
+      vid.volume = 1.0;
       setIsMutedByAutoplay(false);
     }
   }, []);
 
   const tryPlayWithAutoplayFallback = useCallback(async (vid: HTMLVideoElement) => {
     try {
+      vid.muted = false;
+      vid.volume = 1.0;
       await vid.play();
       setIsMutedByAutoplay(false);
     } catch (err: any) {
-      console.warn('[Player] Autoplay com áudio bloqueado pelo navegador/iOS. Ativando fallback com áudio mutado:', err);
+      console.warn('[Player] Autoplay com áudio bloqueado pelo navegador/Smart TV. Ativando fallback com áudio mutado:', err);
       try {
         vid.muted = true;
         await vid.play();
@@ -104,6 +108,32 @@ export const Player: React.FC<PlayerProps> = ({
       }
     }
   }, []);
+
+  // Recuperação de Áudio Inteligente: Qualquer interação no controle remoto, teclado ou clique desmuta o áudio instantaneamente
+  useEffect(() => {
+    if (!isMutedByAutoplay) return;
+
+    const onUserInteraction = () => {
+      handleUnmute();
+    };
+
+    window.addEventListener('keydown', onUserInteraction, { capture: true });
+    window.addEventListener('click', onUserInteraction, { capture: true });
+    window.addEventListener('pointerdown', onUserInteraction, { capture: true });
+
+    return () => {
+      window.removeEventListener('keydown', onUserInteraction, { capture: true });
+      window.removeEventListener('click', onUserInteraction, { capture: true });
+      window.removeEventListener('pointerdown', onUserInteraction, { capture: true });
+    };
+  }, [isMutedByAutoplay, handleUnmute]);
+
+  // Se transicionar para tela cheia e estiver mutado por autoplay, força desmutar com volume 100%
+  useEffect(() => {
+    if (isFullScreen && isMutedByAutoplay) {
+      handleUnmute();
+    }
+  }, [isFullScreen, isMutedByAutoplay, handleUnmute]);
 
   // Foco espacial nos botões de controle OSD (0: Anterior, 1: Play/Pause, 2: Próximo, 3: Auto-Próximo)
   const [focusedButtonIndex, setFocusedButtonIndex] = useState<number | null>(null);
@@ -644,8 +674,8 @@ export const Player: React.FC<PlayerProps> = ({
         </div>
       )}
 
-      {/* OSD (On-Screen Display de TV) */}
-      {showOsd && !hasError && (
+      {/* OSD (On-Screen Display de TV) - Exibido apenas em Modo Tela Cheia */}
+      {showOsd && !hasError && isFullScreen && (
         <div className="absolute inset-x-0 bottom-0 p-6 md:p-8 bg-gradient-to-t from-black/95 via-black/80 to-transparent z-15 flex flex-col gap-3 transition-opacity duration-300">
           
           {/* Informações Superiores do OSD + Botão Voltar Visível */}

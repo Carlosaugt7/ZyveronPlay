@@ -712,269 +712,6 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   return (
     <div className="w-full h-full flex bg-[#0a0d14] relative overflow-hidden select-none">
       
-      {/* TELA CHEIA FIXADA (100% da tela) */}
-      {isFullScreen && currentPlayingChannel && (
-        <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black">
-          <Player
-            streamUrl={client.buildLiveHlsUrl(currentPlayingChannel.stream_id)}
-            fallbackUrl={client.buildLiveTsUrl(currentPlayingChannel.stream_id)}
-            title={currentPlayingChannel.name}
-            channelNum={currentPlayingChannel.num || selectedChannelIdx + 1}
-            logoUrl={currentPlayingChannel.stream_icon}
-            isLive={true}
-            onBack={() => setFullScreenMode(false)}
-            isFullScreen={true}
-            disableSpatialNav={true}
-          />
-
-          {/* BARRA FLUTUANTE DE GATILHO (Some após 2 segundos de inatividade) */}
-          {!isGuideOpen && (
-            <div
-              onClick={() => {
-                setIsGuideOpen(true);
-                setGuideFocusColumn('channels');
-              }}
-              className={`absolute left-0 inset-y-0 w-16 md:w-20 z-[10001] flex items-center justify-start cursor-pointer group transition-opacity duration-300 ${
-                showLateralTriggers ? 'opacity-100' : 'opacity-0 pointer-events-none'
-              }`}
-              title="Abrir Guia de Canais e Categorias [◀ ou ▶]"
-            >
-              <button
-                type="button"
-                className="py-8 px-2.5 bg-black/80 group-hover:bg-emerald-500 group-hover:text-black text-white rounded-r-2xl border-y border-r border-emerald-500/50 backdrop-blur-md flex flex-col items-center gap-2 transition-all duration-200 shadow-2xl group-hover:scale-105"
-              >
-                <List className="w-5 h-5 text-emerald-400 group-hover:text-black" />
-                <span className="[writing-mode:vertical-lr] text-[11px] font-black tracking-widest uppercase">
-                  Guia
-                </span>
-              </button>
-            </div>
-          )}
-
-          {/* GUIA DE PROGRAMAÇÃO DUAL-COLUMN EM TELA CHEIA (ESTILO RECEPTOR / APK ANDROID TV) */}
-          {isGuideOpen && (
-            <div className="absolute inset-y-0 left-0 w-[880px] lg:w-[980px] max-w-[96vw] bg-black/95 backdrop-blur-2xl border-r border-[#2a3449] z-[10002] flex flex-col p-4 animate-in slide-in-from-left duration-200 shadow-2xl">
-              {/* Topo do Guia: Título + Campo de Busca Rápida + Fechar */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3 gap-4">
-                <div className="flex items-center gap-2.5 text-white">
-                  <Tv className="w-7 h-7 text-emerald-400" />
-                  <div>
-                    <h3 className="font-extrabold text-lg md:text-xl text-white leading-tight">
-                      Guia de Canais • {currentCategoryName}
-                    </h3>
-                    <p className="text-xs text-slate-400 font-mono">
-                      {displayedChannels.length} canais disponíveis
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  {/* Busca Rápida no Guia */}
-                  <button
-                    type="button"
-                    ref={guideSearchBtnRef}
-                    tabIndex={0}
-                    onClick={() => setIsSearchModalOpen(true)}
-                    className={`relative w-64 md:w-72 px-3.5 py-2 bg-slate-900 border rounded-xl flex items-center justify-between transition cursor-pointer select-none text-left ${
-                      guideFocusColumn === 'search'
-                        ? 'border-emerald-400 ring-4 ring-emerald-400/80 bg-slate-800'
-                        : 'border-slate-700 hover:border-slate-600'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 overflow-hidden flex-1">
-                      <Search className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span className={`text-xs truncate ${searchQuery ? 'text-emerald-300 font-bold' : 'text-slate-400'}`}>
-                        {searchQuery ? `"${searchQuery}"` : 'Buscar canal...'}
-                      </span>
-                    </div>
-                    {searchQuery ? (
-                      <span
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSearchQuery('');
-                        }}
-                        className="p-1 text-slate-400 hover:text-white shrink-0 cursor-pointer"
-                        title="Limpar pesquisa"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-slate-500 font-mono shrink-0">
-                        [OK]
-                      </span>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsGuideOpen(false)}
-                    className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition cursor-pointer"
-                    title="Fechar Guia [VOLTAR]"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Corpo: Duas Colunas Lado a Lado (Categorias na Esquerda + Canais na Direita) */}
-              <div className="flex-1 flex gap-3 overflow-hidden">
-                {/* Coluna 1: Categorias (Esquerda, w-72 lg:w-80) */}
-                <div className={`w-72 lg:w-80 bg-[#121722]/90 border border-slate-800 rounded-2xl p-2.5 overflow-y-auto space-y-2 custom-scrollbar ${
-                  guideFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60' : ''
-                }`}>
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-400 px-2 block mb-1">
-                    CATEGORIAS
-                  </span>
-
-                  {selectableCategories.map((item, idx) => {
-                    const isFocused = guideFocusColumn === 'categories' && selectedCategoryIdx === idx;
-                    const isSelected = selectedCategory === item.id;
-
-                    return (
-                      <React.Fragment key={`guide-${item.id}-${idx}`}>
-                        {item.groupHeader && (
-                          <div className="pt-2 pb-1 px-2 text-[11px] font-black tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
-                            <span className="h-px bg-slate-700/60 flex-1"></span>
-                            <span className="truncate">{item.groupHeader}</span>
-                            <span className="h-px bg-slate-700/60 flex-1"></span>
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          ref={isFocused ? activeGuideCategoryBtnRef : null}
-                          tabIndex={0}
-                          onClick={() => {
-                            if (item.isAdult && !AdultContentHelper.isSessionUnlocked()) {
-                              setPendingAdultCategory({ id: item.id, idx });
-                              setShowAdultPinModal(true);
-                              return;
-                            }
-                            setSelectedCategory(item.id);
-                            setSelectedCategoryIdx(idx);
-                            setGuideFocusColumn('channels');
-                          }}
-                          className={`w-full text-left px-4 py-3 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer flex items-center justify-between ${
-                            isFocused
-                              ? item.isAdult
-                                ? 'bg-rose-500 text-white font-black ring-2 ring-rose-300 shadow'
-                                : item.id === 'favorites'
-                                ? 'bg-amber-400 text-black font-black ring-2 ring-amber-300 shadow'
-                                : item.id === 'sports'
-                                ? 'bg-sky-400 text-black font-black ring-2 ring-sky-300 shadow'
-                                : 'bg-emerald-400 text-black font-black ring-2 ring-emerald-300 shadow'
-                              : isSelected
-                              ? item.isAdult
-                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                                : item.id === 'favorites'
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                                : item.id === 'sports'
-                                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
-                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                              : item.isAdult
-                              ? 'text-rose-400 hover:bg-slate-800'
-                              : item.id === 'favorites'
-                              ? 'text-amber-300/90 hover:bg-slate-800'
-                              : item.id === 'sports'
-                              ? 'text-sky-300 hover:bg-slate-800'
-                              : 'text-slate-300 hover:bg-slate-800'
-                          }`}
-                        >
-                          <span className="truncate">{item.name}</span>
-                          <span className="text-xs md:text-sm font-mono font-black shrink-0 ml-2 opacity-80">{item.count}</span>
-                        </button>
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
-
-                {/* Coluna 2: Canais da Categoria (Direita, flex-1 com Virtualização Leve) */}
-                <div className={`flex-1 bg-[#0a0d14] border border-slate-800 rounded-2xl p-2.5 flex flex-col overflow-hidden ${
-                  guideFocusColumn === 'channels' ? 'ring-2 ring-emerald-500/60' : ''
-                }`}>
-                  {isLoadingChannels ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
-                      <Loader2 className="w-8 h-8 animate-spin text-emerald-400 mb-2" />
-                      <span className="text-base font-semibold">Carregando canais da categoria...</span>
-                    </div>
-                  ) : displayedChannels.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-4 text-center">
-                      <AlertCircle className="w-8 h-8 mb-2" />
-                      <span className="text-base font-semibold">Nenhum canal encontrado nesta categoria.</span>
-                    </div>
-                  ) : (
-                    <div className="flex-1 min-h-0 w-full overflow-hidden">
-                      <VirtualList
-                        items={displayedChannels}
-                        itemHeight={78}
-                        selectedIndex={guideFocusColumn === 'channels' ? selectedChannelIdx : -1}
-                        renderItem={(channel, index, isSelected) => {
-                          const isItemFocused = isSelected && guideFocusColumn === 'channels';
-                          const isNowPlaying = currentPlayingChannel?.stream_id === channel.stream_id;
-                          const isFav = favorites.includes(channel.stream_id);
-
-                          return (
-                            <button
-                              key={channel.stream_id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedChannelIdx(index);
-                                setCurrentPlayingChannel(channel);
-                                setIsGuideOpen(false);
-                              }}
-                              className={`w-full h-[70px] px-4 rounded-2xl flex items-center justify-between cursor-pointer transition select-none text-left ${
-                                isItemFocused
-                                  ? 'bg-emerald-400 text-black font-black shadow-xl ring-2 ring-emerald-300 scale-[1.01]'
-                                  : isNowPlaying
-                                  ? 'bg-emerald-500/20 border border-emerald-500/60 text-white'
-                                  : 'bg-[#121722]/80 hover:bg-[#1b2234] text-slate-200'
-                              }`}
-                            >
-                              <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0 pr-2">
-                                <span className={`font-mono text-sm md:text-base font-black w-9 shrink-0 ${isItemFocused ? 'text-black' : 'text-slate-400'}`}>
-                                  {channel.num || index + 1}
-                                </span>
-                                {channel.stream_icon ? (
-                                  <img
-                                    src={channel.stream_icon}
-                                    alt=""
-                                    className="w-10 h-10 object-contain rounded-xl bg-black/40 p-0.5 shrink-0"
-                                    onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-                                  />
-                                ) : (
-                                  <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center shrink-0">
-                                    <Tv className="w-5 h-5 text-slate-400" />
-                                  </div>
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <span className="font-extrabold text-base md:text-lg block truncate leading-tight">{channel.name}</span>
-                                  {isNowPlaying && (
-                                    <span className={`text-xs font-black uppercase tracking-wider block mt-0.5 ${isItemFocused ? 'text-black' : 'text-emerald-400'}`}>
-                                      ▶ No Ar
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              {isFav && <Star className={`w-5 h-5 fill-amber-400 text-amber-400 shrink-0 ml-2 ${isItemFocused ? 'text-black fill-black' : ''}`} />}
-                            </button>
-                          );
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Rodapé: Dicas de Controle Remoto */}
-              <div className="pt-2.5 border-t border-slate-800 text-xs text-slate-400 flex items-center justify-between">
-                <span>[◀/▶] Alternar Colunas • [▲/▼] Navegar • [OK] Trocar de Canal</span>
-                <span>[VOLTAR] Fechar Guia</span>
-              </div>
-            </div>
-          )}
-
-        </div>
-      )}
-
       {/* Coluna 1: Categorias de Canais (Fonte Aumentada para Idosos e TVs) */}
       <div className={`w-84 lg:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 shrink-0 ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
@@ -1264,35 +1001,296 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         <div>
           {currentPlayingChannel ? (
             <div className="space-y-4">
-              {/* Mini Player de Prévia Lateral */}
-              {!isFullScreen && (
-                <div 
-                  onClick={() => setFullScreenMode(true)}
-                  className="w-full aspect-video bg-black rounded-3xl overflow-hidden border-2 border-[#2a3449] shadow-2xl relative group cursor-pointer"
-                  title="Clique para assistir em tela cheia"
-                >
-                  <Player
-                    streamUrl={client.buildLiveHlsUrl(currentPlayingChannel.stream_id)}
-                    fallbackUrl={client.buildLiveTsUrl(currentPlayingChannel.stream_id)}
-                    title={currentPlayingChannel.name}
-                    channelNum={currentPlayingChannel.num || selectedChannelIdx + 1}
-                    logoUrl={currentPlayingChannel.stream_icon}
-                    isFullScreen={false}
-                    disableSpatialNav={true}
-                  />
+              {/* Espaço reservado para manter o fluxo quando em tela cheia */}
+              {isFullScreen && <div className="w-full aspect-video opacity-0 pointer-events-none" />}
+
+              {/* Player Único Persistente (Prévia e Tela Cheia) para Continuidade Perfeita de Áudio sem Recarregamento */}
+              <div 
+                onClick={!isFullScreen ? () => setFullScreenMode(true) : undefined}
+                className={
+                  isFullScreen
+                    ? "fixed inset-0 z-[9999] w-screen h-screen bg-black"
+                    : "w-full aspect-video bg-black rounded-3xl overflow-hidden border-2 border-[#2a3449] shadow-2xl relative group cursor-pointer"
+                }
+                title={!isFullScreen ? "Clique para assistir em tela cheia" : undefined}
+              >
+                <Player
+                  streamUrl={client.buildLiveHlsUrl(currentPlayingChannel.stream_id)}
+                  fallbackUrl={client.buildLiveTsUrl(currentPlayingChannel.stream_id)}
+                  title={currentPlayingChannel.name}
+                  channelNum={currentPlayingChannel.num || selectedChannelIdx + 1}
+                  logoUrl={currentPlayingChannel.stream_icon}
+                  isLive={true}
+                  onBack={() => setFullScreenMode(false)}
+                  isFullScreen={isFullScreen}
+                  disableSpatialNav={true}
+                />
+
+                {/* Botão de Expandir na Prévia Lateral */}
+                {!isFullScreen && (
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       setFullScreenMode(true);
                     }}
-                    className="absolute bottom-4 right-4 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-black rounded-2xl font-black text-sm shadow-2xl transition flex items-center gap-2 cursor-pointer"
+                    className="absolute bottom-4 right-4 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-black rounded-2xl font-black text-sm shadow-2xl transition flex items-center gap-2 cursor-pointer z-20"
                   >
                     <Maximize2 className="w-4 h-4" />
                     <span>Expandir Tela Cheia [OK]</span>
                   </button>
-                </div>
-              )}
+                )}
+
+                {/* Overlays Exclusivos do Modo Tela Cheia */}
+                {isFullScreen && (
+                  <>
+                    {/* BARRA FLUTUANTE DE GATILHO (Some após 2 segundos de inatividade) */}
+                    {!isGuideOpen && (
+                      <div
+                        onClick={() => {
+                          setIsGuideOpen(true);
+                          setGuideFocusColumn('channels');
+                        }}
+                        className={`absolute left-0 inset-y-0 w-16 md:w-20 z-[10001] flex items-center justify-start cursor-pointer group transition-opacity duration-300 ${
+                          showLateralTriggers ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                        }`}
+                        title="Abrir Guia de Canais e Categorias [◀ ou ▶]"
+                      >
+                        <button
+                          type="button"
+                          className="py-8 px-2.5 bg-black/80 group-hover:bg-emerald-500 group-hover:text-black text-white rounded-r-2xl border-y border-r border-emerald-500/50 backdrop-blur-md flex flex-col items-center gap-2 transition-all duration-200 shadow-2xl group-hover:scale-105"
+                        >
+                          <List className="w-5 h-5 text-emerald-400 group-hover:text-black" />
+                          <span className="[writing-mode:vertical-lr] text-[11px] font-black tracking-widest uppercase">
+                            Guia
+                          </span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* GUIA DE PROGRAMAÇÃO DUAL-COLUMN EM TELA CHEIA (ESTILO RECEPTOR / APK ANDROID TV) */}
+                    {isGuideOpen && (
+                      <div className="absolute inset-y-0 left-0 w-[880px] lg:w-[980px] max-w-[96vw] bg-black/95 backdrop-blur-2xl border-r border-[#2a3449] z-[10002] flex flex-col p-4 animate-in slide-in-from-left duration-200 shadow-2xl">
+                        {/* Topo do Guia: Título + Campo de Busca Rápida + Fechar */}
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3 gap-4">
+                          <div className="flex items-center gap-2.5 text-white">
+                            <Tv className="w-7 h-7 text-emerald-400" />
+                            <div>
+                              <h3 className="font-extrabold text-lg md:text-xl text-white leading-tight">
+                                Guia de Canais • {currentCategoryName}
+                              </h3>
+                              <p className="text-xs text-slate-400 font-mono">
+                                {displayedChannels.length} canais disponíveis
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            {/* Busca Rápida no Guia */}
+                            <button
+                              type="button"
+                              ref={guideSearchBtnRef}
+                              tabIndex={0}
+                              onClick={() => setIsSearchModalOpen(true)}
+                              className={`relative w-64 md:w-72 px-3.5 py-2 bg-slate-900 border rounded-xl flex items-center justify-between transition cursor-pointer select-none text-left ${
+                                guideFocusColumn === 'search'
+                                  ? 'border-emerald-400 ring-4 ring-emerald-400/80 bg-slate-800'
+                                  : 'border-slate-700 hover:border-slate-600'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 overflow-hidden flex-1">
+                                <Search className="w-4 h-4 text-emerald-400 shrink-0" />
+                                <span className={`text-xs truncate ${searchQuery ? 'text-emerald-300 font-bold' : 'text-slate-400'}`}>
+                                  {searchQuery ? `"${searchQuery}"` : 'Buscar canal...'}
+                                </span>
+                              </div>
+                              {searchQuery ? (
+                                <span
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSearchQuery('');
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-white shrink-0 cursor-pointer"
+                                  title="Limpar pesquisa"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-500 font-mono shrink-0">
+                                  [OK]
+                                </span>
+                              )}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setIsGuideOpen(false)}
+                              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition cursor-pointer"
+                              title="Fechar Guia [VOLTAR]"
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Corpo: Duas Colunas Lado a Lado (Categorias na Esquerda + Canais na Direita) */}
+                        <div className="flex-1 flex gap-3 overflow-hidden">
+                          {/* Coluna 1: Categorias (Esquerda, w-72 lg:w-80) */}
+                          <div className={`w-72 lg:w-80 bg-[#121722]/90 border border-slate-800 rounded-2xl p-2.5 overflow-y-auto space-y-2 custom-scrollbar ${
+                            guideFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60' : ''
+                          }`}>
+                            <span className="text-xs font-black uppercase tracking-wider text-slate-400 px-2 block mb-1">
+                              CATEGORIAS
+                            </span>
+
+                            {selectableCategories.map((item, idx) => {
+                              const isFocused = guideFocusColumn === 'categories' && selectedCategoryIdx === idx;
+                              const isSelected = selectedCategory === item.id;
+
+                              return (
+                                <React.Fragment key={`guide-${item.id}-${idx}`}>
+                                  {item.groupHeader && (
+                                    <div className="pt-2 pb-1 px-2 text-[11px] font-black tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+                                      <span className="h-px bg-slate-700/60 flex-1"></span>
+                                      <span className="truncate">{item.groupHeader}</span>
+                                      <span className="h-px bg-slate-700/60 flex-1"></span>
+                                    </div>
+                                  )}
+                                  <button
+                                    type="button"
+                                    ref={isFocused ? activeGuideCategoryBtnRef : null}
+                                    tabIndex={0}
+                                    onClick={() => {
+                                      if (item.isAdult && !AdultContentHelper.isSessionUnlocked()) {
+                                        setPendingAdultCategory({ id: item.id, idx });
+                                        setShowAdultPinModal(true);
+                                        return;
+                                      }
+                                      setSelectedCategory(item.id);
+                                      setSelectedCategoryIdx(idx);
+                                      setGuideFocusColumn('channels');
+                                    }}
+                                    className={`w-full text-left px-4 py-3 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer flex items-center justify-between ${
+                                      isFocused
+                                        ? item.isAdult
+                                          ? 'bg-rose-500 text-white font-black ring-2 ring-rose-300 shadow'
+                                          : item.id === 'favorites'
+                                          ? 'bg-amber-400 text-black font-black ring-2 ring-amber-300 shadow'
+                                          : item.id === 'sports'
+                                          ? 'bg-sky-400 text-black font-black ring-2 ring-sky-300 shadow'
+                                          : 'bg-emerald-400 text-black font-black ring-2 ring-emerald-300 shadow'
+                                        : isSelected
+                                        ? item.isAdult
+                                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                                          : item.id === 'favorites'
+                                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                          : item.id === 'sports'
+                                          ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                                          : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                        : item.isAdult
+                                        ? 'text-rose-400 hover:bg-slate-800'
+                                        : item.id === 'favorites'
+                                        ? 'text-amber-300/90 hover:bg-slate-800'
+                                        : item.id === 'sports'
+                                        ? 'text-sky-300 hover:bg-slate-800'
+                                        : 'text-slate-300 hover:bg-slate-800'
+                                    }`}
+                                  >
+                                    <span className="truncate">{item.name}</span>
+                                    <span className="text-xs md:text-sm font-mono font-black shrink-0 ml-2 opacity-80">{item.count}</span>
+                                  </button>
+                                </React.Fragment>
+                              );
+                            })}
+                          </div>
+
+                          {/* Coluna 2: Canais da Categoria (Direita, flex-1 com Virtualização Leve) */}
+                          <div className={`flex-1 bg-[#0a0d14] border border-slate-800 rounded-2xl p-2.5 flex flex-col overflow-hidden ${
+                            guideFocusColumn === 'channels' ? 'ring-2 ring-emerald-500/60' : ''
+                          }`}>
+                            {isLoadingChannels ? (
+                              <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+                                <Loader2 className="w-8 h-8 animate-spin text-emerald-400 mb-2" />
+                                <span className="text-base font-semibold">Carregando canais da categoria...</span>
+                              </div>
+                            ) : displayedChannels.length === 0 ? (
+                              <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-4 text-center">
+                                <AlertCircle className="w-8 h-8 mb-2" />
+                                <span className="text-base font-semibold">Nenhum canal encontrado nesta categoria.</span>
+                              </div>
+                            ) : (
+                              <div className="flex-1 min-h-0 w-full overflow-hidden">
+                                <VirtualList
+                                  items={displayedChannels}
+                                  itemHeight={78}
+                                  selectedIndex={guideFocusColumn === 'channels' ? selectedChannelIdx : -1}
+                                  renderItem={(channel, index, isSelected) => {
+                                    const isItemFocused = isSelected && guideFocusColumn === 'channels';
+                                    const isNowPlaying = currentPlayingChannel?.stream_id === channel.stream_id;
+                                    const isFav = favorites.includes(channel.stream_id);
+
+                                    return (
+                                      <button
+                                        key={channel.stream_id}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedChannelIdx(index);
+                                          setCurrentPlayingChannel(channel);
+                                          setIsGuideOpen(false);
+                                        }}
+                                        className={`w-full h-[70px] px-4 rounded-2xl flex items-center justify-between cursor-pointer transition select-none text-left ${
+                                          isItemFocused
+                                            ? 'bg-emerald-400 text-black font-black shadow-xl ring-2 ring-emerald-300 scale-[1.01]'
+                                            : isNowPlaying
+                                            ? 'bg-emerald-500/20 border border-emerald-500/60 text-white'
+                                            : 'bg-[#121722]/80 hover:bg-[#1b2234] text-slate-200'
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0 pr-2">
+                                          <span className={`font-mono text-sm md:text-base font-black w-9 shrink-0 ${isItemFocused ? 'text-black' : 'text-slate-400'}`}>
+                                            {channel.num || index + 1}
+                                          </span>
+                                          {channel.stream_icon ? (
+                                            <img
+                                              src={channel.stream_icon}
+                                              alt=""
+                                              className="w-10 h-10 object-contain rounded-xl bg-black/40 p-0.5 shrink-0"
+                                              onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                                            />
+                                          ) : (
+                                            <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center shrink-0">
+                                              <Tv className="w-5 h-5 text-slate-400" />
+                                            </div>
+                                          )}
+                                          <div className="flex-1 min-w-0">
+                                            <span className="font-extrabold text-base md:text-lg block truncate leading-tight">{channel.name}</span>
+                                            {isNowPlaying && (
+                                              <span className={`text-xs font-black uppercase tracking-wider block mt-0.5 ${isItemFocused ? 'text-black' : 'text-emerald-400'}`}>
+                                                ▶ No Ar
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                        {isFav && <Star className={`w-5 h-5 fill-amber-400 text-amber-400 shrink-0 ml-2 ${isItemFocused ? 'text-black fill-black' : ''}`} />}
+                                      </button>
+                                    );
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Rodapé: Dicas de Controle Remoto */}
+                        <div className="pt-2.5 border-t border-slate-800 text-xs text-slate-400 flex items-center justify-between">
+                          <span>[◀/▶] Alternar Colunas • [▲/▼] Navegar • [OK] Trocar de Canal</span>
+                          <span>[VOLTAR] Fechar Guia</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
 
               {/* Informações e Ações do Canal Ativo */}
               <div className="bg-[#121722] border border-[#2a3449] p-6 rounded-3xl shadow-xl">
