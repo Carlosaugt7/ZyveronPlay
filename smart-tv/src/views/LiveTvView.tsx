@@ -199,6 +199,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const activeChannelBtnRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const guideSearchInputRef = useRef<HTMLInputElement>(null);
+  const activeGuideCategoryBtnRef = useRef<HTMLButtonElement>(null);
 
   // Notifica o App sobre tela cheia para gerenciar barras do sistema
   const setFullScreenMode = (full: boolean) => {
@@ -353,6 +354,26 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       }
     }
   }, [selectedCategoryIdx, selectedChannelIdx, activeFocusColumn, isFocusedContent, isFullScreen]);
+
+  // Força rolagem suave e foco no seletor de categorias do Guia em Tela Cheia
+  useEffect(() => {
+    if (isFullScreen && isGuideOpen) {
+      if (guideFocusColumn === 'categories' && activeGuideCategoryBtnRef.current) {
+        try {
+          activeGuideCategoryBtnRef.current.focus({ preventScroll: true });
+        } catch {
+          activeGuideCategoryBtnRef.current.focus();
+        }
+        try {
+          activeGuideCategoryBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        } catch {
+          activeGuideCategoryBtnRef.current.scrollIntoView(false);
+        }
+      } else if (guideFocusColumn === 'search' && guideSearchInputRef.current) {
+        guideSearchInputRef.current.focus();
+      }
+    }
+  }, [isFullScreen, isGuideOpen, guideFocusColumn, selectedCategoryIdx]);
 
   // Ação de clique / seleção de categoria protegida
   const handleCategoryClick = (catId: string, catIndex: number, catName?: string) => {
@@ -786,6 +807,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                         )}
                         <button
                           type="button"
+                          ref={isFocused ? activeGuideCategoryBtnRef : null}
+                          tabIndex={0}
                           onClick={() => {
                             if (item.isAdult && !AdultContentHelper.isSessionUnlocked()) {
                               setPendingAdultCategory({ id: item.id, idx });
