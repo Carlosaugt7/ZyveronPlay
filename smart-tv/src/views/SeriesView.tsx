@@ -354,7 +354,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
 
   // Força foco real no DOM
   useEffect(() => {
-    if (!playingEpisode && isFocusedContent) {
+    if (!playingEpisode && isFocusedContent && !isSearchModalOpen) {
       if (activeFocusColumn === 'categories') {
         if (selectedCategoryIdx === -1 && backHomeBtnRef.current) {
           backHomeBtnRef.current.focus();
@@ -377,12 +377,12 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         searchBtnRef.current.focus();
       }
     }
-  }, [selectedCategoryIdx, selectedSeriesIdx, selectedSeasonIdx, selectedEpisodeIdx, headerBtnIdx, activeFocusColumn, isFocusedContent, playingEpisode, displayedSeries.length]);
+  }, [selectedCategoryIdx, selectedSeriesIdx, selectedSeasonIdx, selectedEpisodeIdx, headerBtnIdx, activeFocusColumn, isFocusedContent, playingEpisode, displayedSeries.length, isSearchModalOpen]);
 
   // Tecla 'F' para favoritar no controle remoto
   useEffect(() => {
     const handleFavKey = (e: KeyboardEvent) => {
-      if (playingEpisode) return;
+      if (playingEpisode || isSearchModalOpen) return;
       if (e.key === 'f' || e.key === 'F') {
         const target = selectedSeries || displayedSeries[selectedSeriesIdx];
         if (target) {
@@ -392,7 +392,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     };
     window.addEventListener('keydown', handleFavKey);
     return () => window.removeEventListener('keydown', handleFavKey);
-  }, [selectedSeries, displayedSeries, selectedSeriesIdx, playingEpisode]);
+  }, [selectedSeries, displayedSeries, selectedSeriesIdx, playingEpisode, isSearchModalOpen]);
 
   const handleCategoryClick = (catId: string, catIndex: number, catName?: string) => {
     const isAdult = AdultContentHelper.isAdultCategory(catName);

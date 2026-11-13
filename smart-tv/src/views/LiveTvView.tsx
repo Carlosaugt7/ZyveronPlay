@@ -344,7 +344,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
 
   // Força foco real do DOM no botão selecionado
   useEffect(() => {
-    if (!isFullScreen && isFocusedContent) {
+    if (!isFullScreen && isFocusedContent && !isSearchModalOpen) {
       if (activeFocusColumn === 'categories') {
         if (selectedCategoryIdx === -1 && backHomeBtnRef.current) {
           backHomeBtnRef.current.focus();
@@ -358,7 +358,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         searchBtnRef.current.focus();
       }
     }
-  }, [selectedCategoryIdx, selectedChannelIdx, activeFocusColumn, isFocusedContent, isFullScreen]);
+  }, [selectedCategoryIdx, selectedChannelIdx, activeFocusColumn, isFocusedContent, isFullScreen, isSearchModalOpen]);
 
   // Força rolagem suave e foco no seletor de categorias do Guia em Tela Cheia
   useEffect(() => {

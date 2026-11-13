@@ -310,7 +310,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
 
   // Sincroniza o foco real do DOM na Smart TV para navegação com D-Pad
   useEffect(() => {
-    if (!isPlaying && isFocusedContent) {
+    if (!isPlaying && isFocusedContent && !isSearchModalOpen) {
       if (activeFocusColumn === 'categories') {
         if (selectedCategoryIdx === -1 && backHomeBtnRef.current) {
           backHomeBtnRef.current.focus();
@@ -327,12 +327,12 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         searchBtnRef.current.focus();
       }
     }
-  }, [selectedCategoryIdx, selectedMovieIdx, detailsButtonIdx, activeFocusColumn, isFocusedContent, isPlaying, displayedMovies.length]);
+  }, [selectedCategoryIdx, selectedMovieIdx, detailsButtonIdx, activeFocusColumn, isFocusedContent, isPlaying, displayedMovies.length, isSearchModalOpen]);
 
   // Tecla de atalho 'F' para favoritar no controle remoto (tecla física Yellow é tratada pelo useSpatialNav)
   useEffect(() => {
     const handleFavKey = (e: KeyboardEvent) => {
-      if (isPlaying) return;
+      if (isPlaying || isSearchModalOpen) return;
       if (e.key === 'f' || e.key === 'F') {
         const targetMovie = selectedMovieForDetails || displayedMovies[selectedMovieIdx];
         if (targetMovie) {
@@ -342,7 +342,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     };
     window.addEventListener('keydown', handleFavKey);
     return () => window.removeEventListener('keydown', handleFavKey);
-  }, [selectedMovieForDetails, displayedMovies, selectedMovieIdx, isPlaying]);
+  }, [selectedMovieForDetails, displayedMovies, selectedMovieIdx, isPlaying, isSearchModalOpen]);
 
   const openMovieDetails = async (movie: XtreamVod) => {
     setSelectedMovieForDetails(movie);

@@ -79,6 +79,13 @@ export const Player: React.FC<PlayerProps> = ({
   const seekFeedbackTimerRef = useRef<any>(null);
   const osdTimerRef = useRef<any>(null);
 
+  // Foco espacial nos botões de controle OSD (0: Anterior, 1: Play/Pause, 2: Próximo, 3: Auto-Próximo)
+  const [focusedButtonIndex, setFocusedButtonIndex] = useState<number | null>(null);
+  const btnPrevRef = useRef<HTMLButtonElement>(null);
+  const btnPlayRef = useRef<HTMLButtonElement>(null);
+  const btnNextRef = useRef<HTMLButtonElement>(null);
+  const btnAutoRef = useRef<HTMLButtonElement>(null);
+
   // Auto-play Contagem Regressiva para Próximo Episódio
   const [autoPlayCountdown, setAutoPlayCountdown] = useState<number | null>(null);
   const autoPlayTimerRef = useRef<any>(null);
@@ -107,12 +114,13 @@ export const Player: React.FC<PlayerProps> = ({
     }, 1000);
   }, [hasNextEpisode, onNextEpisode, cancelCountdown]);
 
-  const showOsdTemporarily = useCallback(() => {
+  const showOsdTemporarily = useCallback((ms = 4500) => {
     setShowOsd(true);
     if (osdTimerRef.current) clearTimeout(osdTimerRef.current);
     osdTimerRef.current = setTimeout(() => {
       setShowOsd(false);
-    }, 4500);
+      setFocusedButtonIndex(null);
+    }, ms);
   }, []);
 
   const togglePlayPause = useCallback(() => {
@@ -147,40 +155,90 @@ export const Player: React.FC<PlayerProps> = ({
     showOsdTemporarily();
   }, [showOsdTemporarily]);
 
+  // Sincroniza foco real no botão OSD ativo
+  useEffect(() => {
+    if (focusedButtonIndex === 0) btnPrevRef.current?.focus();
+    else if (focusedButtonIndex === 1) btnPlayRef.current?.focus();
+    else if (focusedButtonIndex === 2) btnNextRef.current?.focus();
+    else if (focusedButtonIndex === 3) btnAutoRef.current?.focus();
+  }, [focusedButtonIndex]);
+
   // Hook D-Pad para Smart TV com prioridade máxima
   useSpatialNav({
     onUp: () => {
       if (isActuallyLive && onChannelUp) {
         onChannelUp();
       } else {
-        showOsdTemporarily();
+        if (focusedButtonIndex !== null) {
+          // Sai do foco dos botões e volta para modo de busca do vídeo
+          setFocusedButtonIndex(null);
+          showOsdTemporarily(3500);
+        } else {
+          showOsdTemporarily(5000);
+        }
       }
     },
     onDown: () => {
       if (isActuallyLive && onChannelDown) {
         onChannelDown();
       } else {
-        showOsdTemporarily();
+        showOsdTemporarily(8000);
+        if (focusedButtonIndex === null) {
+          // Ativa foco na barra de ações (inicia no Play/Pause ou no Próximo se disponível)
+          setFocusedButtonIndex(hasNextEpisode ? 2 : 1);
+        }
       }
     },
     onLeft: () => {
       if (isActuallyLive) {
         onOpenChannelList?.();
       } else {
-        handleSeek(-15);
+        if (focusedButtonIndex !== null) {
+          showOsdTemporarily(8000);
+          setFocusedButtonIndex((prev) => Math.max(0, (prev ?? 1) - 1));
+        } else {
+          handleSeek(-15);
+        }
       }
     },
     onRight: () => {
       if (isActuallyLive) {
         onOpenChannelList?.();
       } else {
-        handleSeek(15);
+        if (focusedButtonIndex !== null) {
+          showOsdTemporarily(8000);
+          const maxBtnIdx = onToggleAutoPlayNext ? 3 : 2;
+          setFocusedButtonIndex((prev) => Math.min(maxBtnIdx, (prev ?? 1) + 1));
+        } else {
+          handleSeek(15);
+        }
       }
     },
     onSelect: () => {
       if (autoPlayCountdown !== null) {
         cancelCountdown();
         onNextEpisode?.();
+        return;
+      }
+      if (focusedButtonIndex !== null) {
+        showOsdTemporarily(8000);
+        if (focusedButtonIndex === 0) {
+          if (hasPreviousEpisode && onPreviousEpisode) {
+            onPreviousEpisode();
+            setFocusedButtonIndex(null);
+          }
+        } else if (focusedButtonIndex === 1) {
+          togglePlayPause();
+        } else if (focusedButtonIndex === 2) {
+          if (hasNextEpisode && onNextEpisode) {
+            onNextEpisode();
+            setFocusedButtonIndex(null);
+          }
+        } else if (focusedButtonIndex === 3) {
+          if (onToggleAutoPlayNext) {
+            onToggleAutoPlayNext();
+          }
+        }
         return;
       }
       if (!isActuallyLive) {
@@ -221,6 +279,11 @@ export const Player: React.FC<PlayerProps> = ({
         cancelCountdown();
         return;
       }
+      if (focusedButtonIndex !== null) {
+        setFocusedButtonIndex(null);
+        setShowOsd(false);
+        return;
+      }
       if (onBack) {
         onBack();
       }
@@ -240,6 +303,10 @@ export const Player: React.FC<PlayerProps> = ({
     showOsdTemporarily,
     hasNextEpisode,
     hasPreviousEpisode,
+    onNextEpisode,
+    onPreviousEpisode,
+    onToggleAutoPlayNext,
+    focusedButtonIndex,
     onNextEpisode,
     onPreviousEpisode,
     autoPlayCountdown,
@@ -585,9 +652,15 @@ export const Player: React.FC<PlayerProps> = ({
               {isActuallyLive ? (
                 <span>[▲▼] Trocar Canal • [◀▶] Lista de Canais • [VOLTAR] Sair</span>
               ) : onNextEpisode !== undefined ? (
-                <div className="flex flex-col items-end gap-0.5">
-                  <span>[◀▶] -15s/+15s • [OK] Pausar • [Azul] Próximo • [VOLTAR] Sair</span>
-                  <span className="text-emerald-400 font-bold">Zyveron Play Series Engine</span>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-white font-bold bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700">
+                    {focusedButtonIndex !== null 
+                      ? 'Navegando nos Botões: [◀▶] Mudar • [OK] Clicar • [▲] Voltar ao Vídeo'
+                      : '[▼ Baixo] Acessar Botões Anterior / Próximo • [◀▶] -15s / +15s'}
+                  </span>
+                  <span className="text-emerald-400 text-[11px] font-mono">
+                    Atalhos no Controle: [Amarelo: Anterior] • [Azul: Próximo]
+                  </span>
                 </div>
               ) : (
                 <span>[◀▶] -15s / +15s • [OK] Pausar • [VOLTAR] Sair</span>
@@ -619,15 +692,18 @@ export const Player: React.FC<PlayerProps> = ({
               <div className="flex items-center gap-3">
                 {/* Botão Episódio Anterior */}
                 <button
+                  ref={btnPrevRef}
                   type="button"
                   disabled={!hasPreviousEpisode}
                   onClick={onPreviousEpisode}
-                  className={`px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition cursor-pointer ${
-                    hasPreviousEpisode
+                  className={`px-4 py-2.5 rounded-xl font-black text-sm flex items-center gap-2 transition cursor-pointer select-none ${
+                    focusedButtonIndex === 0
+                      ? 'bg-emerald-400 text-black font-black scale-108 ring-4 ring-emerald-300 shadow-2xl z-20'
+                      : hasPreviousEpisode
                       ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-600 hover:text-white shadow'
                       : 'bg-slate-900/60 text-slate-600 border border-slate-800/60 cursor-not-allowed opacity-40'
                   }`}
-                  title="Episódio Anterior [Amarelo]"
+                  title="Episódio Anterior [Amarelo ou Botão ◀]"
                 >
                   <SkipBack className="w-4 h-4" />
                   <span>Episódio Anterior</span>
@@ -635,25 +711,33 @@ export const Player: React.FC<PlayerProps> = ({
 
                 {/* Botão Play / Pause */}
                 <button
+                  ref={btnPlayRef}
                   type="button"
                   onClick={togglePlayPause}
-                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-sm flex items-center gap-2 border border-slate-600 transition cursor-pointer"
+                  className={`px-5 py-2.5 rounded-xl font-black text-sm flex items-center gap-2 transition cursor-pointer select-none ${
+                    focusedButtonIndex === 1
+                      ? 'bg-emerald-400 text-black font-black scale-108 ring-4 ring-emerald-300 shadow-2xl z-20'
+                      : 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-600'
+                  }`}
                 >
-                  {isPaused ? <Play className="w-4 h-4 fill-white" /> : <Pause className="w-4 h-4" />}
+                  {isPaused ? <Play className="w-4 h-4 fill-current" /> : <Pause className="w-4 h-4" />}
                   <span>{isPaused ? 'Reproduzir' : 'Pausar'}</span>
                 </button>
 
                 {/* Botão Próximo Episódio */}
                 <button
+                  ref={btnNextRef}
                   type="button"
                   disabled={!hasNextEpisode}
                   onClick={onNextEpisode}
-                  className={`px-5 py-2.5 rounded-xl font-black text-sm flex items-center gap-2 transition cursor-pointer ${
-                    hasNextEpisode
-                      ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-lg shadow-emerald-950/40 ring-2 ring-emerald-300'
+                  className={`px-5 py-2.5 rounded-xl font-black text-sm flex items-center gap-2 transition cursor-pointer select-none ${
+                    focusedButtonIndex === 2
+                      ? 'bg-emerald-400 text-black font-black scale-108 ring-4 ring-emerald-300 shadow-2xl z-20'
+                      : hasNextEpisode
+                      ? 'bg-emerald-600/90 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-950/40 ring-2 ring-emerald-400'
                       : 'bg-slate-900/60 text-slate-600 border border-slate-800/60 cursor-not-allowed opacity-40'
                   }`}
-                  title="Próximo Episódio [Azul]"
+                  title="Próximo Episódio [Azul ou Botão ▶]"
                 >
                   <span>Próximo Episódio</span>
                   <SkipForward className="w-4 h-4" />
@@ -663,16 +747,19 @@ export const Player: React.FC<PlayerProps> = ({
               {/* Botão Toggle Próximo Automático */}
               {onToggleAutoPlayNext && (
                 <button
+                  ref={btnAutoRef}
                   type="button"
                   onClick={onToggleAutoPlayNext}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-black border transition cursor-pointer flex items-center gap-2 ${
-                    autoPlayNext
+                  className={`px-3.5 py-2.5 rounded-xl text-xs font-black border transition cursor-pointer flex items-center gap-2 select-none ${
+                    focusedButtonIndex === 3
+                      ? 'bg-emerald-400 text-black font-black scale-108 ring-4 ring-emerald-300 shadow-2xl z-20'
+                      : autoPlayNext
                       ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm'
                       : 'bg-slate-800/80 text-slate-400 border-slate-700'
                   }`}
                   title="Ativar/desativar passagem automática para o próximo episódio"
                 >
-                  <span className={`w-2.5 h-2.5 rounded-full ${autoPlayNext ? 'bg-emerald-400 shadow-sm shadow-emerald-500/80 animate-pulse' : 'bg-slate-600'}`} />
+                  <span className={`w-2.5 h-2.5 rounded-full ${autoPlayNext ? (focusedButtonIndex === 3 ? 'bg-black' : 'bg-emerald-400') : 'bg-slate-600'}`} />
                   <span>Auto-Próximo: {autoPlayNext ? 'ATIVADO' : 'DESATIVADO'}</span>
                 </button>
               )}
