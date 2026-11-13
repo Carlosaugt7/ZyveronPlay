@@ -35,6 +35,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   const [totalMoviesCount, setTotalMoviesCount] = useState<number>(0);
   const [recentMovieIds, setRecentMovieIds] = useState<number[]>(() => getRecent('vod'));
   const [allMovies, setAllMovies] = useState<XtreamVod[]>([]);
+  const globalVodCatalogRef = useRef<XtreamVod[]>([]);
   const [displayedCount, setDisplayedCount] = useState<number>(BATCH_SIZE);
   const [selectedMovieIdx, setSelectedMovieIdx] = useState<number>(0);
   const [isLoadingCats, setIsLoadingCats] = useState<boolean>(true);
@@ -102,18 +103,33 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     return list;
   }, [specialCats, categories, categoryCounts]);
 
-  // Filmes atualmente renderizados no DOM (paginação progressiva leve + filtro de pesquisa com proteção anti-crash)
+  // Filmes atualmente renderizados no DOM (busca global em TODAS as categorias de filmes quando pesquisando)
   const displayedMovies = useMemo(() => {
     if (!searchQuery || !searchQuery.trim()) {
       return allMovies.slice(0, displayedCount);
     }
     const q = searchQuery.toLowerCase().trim();
-    return allMovies.filter((m) => {
+    const sourceList = globalVodCatalogRef.current.length > 0 ? globalVodCatalogRef.current : allMovies;
+    const isAdultUnlocked = AdultContentHelper.isSessionUnlocked();
+
+    return sourceList.filter((m) => {
       if (!m) return false;
+      // Não exibe conteúdo adulto na busca global se o PIN não estiver desbloqueado
+      if (!isAdultUnlocked && AdultContentHelper.isAdultCategory(m.name || '')) {
+        return false;
+      }
       const name = (m.name || '').toLowerCase();
       return name.includes(q);
     }).slice(0, displayedCount);
   }, [allMovies, displayedCount, searchQuery]);
+
+  // Reseta paginação e posição ao alterar termo de busca
+  useEffect(() => {
+    if (searchQuery) {
+      setDisplayedCount(60);
+      setSelectedMovieIdx(0);
+    }
+  }, [searchQuery]);
 
   // Carrega categorias e contagens ao iniciar
   useEffect(() => {
@@ -143,10 +159,11 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       })
       .finally(() => setIsLoadingCats(false));
 
-    // Carrega estatísticas de filmes por categoria
+    // Carrega estatísticas de filmes por categoria e armazena catálogo global para busca
     client.getVodStreams()
       .then((allVods) => {
         if (allVods && Array.isArray(allVods)) {
+          globalVodCatalogRef.current = allVods;
           const counts: Record<string, number> = {};
           allVods.forEach((m) => {
             const cid = String(m.category_id);
@@ -427,9 +444,10 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         });
       } else if (activeFocusColumn === 'grid') {
         setSelectedMovieIdx((prev) => {
-          const nextIdx = Math.min(allMovies.length - 1, prev + 5);
-          if (nextIdx >= displayedCount - 5 && displayedCount < allMovies.length) {
-            setDisplayedCount((c) => Math.min(allMovies.length, c + BATCH_SIZE));
+          const totalListLen = searchQuery ? (globalVodCatalogRef.current.length || allMovies.length) : allMovies.length;
+          const nextIdx = Math.min(displayedMovies.length - 1, prev + 5);
+          if (nextIdx >= displayedCount - 5 && displayedCount < totalListLen) {
+            setDisplayedCount((c) => Math.min(totalListLen, c + BATCH_SIZE));
           }
           return nextIdx;
         });
@@ -466,9 +484,10 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         }
       } else if (activeFocusColumn === 'grid') {
         setSelectedMovieIdx((prev) => {
-          const nextIdx = Math.min(allMovies.length - 1, prev + 1);
-          if (nextIdx >= displayedCount - 2 && displayedCount < allMovies.length) {
-            setDisplayedCount((c) => Math.min(allMovies.length, c + BATCH_SIZE));
+          const totalListLen = searchQuery ? (globalVodCatalogRef.current.length || allMovies.length) : allMovies.length;
+          const nextIdx = Math.min(displayedMovies.length - 1, prev + 1);
+          if (nextIdx >= displayedCount - 2 && displayedCount < totalListLen) {
+            setDisplayedCount((c) => Math.min(totalListLen, c + BATCH_SIZE));
           }
           return nextIdx;
         });

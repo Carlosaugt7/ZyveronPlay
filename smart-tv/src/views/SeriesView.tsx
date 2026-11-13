@@ -35,6 +35,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   const [totalSeriesCount, setTotalSeriesCount] = useState<number>(0);
   const [recentSeriesIds, setRecentSeriesIds] = useState<number[]>(() => getRecent('series'));
   const [allSeries, setAllSeries] = useState<XtreamSeries[]>([]);
+  const globalSeriesCatalogRef = useRef<XtreamSeries[]>([]);
   const [displayedCount, setDisplayedCount] = useState<number>(BATCH_SIZE);
   const [selectedSeriesIdx, setSelectedSeriesIdx] = useState<number>(0);
   const [isLoadingCats, setIsLoadingCats] = useState<boolean>(true);
@@ -135,18 +136,33 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     return list;
   }, [specialCats, categories, categoryCounts]);
 
-  // Séries atualmente renderizadas no DOM (paginação progressiva leve + filtro de pesquisa com proteção anti-crash)
+  // Séries atualmente renderizadas no DOM (busca global em TODAS as categorias de séries quando pesquisando)
   const displayedSeries = useMemo(() => {
     if (!searchQuery || !searchQuery.trim()) {
       return allSeries.slice(0, displayedCount);
     }
     const q = searchQuery.toLowerCase().trim();
-    return allSeries.filter((s) => {
+    const sourceList = globalSeriesCatalogRef.current.length > 0 ? globalSeriesCatalogRef.current : allSeries;
+    const isAdultUnlocked = AdultContentHelper.isSessionUnlocked();
+
+    return sourceList.filter((s) => {
       if (!s) return false;
+      // Não exibe conteúdo adulto na busca global se o PIN não estiver desbloqueado
+      if (!isAdultUnlocked && AdultContentHelper.isAdultCategory(s.name || '')) {
+        return false;
+      }
       const name = (s.name || '').toLowerCase();
       return name.includes(q);
     }).slice(0, displayedCount);
   }, [allSeries, displayedCount, searchQuery]);
+
+  // Reseta paginação e posição ao alterar termo de busca
+  useEffect(() => {
+    if (searchQuery) {
+      setDisplayedCount(60);
+      setSelectedSeriesIdx(0);
+    }
+  }, [searchQuery]);
 
   const seasonKeys = useMemo(() => {
     return Object.keys(seriesDetails?.episodes || {});
@@ -180,10 +196,11 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       })
       .finally(() => setIsLoadingCats(false));
 
-    // Carrega estatísticas de séries por categoria
+    // Carrega estatísticas de séries por categoria e armazena catálogo global para busca
     client.getSeries()
       .then((allSeriesData) => {
         if (allSeriesData && Array.isArray(allSeriesData)) {
+          globalSeriesCatalogRef.current = allSeriesData;
           const counts: Record<string, number> = {};
           allSeriesData.forEach((s) => {
             const cid = String(s.category_id);
@@ -590,9 +607,10 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         });
       } else if (activeFocusColumn === 'grid') {
         setSelectedSeriesIdx((prev) => {
-          const nextIdx = Math.min(allSeries.length - 1, prev + 5);
-          if (nextIdx >= displayedCount - 5 && displayedCount < allSeries.length) {
-            setDisplayedCount((c) => Math.min(allSeries.length, c + BATCH_SIZE));
+          const totalListLen = searchQuery ? (globalSeriesCatalogRef.current.length || allSeries.length) : allSeries.length;
+          const nextIdx = Math.min(displayedSeries.length - 1, prev + 5);
+          if (nextIdx >= displayedCount - 5 && displayedCount < totalListLen) {
+            setDisplayedCount((c) => Math.min(totalListLen, c + BATCH_SIZE));
           }
           return nextIdx;
         });
@@ -640,9 +658,10 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         }
       } else if (activeFocusColumn === 'grid') {
         setSelectedSeriesIdx((prev) => {
-          const nextIdx = Math.min(allSeries.length - 1, prev + 1);
-          if (nextIdx >= displayedCount - 2 && displayedCount < allSeries.length) {
-            setDisplayedCount((c) => Math.min(allSeries.length, c + BATCH_SIZE));
+          const totalListLen = searchQuery ? (globalSeriesCatalogRef.current.length || allSeries.length) : allSeries.length;
+          const nextIdx = Math.min(displayedSeries.length - 1, prev + 1);
+          if (nextIdx >= displayedCount - 2 && displayedCount < totalListLen) {
+            setDisplayedCount((c) => Math.min(totalListLen, c + BATCH_SIZE));
           }
           return nextIdx;
         });

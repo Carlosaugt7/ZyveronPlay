@@ -38,6 +38,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const [sportsCount, setSportsCount] = useState<number>(0);
   const [channels, setChannels] = useState<XtreamStream[]>([]);
   const [filteredChannels, setFilteredChannels] = useState<XtreamStream[]>([]);
+  const allGlobalStreamsRef = useRef<XtreamStream[]>([]);
   const [selectedChannelIdx, setSelectedChannelIdx] = useState<number>(0);
   const [currentPlayingChannel, setCurrentPlayingChannel] = useState<XtreamStream | null>(null);
   const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
@@ -57,17 +58,31 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const [showAdultPinModal, setShowAdultPinModal] = useState<boolean>(false);
   const [pendingAdultCategory, setPendingAdultCategory] = useState<{ id: string; idx: number } | null>(null);
 
-  // Canais filtrados por busca de texto (nome ou número com tratamento anti-crash)
+  // Canais filtrados por busca de texto (busca global em TODAS as categorias de canais quando pesquisando)
   const displayedChannels = useMemo(() => {
     if (!searchQuery || !searchQuery.trim()) return filteredChannels;
     const q = searchQuery.toLowerCase().trim();
-    return filteredChannels.filter((c) => {
+    const sourceList = allGlobalStreamsRef.current.length > 0 ? allGlobalStreamsRef.current : filteredChannels;
+    const isAdultUnlocked = AdultContentHelper.isSessionUnlocked();
+
+    return sourceList.filter((c) => {
       if (!c) return false;
+      // Não exibe canais adultos na busca global se o PIN não estiver desbloqueado
+      if (!isAdultUnlocked && AdultContentHelper.isAdultCategory(c.name || '')) {
+        return false;
+      }
       const name = (c.name || '').toLowerCase();
       const num = c.num != null ? String(c.num) : '';
       return name.includes(q) || num.includes(q);
     });
   }, [filteredChannels, searchQuery]);
+
+  // Reseta seletor de canal ao alterar termo de busca
+  useEffect(() => {
+    if (searchQuery) {
+      setSelectedChannelIdx(0);
+    }
+  }, [searchQuery]);
 
   // Pastas Especiais Fixas e Categorias Agrupadas (Fiel à divisão do APK Android TV)
   const specialCats = useMemo(() => [
@@ -242,10 +257,11 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       })
       .catch((err) => console.error("Erro ao carregar categorias:", err));
 
-    // Carrega contagens de canais por categoria e total de esportes
+    // Carrega contagens de canais por categoria e armazena catálogo global para busca
     client.getLiveStreams()
       .then((allStreams) => {
         if (allStreams && Array.isArray(allStreams)) {
+          allGlobalStreamsRef.current = allStreams;
           const counts: Record<string, number> = {};
           let spCount = 0;
           allStreams.forEach((s) => {

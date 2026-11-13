@@ -199,9 +199,9 @@ export const TvSearchModal: React.FC<TvSearchModalProps> = ({
   return (
     <div 
       data-search-modal="true"
-      className="fixed inset-0 z-[10010] bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4 select-none animate-in fade-in duration-150"
+      className="fixed inset-0 z-[10010] bg-black/25 backdrop-blur-[1px] flex flex-col items-center justify-center p-4 select-none animate-in fade-in duration-150"
     >
-      <div className="w-full max-w-3xl bg-[#0f172a] border-2 border-emerald-500/60 rounded-3xl p-6 md:p-8 shadow-2xl flex flex-col gap-5">
+      <div className="w-full max-w-3xl bg-[#0f172a]/92 backdrop-blur-md border-2 border-emerald-500/70 rounded-3xl p-6 md:p-8 shadow-[0_25px_60px_rgba(0,0,0,0.85)] flex flex-col gap-5">
         {/* Topo do Modal */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center gap-3">
