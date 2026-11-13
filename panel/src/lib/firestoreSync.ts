@@ -208,14 +208,18 @@ export const FirestoreSync = {
         name: user.name,
         email: user.email,
         password: user.password || "",
+        passwordVersion: user.passwordVersion || 1,
         role: user.role,
+        tier: user.tier || "iniciante",
+        tierCredits: user.tierCredits || 10,
+        cycleExpiresAt: user.cycleExpiresAt || null,
         parentId: user.parentId || null,
         credits: user.credits,
         status: user.status || "active",
         createdAt: user.createdAt,
         updatedAt: new Date().toISOString()
       }, { merge: true });
-      console.log(`[Firestore] Usuário sincronizado: ${user.email} (${user.uid})`);
+      console.log(`[Firestore] Usuário sincronizado: ${user.email} (${user.uid}) [Modo: ${user.tier || "iniciante"}]`);
     } catch (e) {
       console.error("[Firestore] Erro ao sincronizar usuário:", e);
     }

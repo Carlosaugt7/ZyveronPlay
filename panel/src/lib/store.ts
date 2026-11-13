@@ -5,7 +5,10 @@ import {
   DeviceDocument, 
   CreditLogDocument, 
   NotificationDocument,
-  UserRole
+  UserRole,
+  ResellerTier,
+  RESELLER_TIERS,
+  RESELLER_TIER_ORDER
 } from "@/types";
 import { FirestoreSync } from "./firestoreSync";
 
@@ -718,9 +721,9 @@ class LocalStore {
   async createReseller(
     name: string,
     email: string,
-    role: "reseller" | "sub_reseller",
+    role: UserRole = "reseller",
     parentId: string,
-    initialCredits: number,
+    tier: ResellerTier = "iniciante",
     password?: string
   ): Promise<UserDocument> {
     this.init();
@@ -733,12 +736,27 @@ class LocalStore {
     const parent = this.users.find(u => u.uid === parentId);
     if (!parent) throw new Error("Usuário pai não encontrado.");
 
-    if (parent.role !== "superadmin" && parent.credits < initialCredits) {
-      throw new Error(`Saldo insuficiente para transferir ${initialCredits} créditos.`);
+    const tierConfig = RESELLER_TIERS[tier] || RESELLER_TIERS.iniciante;
+    const tierCredits = tierConfig.credits;
+
+    // Trava Hierárquica: Uma revenda só pode criar sub-revendas com modo <= ao seu próprio modo
+    if (parent.role === "reseller") {
+      const parentTier = parent.tier || "iniciante";
+      const parentTierIdx = RESELLER_TIER_ORDER.indexOf(parentTier);
+      const childTierIdx = RESELLER_TIER_ORDER.indexOf(tier);
+      if (childTierIdx > parentTierIdx) {
+        throw new Error(
+          `Limite hierárquico: Sua conta está no modo "${RESELLER_TIERS[parentTier]?.name || parentTier}" e não pode cadastrar uma sub-revenda com modo superior ("${tierConfig.name}").`
+        );
+      }
     }
 
-    if (parent.role !== "superadmin" && initialCredits > 0) {
-      parent.credits -= initialCredits;
+    if (parent.role !== "superadmin" && parent.credits < tierCredits) {
+      throw new Error(`Saldo insuficiente para ativar o modo ${tierConfig.name} (${tierCredits} créditos). Saldo atual: ${parent.credits}.`);
+    }
+
+    if (parent.role !== "superadmin" && tierCredits > 0) {
+      parent.credits -= tierCredits;
       parent.updatedAt = new Date().toISOString();
       FirestoreSync.syncUserToFirestore(parent);
     }
@@ -752,10 +770,12 @@ class LocalStore {
         passwordHash = await hashPassword(password.trim());
       } catch (err) {
         console.error('[Store] Erro ao fazer hash da senha:', err);
-        // Fallback para senha em texto plano (compatibilidade)
         passwordHash = password.trim();
       }
     }
+
+    // Validade de 30 dias para o ciclo
+    const cycleExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
     const newUser: UserDocument = {
       uid: "usr-" + Math.random().toString(36).substring(2, 9),
@@ -764,8 +784,11 @@ class LocalStore {
       password: passwordHash,
       passwordVersion: passwordHash && passwordHash.startsWith('$2') ? 2 : undefined,
       role,
+      tier,
+      tierCredits,
+      cycleExpiresAt,
       parentId,
-      credits: initialCredits,
+      credits: tierCredits,
       status: "active",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -773,16 +796,17 @@ class LocalStore {
 
     this.users.push(newUser);
 
-    if (initialCredits > 0) {
+    if (tierCredits > 0) {
       this.logs.unshift({
         id: "log-" + Math.random().toString(36).substring(2, 9),
         fromUserId: parent.uid,
         fromUserName: parent.name,
         toUserId: newUser.uid,
         toUserName: newUser.name,
-        amount: initialCredits,
+        amount: tierCredits,
         action: "transfer",
-        note: `Carga inicial de ${initialCredits} créditos ao criar revenda`,
+        tier,
+        note: `Ativação do modo "${tierConfig.name}" com cota de ${tierCredits} créditos (Ciclo 30 dias)`,
         timestamp: new Date().toISOString(),
       });
     }
@@ -793,6 +817,129 @@ class LocalStore {
     return newUser;
   }
 
+  renewResellerTier(resellerUid: string, executorUid: string): UserDocument {
+    this.init();
+    const reseller = this.users.find(u => u.uid === resellerUid);
+    if (!reseller) throw new Error("Revenda não encontrada.");
+
+    const executor = this.users.find(u => u.uid === executorUid);
+    if (!executor) throw new Error("Executor não encontrado.");
+
+    const tier = reseller.tier || "iniciante";
+    const tierConfig = RESELLER_TIERS[tier] || RESELLER_TIERS.iniciante;
+    const targetQuota = tierConfig.credits;
+    const currentCredits = reseller.credits || 0;
+
+    // Opção A: Padrão Franquia - restaura exatamente para o teto da cota
+    const creditsToInject = Math.max(0, targetQuota - currentCredits);
+
+    if (executor.role !== "superadmin" && creditsToInject > 0) {
+      if (executor.credits < creditsToInject) {
+        throw new Error(
+          `Saldo insuficiente para renovar a franquia da revenda. Necessário: ${creditsToInject} créditos, seu saldo: ${executor.credits}.`
+        );
+      }
+      executor.credits -= creditsToInject;
+      executor.updatedAt = new Date().toISOString();
+      FirestoreSync.syncUserToFirestore(executor);
+    }
+
+    // Restaura para a cota da franquia
+    reseller.credits = targetQuota;
+    reseller.tier = tier;
+    reseller.tierCredits = targetQuota;
+
+    // Prorroga o ciclo de 30 dias a partir de agora (ou soma 30 dias se ainda não tiver vencido)
+    const now = Date.now();
+    const currentExp = reseller.cycleExpiresAt ? new Date(reseller.cycleExpiresAt).getTime() : 0;
+    const baseTime = currentExp > now ? currentExp : now;
+    reseller.cycleExpiresAt = new Date(baseTime + 30 * 24 * 60 * 60 * 1000).toISOString();
+    reseller.updatedAt = new Date().toISOString();
+
+    // Log de auditoria
+    this.logs.unshift({
+      id: "log-" + Math.random().toString(36).substring(2, 9),
+      fromUserId: executor.uid,
+      fromUserName: executor.name,
+      toUserId: reseller.uid,
+      toUserName: reseller.name,
+      amount: creditsToInject,
+      action: "cycle_renewal",
+      tier,
+      note: `Renovação de Modo Franquia (${tierConfig.name}): saldo restaurado para ${targetQuota} créditos (+30 dias de validade)`,
+      timestamp: new Date().toISOString(),
+    });
+
+    this.save();
+    FirestoreSync.syncUserToFirestore(reseller);
+    this.notify();
+    return reseller;
+  }
+
+  migrateResellerTier(resellerUid: string, newTier: ResellerTier, executorUid: string): UserDocument {
+    this.init();
+    const reseller = this.users.find(u => u.uid === resellerUid);
+    if (!reseller) throw new Error("Revenda não encontrada.");
+
+    const executor = this.users.find(u => u.uid === executorUid);
+    if (!executor) throw new Error("Executor não encontrado.");
+
+    const oldTier = reseller.tier || "iniciante";
+    const oldConfig = RESELLER_TIERS[oldTier] || RESELLER_TIERS.iniciante;
+    const newConfig = RESELLER_TIERS[newTier];
+    if (!newConfig) throw new Error("Novo modo inválido.");
+
+    // Trava Hierárquica se executor for revenda
+    if (executor.role === "reseller") {
+      const execTier = executor.tier || "iniciante";
+      const execTierIdx = RESELLER_TIER_ORDER.indexOf(execTier);
+      const newTierIdx = RESELLER_TIER_ORDER.indexOf(newTier);
+      if (newTierIdx > execTierIdx) {
+        throw new Error(
+          `Limite hierárquico: Seu modo atual é "${RESELLER_TIERS[execTier]?.name || execTier}" e você não pode promover uma sub-revenda para "${newConfig.name}".`
+        );
+      }
+    }
+
+    const currentCredits = reseller.credits || 0;
+    const creditsToInject = Math.max(0, newConfig.credits - currentCredits);
+
+    if (executor.role !== "superadmin" && creditsToInject > 0) {
+      if (executor.credits < creditsToInject) {
+        throw new Error(
+          `Saldo insuficiente para upgrade de modo. Necessário: ${creditsToInject} créditos, seu saldo: ${executor.credits}.`
+        );
+      }
+      executor.credits -= creditsToInject;
+      executor.updatedAt = new Date().toISOString();
+      FirestoreSync.syncUserToFirestore(executor);
+    }
+
+    reseller.tier = newTier;
+    reseller.tierCredits = newConfig.credits;
+    reseller.credits = newConfig.credits;
+    reseller.cycleExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    reseller.updatedAt = new Date().toISOString();
+
+    this.logs.unshift({
+      id: "log-" + Math.random().toString(36).substring(2, 9),
+      fromUserId: executor.uid,
+      fromUserName: executor.name,
+      toUserId: reseller.uid,
+      toUserName: reseller.name,
+      amount: creditsToInject,
+      action: "tier_migration",
+      tier: newTier,
+      note: `Migração de Modo: ${oldConfig.name} -> ${newConfig.name} (Cota ajustada para ${newConfig.credits} créditos, ciclo renovado por 30 dias)`,
+      timestamp: new Date().toISOString(),
+    });
+
+    this.save();
+    FirestoreSync.syncUserToFirestore(reseller);
+    this.notify();
+    return reseller;
+  }
+
   updateReseller(
     uid: string,
     data: {
@@ -800,6 +947,9 @@ class LocalStore {
       email?: string;
       password?: string;
       role?: UserRole;
+      tier?: ResellerTier;
+      tierCredits?: number;
+      cycleExpiresAt?: string | null;
       credits?: number;
       status?: "active" | "blocked";
     }
@@ -830,6 +980,19 @@ class LocalStore {
 
     if (data.role !== undefined) {
       existing.role = data.role;
+    }
+
+    if (data.tier !== undefined) {
+      existing.tier = data.tier;
+      existing.tierCredits = RESELLER_TIERS[data.tier]?.credits || existing.tierCredits || 10;
+    }
+
+    if (data.tierCredits !== undefined) {
+      existing.tierCredits = data.tierCredits;
+    }
+
+    if (data.cycleExpiresAt !== undefined) {
+      existing.cycleExpiresAt = data.cycleExpiresAt;
     }
 
     if (data.credits !== undefined && !isNaN(data.credits)) {
