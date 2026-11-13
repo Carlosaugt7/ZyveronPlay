@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { XtreamClient } from '../lib/xtream';
 import { XtreamVod, XtreamSeries, DeviceActivation } from '../types';
-import { Tv, Film, Clapperboard, Trophy, RefreshCw, Settings, Wifi, Clock, ArrowRight } from 'lucide-react';
+import { Tv, Film, Clapperboard, Trophy, RefreshCw, Settings, Wifi, Clock, ArrowRight, LogOut, X } from 'lucide-react';
 import { useNetworkQuality } from '../hooks/useNetworkQuality';
 import { useSpatialNav } from '../hooks/useSpatialNav';
+import { executeExitApp } from '../lib/exitApp';
 
 interface HomeViewProps {
   client: XtreamClient;
@@ -58,8 +59,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
   // grid: 0 (Live), 1 (Vod), 2 (Series), 3 (Sports)
   // vodCarousel: 10 + index (0..9)
   // seriesCarousel: 20 + index (0..9)
-  // bottom: 30 (Sync), 31 (Settings)
+  // bottom: 30 (Sync), 31 (Settings), 32 (Exit)
   const [focusedId, setFocusedId] = useState<number>(0);
+  const [showExitConfirmModal, setShowExitConfirmModal] = useState<boolean>(false);
+  const [exitModalBtnIdx, setExitModalBtnIdx] = useState<number>(0); // 0: Cancelar, 1: Sair
   const activeCarouselRef = useRef<HTMLButtonElement>(null);
 
   // Auto-scroll para manter o item do carrossel visível no centro da Smart TV
@@ -165,16 +168,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
   // Controle Remoto: Navegação Espacial completa integrada ao useSpatialNav
   useSpatialNav({
     onUp: () => {
+      if (showExitConfirmModal) return;
       setFocusedId((prev) => {
         if (prev === 2) return 0; // Séries -> TV ao Vivo
         if (prev === 3) return 1; // Esportes -> Filmes
         if (prev >= 20 && prev <= 29) return prev - 10; // Séries Carousel -> VOD Carousel
         if (prev >= 10 && prev <= 19) return 1; // VOD Carousel -> Filmes Card
-        if (prev === 30 || prev === 31) return 2; // Bottom -> Séries Card
+        if (prev === 30 || prev === 31 || prev === 32) return 2; // Bottom -> Séries Card
         return prev;
       });
     },
     onDown: () => {
+      if (showExitConfirmModal) return;
       setFocusedId((prev) => {
         if (prev === 0) return 2; // TV ao Vivo -> Séries
         if (prev === 1) return 3; // Filmes -> Esportes
@@ -185,9 +190,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
       });
     },
     onLeft: () => {
+      if (showExitConfirmModal) {
+        setExitModalBtnIdx(0); // Foca em Cancelar
+        return;
+      }
       setFocusedId((prev) => {
         if (prev === 1) return 0; // Filmes -> TV ao Vivo
         if (prev === 3) return 2; // Esportes -> Séries
+        if (prev === 32) return 31; // Sair -> Ajustes
         if (prev === 31) return 30; // Ajustes -> Sincronizar
         if (prev >= 10 && prev <= 19) {
           if (prev === 10) return 1; // Primeiro do VOD -> Filmes Card
@@ -201,30 +211,51 @@ export const HomeView: React.FC<HomeViewProps> = ({
       });
     },
     onRight: () => {
+      if (showExitConfirmModal) {
+        setExitModalBtnIdx(1); // Foca em Sair
+        return;
+      }
       setFocusedId((prev) => {
         if (prev === 0) return 1; // TV ao Vivo -> Filmes
         if (prev === 2) return 3; // Séries -> Esportes
         if (prev === 1) return 10; // Filmes -> Primeiro VOD Carousel
         if (prev === 3) return 20; // Esportes -> Primeiro Séries Carousel
         if (prev === 30) return 31; // Sincronizar -> Ajustes
+        if (prev === 31) return 32; // Ajustes -> Sair
         if (prev >= 10 && prev < 19 && prev - 10 < featuredVods.length - 1) return prev + 1;
         if (prev >= 20 && prev < 29 && prev - 20 < featuredSeries.length - 1) return prev + 1;
         return prev;
       });
     },
     onSelect: () => {
+      if (showExitConfirmModal) {
+        if (exitModalBtnIdx === 1) {
+          executeExitApp();
+        } else {
+          setShowExitConfirmModal(false);
+        }
+        return;
+      }
+      if (focusedId === 32) {
+        setShowExitConfirmModal(true);
+        setExitModalBtnIdx(1);
+        return;
+      }
       triggerAction(focusedId);
     },
     onBack: () => {
-      console.log('[HomeView] Voltar na Home acionado');
-      try {
-        if (window.history.length > 1) {
-          window.history.go(1 - window.history.length);
-        }
-      } catch {}
+      console.log('[HomeView] Voltar acionado na Home');
+      if (showExitConfirmModal) {
+        // Segundo toque em Voltar com o modal aberto confirma a saída imediata
+        executeExitApp();
+        return;
+      }
+      // Primeiro toque em Voltar abre o modal de confirmação de saída
+      setShowExitConfirmModal(true);
+      setExitModalBtnIdx(0);
     },
     priority: 0
-  }, [focusedId, featuredVods, featuredSeries, triggerAction]);
+  }, [focusedId, featuredVods, featuredSeries, triggerAction, showExitConfirmModal, exitModalBtnIdx]);
 
   return (
     <div className="w-full h-full min-h-[100dvh] bg-[#0a0d14] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900/40 via-[#0a0d14] to-[#07090e] text-white flex flex-col justify-between p-3 sm:p-4 md:p-6 select-none overflow-y-auto lg:overflow-hidden custom-scrollbar">
@@ -619,12 +650,101 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <Settings className="w-3.5 h-3.5" />
             <span>Ajustes & Conta</span>
           </button>
+
+          {/* Botão Sair do App */}
+          <button
+            type="button"
+            onClick={() => {
+              setShowExitConfirmModal(true);
+              setExitModalBtnIdx(1);
+            }}
+            onMouseEnter={() => setFocusedId(32)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors cursor-pointer focus:outline-none ${
+              focusedId === 32 ? 'bg-rose-600 text-white font-bold ring-2 ring-white' : 'bg-slate-800/80 text-rose-300 hover:text-white hover:bg-rose-950/60'
+            }`}
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sair do App</span>
+          </button>
         </div>
 
         <div className="text-[11px] text-slate-500">
           MAC: <span className="font-mono text-slate-400 font-bold">{device?.mac || '--:--:--:--:--:--'}</span> • Zyveron Engine v2.0
         </div>
       </footer>
+
+      {/* MODAL DE CONFIRMAÇÃO DE SAÍDA (PADRÃO SMART TV / MEDIA STATION X) */}
+      {showExitConfirmModal && (
+        <div 
+          className="fixed inset-0 z-[10005] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-150"
+          onClick={() => setShowExitConfirmModal(false)}
+        >
+          <div 
+            className="bg-[#121722] border-2 border-slate-700/80 rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-2xl flex flex-col items-center relative animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Botão Fechar no canto */}
+            <button
+              type="button"
+              onClick={() => setShowExitConfirmModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition cursor-pointer"
+              title="Cancelar e Fechar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Ícone de Saída */}
+            <div className="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/40 flex items-center justify-center text-rose-400 mb-4 shadow-lg shadow-rose-950/40">
+              <LogOut className="w-8 h-8" />
+            </div>
+
+            {/* Título e Mensagem */}
+            <h3 className="text-xl sm:text-2xl font-black text-white text-center mb-2 tracking-wide">
+              Sair do Aplicativo?
+            </h3>
+            <p className="text-sm text-slate-300 text-center mb-4 max-w-xs leading-relaxed">
+              Deseja realmente fechar o Zyveron Play e retornar ao Media Station X?
+            </p>
+
+            {/* Dica de Duplo Clique no Voltar */}
+            <div className="mb-6 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700 text-[11px] text-slate-400 text-center font-mono">
+              Dica: aperte <span className="text-rose-400 font-bold">[VOLTAR]</span> novamente para sair direto
+            </div>
+
+            {/* Botões de Ação */}
+            <div className="grid grid-cols-2 gap-3 w-full">
+              {/* Botão 1: Cancelar (Continuar no App) */}
+              <button
+                type="button"
+                onClick={() => setShowExitConfirmModal(false)}
+                onMouseEnter={() => setExitModalBtnIdx(0)}
+                className={`py-3.5 px-4 rounded-xl font-black text-sm sm:text-base transition cursor-pointer flex items-center justify-center gap-2 ${
+                  exitModalBtnIdx === 0
+                    ? 'bg-slate-200 text-black scale-105 shadow-xl ring-4 ring-slate-400'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                }`}
+              >
+                <span>Continuar</span>
+              </button>
+
+              {/* Botão 2: Confirmar Saída */}
+              <button
+                type="button"
+                onClick={executeExitApp}
+                onMouseEnter={() => setExitModalBtnIdx(1)}
+                className={`py-3.5 px-4 rounded-xl font-black text-sm sm:text-base transition cursor-pointer flex items-center justify-center gap-2 ${
+                  exitModalBtnIdx === 1
+                    ? 'bg-rose-500 text-white scale-105 shadow-xl shadow-rose-500/40 ring-4 ring-rose-300'
+                    : 'bg-rose-950/40 text-rose-300 border border-rose-500/40 hover:bg-rose-900/60'
+                }`}
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sim, Sair</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
