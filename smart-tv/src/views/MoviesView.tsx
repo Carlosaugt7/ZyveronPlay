@@ -1017,8 +1017,12 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         onSearch={(q) => setSearchQuery(q)}
         onClose={() => {
           setIsSearchModalOpen(false);
-          setActiveFocusColumn('grid');
-          setSelectedMovieIdx(0);
+          if (displayedMovies.length > 0) {
+            setActiveFocusColumn('grid');
+            setSelectedMovieIdx(0);
+          } else {
+            setActiveFocusColumn('search');
+          }
         }}
       />
     </div>

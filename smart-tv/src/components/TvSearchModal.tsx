@@ -31,14 +31,16 @@ export const TvSearchModal: React.FC<TvSearchModalProps> = ({
   const [rowIndex, setRowIndex] = useState<number>(1); // Começa na letra 'A'
   const [colIndex, setColIndex] = useState<number>(0);
   const activeKeyRef = useRef<HTMLButtonElement>(null);
+  const prevIsOpenRef = useRef<boolean>(false);
 
-  // Sincroniza query com initialQuery quando o modal abre
+  // Sincroniza query com initialQuery apenas quando o modal abre (evita resetar posição ao digitar)
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       setQuery(initialQuery || '');
-      setRowIndex(1);
+      setRowIndex(1); // Linha 'A'
       setColIndex(0);
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, initialQuery]);
 
   // Garante que o foco real do DOM permaneça sempre travado na tecla ativa do modal
@@ -80,38 +82,56 @@ export const TvSearchModal: React.FC<TvSearchModalProps> = ({
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Deixa as setas para o hook de navegação espacial
+      // 1. Deixa as setas para o hook de navegação espacial
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) {
+        return;
+      }
+
+      const code = e.keyCode || e.which;
+      const key = e.key;
+
+      // 2. Se for OK / Enter / Select:
+      // O useSpatialNav.onSelect já cuida de acionar a tecla virtual selecionada!
+      // NUNCA fechar ou confirmar aqui, para não fechar o modal ao tentar clicar em uma letra!
+      if (key === 'Enter' || code === 13 || key === 'Ok' || key === 'OK' || key === 'Select') {
         return;
       }
 
       // Impede qualquer propagação para elementos e cartões de vídeo no fundo
       e.stopPropagation();
 
-      const code = e.keyCode || e.which;
-      const key = e.key;
+      // 3. Tecla física de Voltar / Escape
+      if (key === 'Escape' || code === 27) {
+        e.preventDefault();
+        onClose();
+        return;
+      }
 
+      // 4. Tecla física de Backspace
       if (key === 'Backspace' || code === 8) {
         e.preventDefault();
         handleDelete();
-      } else if (key === 'Enter' || code === 13 || key === 'Ok' || key === 'OK') {
-        e.preventDefault();
-        handleConfirm();
-      } else if (key === 'Escape' || code === 27) {
-        e.preventDefault();
-        onClose();
-      } else if (key === ' ' || code === 32) {
+        return;
+      }
+
+      // 5. Barra de espaço física
+      if (key === ' ' || code === 32) {
         e.preventDefault();
         handleChar(' ');
-      } else if (key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        return;
+      }
+
+      // 6. Caracteres imprimíveis do teclado físico ou controle numérico (letras A-Z, 0-9, etc.)
+      if (key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         handleChar(key.toUpperCase());
+        return;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, handleChar, handleDelete, handleConfirm, onClose]);
+  }, [isOpen, handleChar, handleDelete, onClose]);
 
   // Navegação D-Pad para Smart TV
   useSpatialNav({
@@ -177,7 +197,10 @@ export const TvSearchModal: React.FC<TvSearchModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[10010] bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4 select-none animate-in fade-in duration-150">
+    <div 
+      data-search-modal="true"
+      className="fixed inset-0 z-[10010] bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4 select-none animate-in fade-in duration-150"
+    >
       <div className="w-full max-w-3xl bg-[#0f172a] border-2 border-emerald-500/60 rounded-3xl p-6 md:p-8 shadow-2xl flex flex-col gap-5">
         {/* Topo do Modal */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -242,7 +265,8 @@ export const TvSearchModal: React.FC<TvSearchModalProps> = ({
                     ref={isFocused ? activeKeyRef : null}
                     type="button"
                     tabIndex={isFocused ? 0 : -1}
-                    onClick={() => {
+                    onClick={(e) => {
+                      if (e.detail === 0) return;
                       setRowIndex(rIdx);
                       setColIndex(cIdx);
                       handleChar(char);
@@ -267,7 +291,8 @@ export const TvSearchModal: React.FC<TvSearchModalProps> = ({
               ref={rowIndex === 4 && colIndex < 3 ? activeKeyRef : null}
               type="button"
               tabIndex={rowIndex === 4 && colIndex < 3 ? 0 : -1}
-              onClick={() => {
+              onClick={(e) => {
+                if (e.detail === 0) return;
                 setRowIndex(4);
                 setColIndex(0);
                 handleChar(' ');
@@ -286,7 +311,8 @@ export const TvSearchModal: React.FC<TvSearchModalProps> = ({
               ref={rowIndex === 4 && colIndex >= 3 && colIndex < 5 ? activeKeyRef : null}
               type="button"
               tabIndex={rowIndex === 4 && colIndex >= 3 && colIndex < 5 ? 0 : -1}
-              onClick={() => {
+              onClick={(e) => {
+                if (e.detail === 0) return;
                 setRowIndex(4);
                 setColIndex(3);
                 handleDelete();
@@ -306,7 +332,8 @@ export const TvSearchModal: React.FC<TvSearchModalProps> = ({
               ref={rowIndex === 4 && colIndex >= 5 && colIndex < 7 ? activeKeyRef : null}
               type="button"
               tabIndex={rowIndex === 4 && colIndex >= 5 && colIndex < 7 ? 0 : -1}
-              onClick={() => {
+              onClick={(e) => {
+                if (e.detail === 0) return;
                 setRowIndex(4);
                 setColIndex(5);
                 handleClear();
@@ -326,7 +353,8 @@ export const TvSearchModal: React.FC<TvSearchModalProps> = ({
               ref={rowIndex === 4 && colIndex >= 7 && colIndex < 9 ? activeKeyRef : null}
               type="button"
               tabIndex={rowIndex === 4 && colIndex >= 7 && colIndex < 9 ? 0 : -1}
-              onClick={() => {
+              onClick={(e) => {
+                if (e.detail === 0) return;
                 setRowIndex(4);
                 setColIndex(7);
                 handleConfirm();
@@ -346,7 +374,8 @@ export const TvSearchModal: React.FC<TvSearchModalProps> = ({
               ref={rowIndex === 4 && colIndex >= 9 ? activeKeyRef : null}
               type="button"
               tabIndex={rowIndex === 4 && colIndex >= 9 ? 0 : -1}
-              onClick={() => {
+              onClick={(e) => {
+                if (e.detail === 0) return;
                 setRowIndex(4);
                 setColIndex(9);
                 onClose();
@@ -365,7 +394,8 @@ export const TvSearchModal: React.FC<TvSearchModalProps> = ({
         {/* Rodapé explicativo */}
         <div className="flex items-center justify-between text-xs text-slate-400 font-mono pt-1">
           <span>[D-Pad]: Navegar pelas letras</span>
-          <span>[OK]: Selecionar letra</span>
+          <span>[OK]: Selecionar tecla</span>
+          <span>[BUSCAR]: Ver resultados</span>
           <span>[VOLTAR]: Fechar busca</span>
         </div>
       </div>

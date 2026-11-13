@@ -1267,8 +1267,12 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
         onSearch={(q) => setSearchQuery(q)}
         onClose={() => {
           setIsSearchModalOpen(false);
-          setActiveFocusColumn('grid');
-          setSelectedSeriesIdx(0);
+          if (displayedSeries.length > 0) {
+            setActiveFocusColumn('grid');
+            setSelectedSeriesIdx(0);
+          } else {
+            setActiveFocusColumn('search');
+          }
         }}
       />
     </div>

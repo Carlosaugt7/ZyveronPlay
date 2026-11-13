@@ -35,10 +35,11 @@ export function isBackKeyEvent(e: KeyboardEvent): boolean {
     return false;
   }
 
-  // 2. Se estiver focado em um input/textarea, Backspace deve apenas apagar texto, não voltar tela
+  // 2. Se estiver focado em um input/textarea ou se o modal de busca virtual estiver aberto, Backspace deve apenas apagar texto, não voltar tela
   const target = e.target as HTMLElement;
   const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
-  if (isInput && (key === 'backspace' || code === 8)) {
+  const isSearchModalOpen = typeof document !== 'undefined' && Boolean(document.querySelector('[data-search-modal="true"]'));
+  if ((isInput || isSearchModalOpen) && (key === 'backspace' || code === 8)) {
     return false;
   }
 

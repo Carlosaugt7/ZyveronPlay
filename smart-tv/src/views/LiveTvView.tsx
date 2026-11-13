@@ -1396,10 +1396,20 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         onSearch={(q) => setSearchQuery(q)}
         onClose={() => {
           setIsSearchModalOpen(false);
-          if (isFullScreen) {
-            setGuideFocusColumn('channels');
+          if (displayedChannels.length > 0) {
+            if (isFullScreen) {
+              setGuideFocusColumn('channels');
+              setSelectedChannelIdx(0);
+            } else {
+              setActiveFocusColumn('channels');
+              setSelectedChannelIdx(0);
+            }
           } else {
-            setActiveFocusColumn('channels');
+            if (isFullScreen) {
+              setGuideFocusColumn('search');
+            } else {
+              setActiveFocusColumn('search');
+            }
           }
         }}
       />
