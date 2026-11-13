@@ -12,6 +12,7 @@ import { SeriesView } from './views/SeriesView';
 import { SettingsView } from './views/SettingsView';
 import { TitleBar } from './components/TitleBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { RotateDevicePrompt } from './components/RotateDevicePrompt';
 import { Loader2 } from 'lucide-react';
 
 const SECTIONS: MainSection[] = ['home', 'live', 'vod', 'series', 'settings'];
@@ -118,7 +119,8 @@ export default function App() {
   // 1. Tela de Carregamento Inicial
   if (activationStatus === 'loading') {
     return (
-      <div className="w-screen h-screen bg-[#0a0d14] flex flex-col text-white select-none overflow-hidden">
+      <div className="w-screen h-screen bg-[#0a0d14] flex flex-col text-white select-none overflow-hidden safe-area-padding">
+        <RotateDevicePrompt />
         <TitleBar isFullScreen={isFullScreen} />
         <div className="flex-1 flex flex-col items-center justify-center">
           <Loader2 className="w-16 h-16 text-emerald-400 animate-spin mb-4" />
@@ -134,7 +136,8 @@ export default function App() {
   // 2. Tela de Ativação / Mensalidade Vencida / Bloqueio
   if (activationStatus !== 'active' || !activeDevice || !xtreamClient) {
     return (
-      <div className="w-screen h-screen bg-[#0a0d14] flex flex-col overflow-hidden select-none">
+      <div className="w-screen h-screen bg-[#0a0d14] flex flex-col overflow-hidden select-none safe-area-padding">
+        <RotateDevicePrompt />
         <TitleBar isFullScreen={isFullScreen} />
         <div className="flex-1 overflow-hidden relative">
           <ActivationScreen
@@ -159,6 +162,7 @@ export default function App() {
   // 3. Aplicação Principal Ativa (Home Dashboard, TV Ao Vivo, Filmes, Séries, Ajustes)
   return (
     <div className="w-full h-full min-h-[100dvh] flex flex-col bg-[#0a0d14] overflow-hidden select-none safe-area-padding">
+      <RotateDevicePrompt />
       <TitleBar isFullScreen={isFullScreen} />
       <div className="flex-1 flex bg-[#0a0d14] overflow-hidden relative w-full h-full">
         {/* Conteúdo da Seção em 100% da tela (sem sidebar persistente para reproduzir fielmente o APK Android TV) */}

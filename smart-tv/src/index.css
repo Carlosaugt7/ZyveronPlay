@@ -86,6 +86,24 @@ html, body, #root {
   padding-right: env(safe-area-inset-right, 0px);
 }
 
+/* Suporte touch otimizado para iOS / Safari / Media Station X Mobile */
+@media (pointer: coarse), (hover: none) {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Permite rolagem nativa suave com inércia no iOS */
+  .overflow-y-auto, .overflow-x-auto, .custom-scrollbar {
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+
+  button, [role="button"], a, input, select, textarea {
+    touch-action: manipulation;
+    cursor: pointer !important;
+  }
+}
+
 /* Força cursor invisível para desativar o Magic Remote da TV LG e Samsung */
 * {
   cursor: none !important;

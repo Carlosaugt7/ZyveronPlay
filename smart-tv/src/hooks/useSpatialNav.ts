@@ -170,10 +170,14 @@ if (typeof window !== 'undefined') {
     }
   } catch {}
 
-  // 9. Registra escuta de volta no Media Station X
+  // 9. Registra escuta de volta no Media Station X e notifica suporte a toque nativo
   try {
     if (window.parent && window.parent !== window) {
       window.parent.postMessage('msx:register:back', '*');
+      // Oculta o controle remoto virtual sobreposto na tela do iPhone / Mobile
+      window.parent.postMessage('msx:remote:hide', '*');
+      window.parent.postMessage({ action: 'remote:hide' }, '*');
+      window.parent.postMessage({ action: 'control:hide' }, '*');
     }
   } catch {}
 }

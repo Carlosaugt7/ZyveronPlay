@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
-import { Loader2, AlertCircle, ArrowLeft, Play, Pause, FastForward, Rewind, SkipBack, SkipForward, Sparkles } from 'lucide-react';
+import { Loader2, AlertCircle, ArrowLeft, Play, Pause, FastForward, Rewind, SkipBack, SkipForward, Sparkles, VolumeX } from 'lucide-react';
 import { useSpatialNav } from '../hooks/useSpatialNav';
 
 interface PlayerProps {
@@ -79,6 +79,32 @@ export const Player: React.FC<PlayerProps> = ({
   const seekFeedbackTimerRef = useRef<any>(null);
   const osdTimerRef = useRef<any>(null);
 
+  // Autoplay Inteligente (Restrição Apple WebKit / iOS Safari em Mobile)
+  const [isMutedByAutoplay, setIsMutedByAutoplay] = useState<boolean>(false);
+
+  const handleUnmute = useCallback(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = false;
+      setIsMutedByAutoplay(false);
+    }
+  }, []);
+
+  const tryPlayWithAutoplayFallback = useCallback(async (vid: HTMLVideoElement) => {
+    try {
+      await vid.play();
+      setIsMutedByAutoplay(false);
+    } catch (err: any) {
+      console.warn('[Player] Autoplay com áudio bloqueado pelo navegador/iOS. Ativando fallback com áudio mutado:', err);
+      try {
+        vid.muted = true;
+        await vid.play();
+        setIsMutedByAutoplay(true);
+      } catch (err2) {
+        console.error('[Player] Falha ao reproduzir mesmo mutado:', err2);
+      }
+    }
+  }, []);
+
   // Foco espacial nos botões de controle OSD (0: Anterior, 1: Play/Pause, 2: Próximo, 3: Auto-Próximo)
   const [focusedButtonIndex, setFocusedButtonIndex] = useState<number | null>(null);
   const btnPrevRef = useRef<HTMLButtonElement>(null);
@@ -127,6 +153,10 @@ export const Player: React.FC<PlayerProps> = ({
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
+      if (isMutedByAutoplay) {
+        video.muted = false;
+        setIsMutedByAutoplay(false);
+      }
       video.play().catch(() => {});
       setIsPaused(false);
     } else {
@@ -134,7 +164,7 @@ export const Player: React.FC<PlayerProps> = ({
       setIsPaused(true);
     }
     showOsdTemporarily();
-  }, [showOsdTemporarily]);
+  }, [showOsdTemporarily, isMutedByAutoplay]);
 
   const handleSeek = useCallback((seconds: number) => {
     const video = videoRef.current;
@@ -372,7 +402,7 @@ export const Player: React.FC<PlayerProps> = ({
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsLoading(false);
-        video.play().catch(() => {});
+        tryPlayWithAutoplayFallback(video);
       });
 
       hls.on(Hls.Events.ERROR, (_, data) => {
@@ -411,9 +441,7 @@ export const Player: React.FC<PlayerProps> = ({
       requestAnimationFrame(() => {
         video.src = activeUrl;
         video.load();
-        video.play().catch((err) => {
-          console.warn('[Player] Erro no autoplay nativo:', err);
-        });
+        tryPlayWithAutoplayFallback(video);
       });
     }
 
@@ -490,7 +518,14 @@ export const Player: React.FC<PlayerProps> = ({
   }, [activeUrl, fallbackUrl, isActuallyLive, hasNextEpisode, onNextEpisode, autoPlayNext, startAutoPlayCountdown, showOsdTemporarily]);
 
   return (
-    <div className={`relative bg-black overflow-hidden flex items-center justify-center ${isFullScreen ? 'w-full h-full' : 'w-full h-full rounded-xl'}`}>
+    <div 
+      onClick={() => {
+        if (isMutedByAutoplay) {
+          handleUnmute();
+        }
+      }}
+      className={`relative bg-black overflow-hidden flex items-center justify-center ${isFullScreen ? 'w-full h-full' : 'w-full h-full rounded-xl'}`}
+    >
       <video
         ref={videoRef}
         className="w-full h-full object-contain bg-black"
@@ -503,6 +538,22 @@ export const Player: React.FC<PlayerProps> = ({
           WebkitBackfaceVisibility: 'hidden'
         }}
       />
+
+      {/* Botão Flutuante de Desmutar (Autoplay Inteligente para iPhone / iOS WebKit) */}
+      {isMutedByAutoplay && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleUnmute();
+          }}
+          className="absolute top-6 right-6 z-40 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-black font-black px-4 py-2.5 rounded-full flex items-center gap-2.5 shadow-2xl shadow-emerald-500/30 animate-bounce cursor-pointer border border-emerald-300 transition-transform select-none"
+          title="Toque para Ativar o Áudio"
+        >
+          <VolumeX className="w-5 h-5 text-black" />
+          <span className="text-xs sm:text-sm font-black tracking-wide">Toque para Ativar o Áudio</span>
+        </button>
+      )}
 
       {/* Loading Overlay */}
       {isLoading && !hasError && (
