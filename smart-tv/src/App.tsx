@@ -11,6 +11,7 @@ import { MoviesView } from './views/MoviesView';
 import { SeriesView } from './views/SeriesView';
 import { SettingsView } from './views/SettingsView';
 import { TitleBar } from './components/TitleBar';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Loader2 } from 'lucide-react';
 
 const SECTIONS: MainSection[] = ['home', 'live', 'vod', 'series', 'settings'];
@@ -162,56 +163,58 @@ export default function App() {
       <div className="flex-1 flex bg-[#0a0d14] overflow-hidden relative w-full h-full">
         {/* Conteúdo da Seção em 100% da tela (sem sidebar persistente para reproduzir fielmente o APK Android TV) */}
         <main className="w-full h-full overflow-hidden">
-          {currentSection === 'home' && (
-            <HomeView
-              client={xtreamClient}
-              device={activeDevice}
-              onNavigate={(section, extra) => {
-                setSelectedLiveCategory(extra?.categoryId);
-                setSelectedVodId(section === 'vod' ? extra?.streamId : undefined);
-                setSelectedSeriesId(section === 'series' ? extra?.streamId : undefined);
-                setCurrentSection(section);
-              }}
-              onSyncContent={handleSyncContent}
-            />
-          )}
-          {currentSection === 'live' && (
-            <LiveTvView
-              client={xtreamClient}
-              isFocusedContent={true}
-              onBackToHome={handleBackToHome}
-              initialCategoryId={selectedLiveCategory}
-              reloadKey={contentReloadKey}
-              onFullScreenChange={setIsFullScreen}
-            />
-          )}
-          {currentSection === 'vod' && (
-            <MoviesView
-              client={xtreamClient}
-              isFocusedContent={true}
-              onBackToHome={handleBackToHome}
-              initialStreamId={selectedVodId}
-              onFullScreenChange={setIsFullScreen}
-            />
-          )}
-          {currentSection === 'series' && (
-            <SeriesView
-              client={xtreamClient}
-              isFocusedContent={true}
-              onBackToHome={handleBackToHome}
-              initialStreamId={selectedSeriesId}
-              onFullScreenChange={setIsFullScreen}
-            />
-          )}
-          {currentSection === 'settings' && (
-            <SettingsView
-              device={activeDevice}
-              isFocusedContent={true}
-              onBackToHome={handleBackToHome}
-              onSyncContent={handleSyncContent}
-              onResetDevice={handleResetDevice}
-            />
-          )}
+          <ErrorBoundary onReset={handleBackToHome}>
+            {currentSection === 'home' && (
+              <HomeView
+                client={xtreamClient}
+                device={activeDevice}
+                onNavigate={(section, extra) => {
+                  setSelectedLiveCategory(extra?.categoryId);
+                  setSelectedVodId(section === 'vod' ? extra?.streamId : undefined);
+                  setSelectedSeriesId(section === 'series' ? extra?.streamId : undefined);
+                  setCurrentSection(section);
+                }}
+                onSyncContent={handleSyncContent}
+              />
+            )}
+            {currentSection === 'live' && (
+              <LiveTvView
+                client={xtreamClient}
+                isFocusedContent={true}
+                onBackToHome={handleBackToHome}
+                initialCategoryId={selectedLiveCategory}
+                reloadKey={contentReloadKey}
+                onFullScreenChange={setIsFullScreen}
+              />
+            )}
+            {currentSection === 'vod' && (
+              <MoviesView
+                client={xtreamClient}
+                isFocusedContent={true}
+                onBackToHome={handleBackToHome}
+                initialStreamId={selectedVodId}
+                onFullScreenChange={setIsFullScreen}
+              />
+            )}
+            {currentSection === 'series' && (
+              <SeriesView
+                client={xtreamClient}
+                isFocusedContent={true}
+                onBackToHome={handleBackToHome}
+                initialStreamId={selectedSeriesId}
+                onFullScreenChange={setIsFullScreen}
+              />
+            )}
+            {currentSection === 'settings' && (
+              <SettingsView
+                device={activeDevice}
+                isFocusedContent={true}
+                onBackToHome={handleBackToHome}
+                onSyncContent={handleSyncContent}
+                onResetDevice={handleResetDevice}
+              />
+            )}
+          </ErrorBoundary>
         </main>
       </div>
     </div>

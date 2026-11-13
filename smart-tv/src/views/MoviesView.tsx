@@ -7,6 +7,7 @@ import { Film, Play, Star, Loader2, ArrowLeft, Heart, Clock, Calendar, Info, Sea
 import { getFavorites, toggleFavorite, getRecent, addRecent } from '../lib/storage';
 import { AdultContentHelper } from '../lib/adultContent';
 import { AdultPinModal } from '../components/AdultPinModal';
+import { TvSearchModal } from '../components/TvSearchModal';
 
 interface MoviesViewProps {
   client: XtreamClient;
@@ -61,10 +62,11 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
   const backHomeBtnRef = useRef<HTMLButtonElement>(null);
   const activeMovieBtnRef = useRef<HTMLButtonElement>(null);
   const activeDetailBtnRef = useRef<HTMLButtonElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchBtnRef = useRef<HTMLButtonElement>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState<boolean>(false);
 
   // Pastas Especiais Fixas e Categorias (Fiel ao APK Android TV: Favoritos, Últimos Assistidos, Todos os Filmes, Recém Adicionados)
   const specialCats = useMemo(() => [
@@ -100,13 +102,17 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     return list;
   }, [specialCats, categories, categoryCounts]);
 
-  // Filmes atualmente renderizados no DOM (paginação progressiva leve + filtro de pesquisa)
+  // Filmes atualmente renderizados no DOM (paginação progressiva leve + filtro de pesquisa com proteção anti-crash)
   const displayedMovies = useMemo(() => {
-    if (!searchQuery.trim()) {
+    if (!searchQuery || !searchQuery.trim()) {
       return allMovies.slice(0, displayedCount);
     }
     const q = searchQuery.toLowerCase().trim();
-    return allMovies.filter((m) => m.name.toLowerCase().includes(q)).slice(0, displayedCount);
+    return allMovies.filter((m) => {
+      if (!m) return false;
+      const name = (m.name || '').toLowerCase();
+      return name.includes(q);
+    }).slice(0, displayedCount);
   }, [allMovies, displayedCount, searchQuery]);
 
   // Carrega categorias e contagens ao iniciar
@@ -317,8 +323,8 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         activeMovieBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       } else if (activeFocusColumn === 'details' && activeDetailBtnRef.current) {
         activeDetailBtnRef.current.focus();
-      } else if (activeFocusColumn === 'search' && searchInputRef.current) {
-        searchInputRef.current.focus();
+      } else if (activeFocusColumn === 'search' && searchBtnRef.current) {
+        searchBtnRef.current.focus();
       }
     }
   }, [selectedCategoryIdx, selectedMovieIdx, detailsButtonIdx, activeFocusColumn, isFocusedContent, isPlaying, displayedMovies.length]);
@@ -403,7 +409,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       } else if (activeFocusColumn === 'grid') {
         if (selectedMovieIdx < 5) {
           setActiveFocusColumn('search');
-          searchInputRef.current?.focus();
+          searchBtnRef.current?.focus();
         } else {
           setSelectedMovieIdx((prev) => Math.max(0, prev - 5));
         }
@@ -413,7 +419,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       if (isPlaying) return;
       if (activeFocusColumn === 'search') {
         setActiveFocusColumn('grid');
-        searchInputRef.current?.blur();
+        setSelectedMovieIdx(0);
       } else if (activeFocusColumn === 'categories') {
         setSelectedCategoryIdx((prev) => {
           if (prev === -1) return 0;
@@ -434,7 +440,6 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       if (activeFocusColumn === 'search') {
         setActiveFocusColumn('categories');
         setSelectedCategoryIdx(-1);
-        searchInputRef.current?.blur();
       } else if (activeFocusColumn === 'details') {
         setDetailsButtonIdx((prev) => Math.max(0, prev - 1));
       } else if (activeFocusColumn === 'grid') {
@@ -452,7 +457,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       } else if (activeFocusColumn === 'categories') {
         if (selectedCategoryIdx === -1) {
           setActiveFocusColumn('search');
-          searchInputRef.current?.focus();
+          searchBtnRef.current?.focus();
           return;
         }
         if (displayedMovies.length > 0) {
@@ -472,7 +477,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     onSelect: () => {
       if (isPlaying) return;
       if (activeFocusColumn === 'search') {
-        searchInputRef.current?.focus();
+        setIsSearchModalOpen(true);
         return;
       }
       if (activeFocusColumn === 'details') {
@@ -537,7 +542,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
         handleToggleFav(targetMovie.stream_id);
       }
     },
-    disabled: !isFocusedContent || showAdultPinModal,
+    disabled: !isFocusedContent || showAdultPinModal || isSearchModalOpen,
     priority: 15
   }, [
     isPlaying,
@@ -552,6 +557,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
     selectedMovieForDetails,
     isFocusedContent,
     showAdultPinModal,
+    isSearchModalOpen,
     onBackToHome
   ]);
 
@@ -703,33 +709,40 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
 
           <div className="flex items-center gap-4">
             {/* Campo de Busca Rápida de Filmes */}
-            <div className={`relative w-72 md:w-80 transition-all ${
-              isFocusedContent && activeFocusColumn === 'search' ? 'ring-4 ring-emerald-400 rounded-xl' : ''
-            }`}>
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Buscar filme por título..."
-                value={searchQuery}
-                onFocus={() => setActiveFocusColumn('search')}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-full pl-9 pr-8 py-2 bg-[#121722] border rounded-xl text-xs md:text-sm text-white placeholder-slate-400 focus:outline-none transition ${
-                  isFocusedContent && activeFocusColumn === 'search'
-                    ? 'border-emerald-400 ring-2 ring-emerald-300'
-                    : 'border-slate-700/80'
-                }`}
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white cursor-pointer"
+            <button
+              type="button"
+              ref={searchBtnRef}
+              tabIndex={0}
+              onClick={() => setIsSearchModalOpen(true)}
+              className={`relative w-72 md:w-80 px-3.5 py-2 bg-[#121722] border rounded-xl flex items-center justify-between text-left transition cursor-pointer select-none ${
+                isFocusedContent && activeFocusColumn === 'search'
+                  ? 'border-emerald-400 ring-4 ring-emerald-400/80 bg-[#161d2b]'
+                  : 'border-slate-700/80 hover:border-slate-600'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 overflow-hidden flex-1">
+                <Search className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className={`text-xs md:text-sm truncate ${searchQuery ? 'text-emerald-300 font-bold' : 'text-slate-400'}`}>
+                  {searchQuery ? `"${searchQuery}"` : 'Buscar filme por título...'}
+                </span>
+              </div>
+              {searchQuery ? (
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSearchQuery('');
+                  }}
+                  className="p-1 text-slate-400 hover:text-white shrink-0 cursor-pointer"
+                  title="Limpar pesquisa"
                 >
                   <X className="w-4 h-4" />
-                </button>
+                </span>
+              ) : (
+                <span className="text-[11px] text-slate-500 font-mono shrink-0 hidden sm:inline">
+                  [OK: Buscar]
+                </span>
               )}
-            </div>
+            </button>
 
             <div className="hidden sm:flex text-xs text-slate-400 items-center gap-2">
               <span className="font-mono bg-[#1a2233] px-3 py-1.5 rounded-lg text-emerald-400 font-bold">
@@ -992,6 +1005,20 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
             setActiveFocusColumn('grid');
             setPendingAdultCategory(null);
           }
+        }}
+      />
+
+      {/* Modal de Teclado Virtual para Busca de Filmes em Smart TV */}
+      <TvSearchModal
+        isOpen={isSearchModalOpen}
+        title="Buscar Filmes"
+        initialQuery={searchQuery}
+        totalResultsCount={displayedMovies.length}
+        onSearch={(q) => setSearchQuery(q)}
+        onClose={() => {
+          setIsSearchModalOpen(false);
+          setActiveFocusColumn('grid');
+          setSelectedMovieIdx(0);
         }}
       />
     </div>

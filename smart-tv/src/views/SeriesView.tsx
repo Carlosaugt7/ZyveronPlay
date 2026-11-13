@@ -7,6 +7,7 @@ import { Clapperboard, Play, Star, Loader2, X, ArrowLeft, Calendar, Info, Heart,
 import { getFavorites, toggleFavorite, getRecent, addRecent } from '../lib/storage';
 import { AdultContentHelper } from '../lib/adultContent';
 import { AdultPinModal } from '../components/AdultPinModal';
+import { TvSearchModal } from '../components/TvSearchModal';
 
 interface SeriesViewProps {
   client: XtreamClient;
@@ -95,9 +96,10 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   const activeSeasonBtnRef = useRef<HTMLButtonElement>(null);
   const activeEpBtnRef = useRef<HTMLButtonElement>(null);
   const activeHeaderBtnRef = useRef<HTMLButtonElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchBtnRef = useRef<HTMLButtonElement>(null);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState<boolean>(false);
 
   // Pastas Especiais Fixas e Categorias de Séries (Fiel ao APK: Favoritos, Últimos Assistidos, Todas as Séries, Recém Adicionados)
   const specialCats = useMemo(() => [
@@ -133,12 +135,17 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     return list;
   }, [specialCats, categories, categoryCounts]);
 
+  // Séries atualmente renderizadas no DOM (paginação progressiva leve + filtro de pesquisa com proteção anti-crash)
   const displayedSeries = useMemo(() => {
-    if (!searchQuery.trim()) {
+    if (!searchQuery || !searchQuery.trim()) {
       return allSeries.slice(0, displayedCount);
     }
     const q = searchQuery.toLowerCase().trim();
-    return allSeries.filter((s) => s.name.toLowerCase().includes(q)).slice(0, displayedCount);
+    return allSeries.filter((s) => {
+      if (!s) return false;
+      const name = (s.name || '').toLowerCase();
+      return name.includes(q);
+    }).slice(0, displayedCount);
   }, [allSeries, displayedCount, searchQuery]);
 
   const seasonKeys = useMemo(() => {
@@ -366,8 +373,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       } else if (activeFocusColumn === 'episodes' && activeEpBtnRef.current) {
         activeEpBtnRef.current.focus();
         activeEpBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      } else if (activeFocusColumn === 'search' && searchInputRef.current) {
-        searchInputRef.current.focus();
+      } else if (activeFocusColumn === 'search' && searchBtnRef.current) {
+        searchBtnRef.current.focus();
       }
     }
   }, [selectedCategoryIdx, selectedSeriesIdx, selectedSeasonIdx, selectedEpisodeIdx, headerBtnIdx, activeFocusColumn, isFocusedContent, playingEpisode, displayedSeries.length]);
@@ -545,7 +552,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       } else if (activeFocusColumn === 'grid') {
         if (selectedSeriesIdx < 5) {
           setActiveFocusColumn('search');
-          searchInputRef.current?.focus();
+          searchBtnRef.current?.focus();
         } else {
           setSelectedSeriesIdx((prev) => Math.max(0, prev - 5));
         }
@@ -574,7 +581,6 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       if (activeFocusColumn === 'search') {
         setActiveFocusColumn('grid');
         setSelectedSeriesIdx(0);
-        searchInputRef.current?.blur();
       } else if (activeFocusColumn === 'details-header') {
         setActiveFocusColumn('seasons');
       } else if (activeFocusColumn === 'categories') {
@@ -606,7 +612,6 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       if (activeFocusColumn === 'search') {
         setActiveFocusColumn('categories');
         setSelectedCategoryIdx(-1);
-        searchInputRef.current?.blur();
       } else if (activeFocusColumn === 'details-header') {
         setHeaderBtnIdx(0); // Favoritar
       } else if (activeFocusColumn === 'grid') {
@@ -626,7 +631,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       } else if (activeFocusColumn === 'categories') {
         if (selectedCategoryIdx === -1) {
           setActiveFocusColumn('search');
-          searchInputRef.current?.focus();
+          searchBtnRef.current?.focus();
           return;
         }
         if (displayedSeries.length > 0) {
@@ -648,7 +653,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     onSelect: () => {
       if (playingEpisode) return;
       if (activeFocusColumn === 'search') {
-        searchInputRef.current?.focus();
+        setIsSearchModalOpen(true);
         return;
       }
       if (activeFocusColumn === 'details-header') {
@@ -731,7 +736,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       }
       onBackToHome?.();
     },
-    disabled: !isFocusedContent || showAdultPinModal,
+    disabled: !isFocusedContent || showAdultPinModal || isSearchModalOpen,
     priority: 15
   }, [
     playingEpisode,
@@ -751,6 +756,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
     seasonKeys,
     isFocusedContent,
     showAdultPinModal,
+    isSearchModalOpen,
     onBackToHome
   ]);
 
@@ -913,33 +919,40 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
 
           <div className="flex items-center gap-4">
             {/* Campo de Busca Rápida de Séries */}
-            <div className={`relative w-72 md:w-80 transition-all ${
-              isFocusedContent && activeFocusColumn === 'search' ? 'ring-4 ring-emerald-400 rounded-xl' : ''
-            }`}>
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Buscar série por título..."
-                value={searchQuery}
-                onFocus={() => setActiveFocusColumn('search')}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-full pl-9 pr-8 py-2 bg-[#121722] border rounded-xl text-xs md:text-sm text-white placeholder-slate-400 focus:outline-none transition ${
-                  isFocusedContent && activeFocusColumn === 'search'
-                    ? 'border-emerald-400 ring-2 ring-emerald-300'
-                    : 'border-slate-700/80'
-                }`}
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white cursor-pointer"
+            <button
+              type="button"
+              ref={searchBtnRef}
+              tabIndex={0}
+              onClick={() => setIsSearchModalOpen(true)}
+              className={`relative w-72 md:w-80 px-3.5 py-2 bg-[#121722] border rounded-xl flex items-center justify-between text-left transition cursor-pointer select-none ${
+                isFocusedContent && activeFocusColumn === 'search'
+                  ? 'border-emerald-400 ring-4 ring-emerald-400/80 bg-[#161d2b]'
+                  : 'border-slate-700/80 hover:border-slate-600'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 overflow-hidden flex-1">
+                <Search className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className={`text-xs md:text-sm truncate ${searchQuery ? 'text-emerald-300 font-bold' : 'text-slate-400'}`}>
+                  {searchQuery ? `"${searchQuery}"` : 'Buscar série por título...'}
+                </span>
+              </div>
+              {searchQuery ? (
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSearchQuery('');
+                  }}
+                  className="p-1 text-slate-400 hover:text-white shrink-0 cursor-pointer"
+                  title="Limpar pesquisa"
                 >
                   <X className="w-4 h-4" />
-                </button>
+                </span>
+              ) : (
+                <span className="text-[11px] text-slate-500 font-mono shrink-0 hidden sm:inline">
+                  [OK: Buscar]
+                </span>
               )}
-            </div>
+            </button>
 
             <div className="hidden sm:flex text-xs text-slate-400 items-center gap-2">
               <span className="font-mono bg-[#1a2233] px-3 py-1.5 rounded-lg text-emerald-400 font-bold">
@@ -1242,6 +1255,20 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
             setActiveFocusColumn('grid');
             setPendingAdultCategory(null);
           }
+        }}
+      />
+
+      {/* Modal de Teclado Virtual para Busca de Séries em Smart TV */}
+      <TvSearchModal
+        isOpen={isSearchModalOpen}
+        title="Buscar Séries"
+        initialQuery={searchQuery}
+        totalResultsCount={displayedSeries.length}
+        onSearch={(q) => setSearchQuery(q)}
+        onClose={() => {
+          setIsSearchModalOpen(false);
+          setActiveFocusColumn('grid');
+          setSelectedSeriesIdx(0);
         }}
       />
     </div>
