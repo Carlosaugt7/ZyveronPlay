@@ -80,7 +80,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       const next = !prev;
       try {
         localStorage.setItem('zyveron_autoplay_next_episode', String(next));
-      } catch {}
+      } catch { }
       return next;
     });
   };
@@ -218,7 +218,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   // Carrega séries da categoria selecionada ou filtra por favoritos/recentes/lançamentos
   useEffect(() => {
     if (!selectedCategory) return;
-    
+
     setIsLoadingSeries(true);
     setDisplayedCount(BATCH_SIZE);
     setSelectedSeriesIdx(0);
@@ -809,9 +809,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   return (
     <div className="w-full h-full flex bg-[#0a0d14] overflow-hidden select-none relative">
       {/* Coluna de Categorias */}
-      <div className={`w-44 sm:w-52 md:w-60 lg:w-80 xl:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-2.5 sm:p-3 md:p-4 flex flex-col transition-all duration-200 shrink-0 ${
-        isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
-      }`}>
+      <div className={`w-44 sm:w-52 md:w-60 lg:w-80 xl:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-2.5 sm:p-3 md:p-4 flex flex-col transition-all duration-200 shrink-0 ${isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
+        }`}>
         <div className="flex items-center justify-between mb-3 sm:mb-4 px-1">
           <h2 className="text-xs sm:text-sm md:text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5 sm:gap-2">
             <span>GÊNEROS SÉRIES</span>
@@ -822,11 +821,10 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
               ref={backHomeBtnRef}
               type="button"
               onClick={onBackToHome}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl transition cursor-pointer border shadow ${
-                isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === -1
-                  ? 'bg-rose-600 text-white font-black ring-4 ring-rose-400 scale-105 border-white shadow-xl'
-                  : 'bg-slate-800 hover:bg-sky-600 text-[10px] sm:text-xs font-black text-slate-200 hover:text-white border-slate-700'
-              }`}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl transition cursor-pointer border shadow ${isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === -1
+                ? 'bg-rose-600 text-white font-black ring-4 ring-rose-400 scale-105 border-white shadow-xl'
+                : 'bg-slate-800 hover:bg-sky-600 text-[10px] sm:text-xs font-black text-slate-200 hover:text-white border-slate-700'
+                }`}
               title="Voltar para a Home"
             >
               <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -862,54 +860,50 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                       handleCategoryClick(item.id, idx, item.name);
                     }
                   }}
-                  className={`w-full text-left px-2.5 py-2 sm:px-3.5 sm:py-2.5 md:px-4 md:py-3 lg:px-5 lg:py-3.5 rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base lg:text-lg font-black transition truncate cursor-pointer flex items-center justify-between ${
-                    isSelected
-                      ? item.isAdult
-                        ? 'bg-rose-500 text-white font-black shadow'
-                        : item.id === 'favorites'
+                  className={`w-full text-left px-2.5 py-2 sm:px-3.5 sm:py-2.5 md:px-4 md:py-3 lg:px-5 lg:py-3.5 rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base lg:text-lg font-black transition truncate cursor-pointer flex items-center justify-between ${isSelected
+                    ? item.isAdult
+                      ? 'bg-rose-500 text-white font-black shadow'
+                      : item.id === 'favorites'
                         ? 'bg-amber-400 text-black shadow font-black'
                         : item.id === 'recently_watched'
-                        ? 'bg-sky-400 text-black shadow font-black'
-                        : 'bg-emerald-500 text-black font-black shadow'
-                      : item.isAdult
+                          ? 'bg-sky-400 text-black shadow font-black'
+                          : 'bg-emerald-500 text-black font-black shadow'
+                    : item.isAdult
                       ? 'text-rose-400 hover:bg-rose-950/30'
                       : item.id === 'favorites'
-                      ? 'text-amber-300 hover:bg-[#1b2234]'
-                      : item.id === 'recently_watched'
-                      ? 'text-sky-300 hover:bg-[#1b2234]'
-                      : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
-                  } ${
-                    isCatFocused
+                        ? 'text-amber-300 hover:bg-[#1b2234]'
+                        : item.id === 'recently_watched'
+                          ? 'text-sky-300 hover:bg-[#1b2234]'
+                          : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
+                    } ${isCatFocused
                       ? item.isAdult
                         ? 'ring-4 ring-rose-400 shadow-2xl scale-102 font-black outline-none bg-rose-500 text-white'
                         : item.id === 'favorites'
-                        ? 'ring-4 ring-amber-300 shadow-2xl scale-102 font-black outline-none bg-amber-400 text-black'
-                        : item.id === 'recently_watched'
-                        ? 'ring-4 ring-sky-300 shadow-2xl scale-102 font-black outline-none bg-sky-400 text-black'
-                        : 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
+                          ? 'ring-4 ring-amber-300 shadow-2xl scale-102 font-black outline-none bg-amber-400 text-black'
+                          : item.id === 'recently_watched'
+                            ? 'ring-4 ring-sky-300 shadow-2xl scale-102 font-black outline-none bg-sky-400 text-black'
+                            : 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
                       : ''
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-1.5 sm:gap-2 truncate">
                     {Icon ? (
-                      <Icon className={`w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 shrink-0 ${
-                        item.id === 'favorites'
-                          ? isSelected || isCatFocused ? 'fill-current text-black' : 'text-amber-400'
-                          : item.id === 'recently_watched'
+                      <Icon className={`w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 shrink-0 ${item.id === 'favorites'
+                        ? isSelected || isCatFocused ? 'fill-current text-black' : 'text-amber-400'
+                        : item.id === 'recently_watched'
                           ? isSelected || isCatFocused ? 'text-black' : 'text-sky-400'
                           : isSelected || isCatFocused ? 'text-black' : 'text-emerald-400'
-                      }`} />
+                        }`} />
                     ) : null}
                     <span className="truncate">{item.name}</span>
                     {item.isAdult && <Lock className="w-3.5 h-3.5 ml-1 shrink-0 opacity-80" />}
                   </div>
-                  <span className={`font-mono text-[10px] sm:text-xs md:text-sm px-1.5 sm:px-2 py-0.5 rounded-lg ml-1.5 shrink-0 ${
-                    isCatFocused
-                      ? 'bg-black/30 text-black font-bold'
-                      : isSelected
+                  <span className={`font-mono text-[10px] sm:text-xs md:text-sm px-1.5 sm:px-2 py-0.5 rounded-lg ml-1.5 shrink-0 ${isCatFocused
+                    ? 'bg-black/30 text-black font-bold'
+                    : isSelected
                       ? 'bg-black/40 text-white font-bold'
                       : 'bg-slate-800/80 text-slate-400'
-                  }`}>
+                    }`}>
                     {item.count}
                   </span>
                 </button>
@@ -920,10 +914,9 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       </div>
 
       {/* Grade de Séries */}
-      <div 
-        className={`flex-1 h-full p-2.5 sm:p-4 md:p-6 overflow-y-auto custom-scrollbar transition-all ${
-          isFocusedContent && activeFocusColumn === 'grid' ? 'ring-2 ring-emerald-500/30' : ''
-        }`}
+      <div
+        className={`flex-1 h-full p-2.5 sm:p-4 md:p-6 overflow-y-auto custom-scrollbar transition-all ${isFocusedContent && activeFocusColumn === 'grid' ? 'ring-2 ring-emerald-500/30' : ''
+          }`}
       >
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-4 mb-3 sm:mb-4">
           <div className="flex items-center gap-2 sm:gap-3">
@@ -945,11 +938,10 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
               ref={searchBtnRef}
               tabIndex={0}
               onClick={() => setIsSearchModalOpen(true)}
-              className={`relative w-48 sm:w-64 md:w-80 px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-[#121722] border rounded-xl flex items-center justify-between text-left transition cursor-pointer select-none ${
-                isFocusedContent && activeFocusColumn === 'search'
-                  ? 'border-emerald-400 ring-4 ring-emerald-400/80 bg-[#161d2b]'
-                  : 'border-slate-700/80 hover:border-slate-600'
-              }`}
+              className={`relative w-48 sm:w-64 md:w-80 px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-[#121722] border rounded-xl flex items-center justify-between text-left transition cursor-pointer select-none ${isFocusedContent && activeFocusColumn === 'search'
+                ? 'border-emerald-400 ring-4 ring-emerald-400/80 bg-[#161d2b]'
+                : 'border-slate-700/80 hover:border-slate-600'
+                }`}
             >
               <div className="flex items-center gap-2 overflow-hidden flex-1">
                 <Search className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -1020,11 +1012,10 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                     setSelectedSeriesIdx(seriesIdx);
                     handleOpenSeries(series);
                   }}
-                  className={`group relative bg-[#121722] border rounded-2xl overflow-hidden cursor-pointer transition-all duration-150 shadow-lg text-left ${
-                    isSeriesFocused
-                      ? 'border-emerald-400 ring-4 ring-emerald-400/80 scale-104 shadow-2xl z-10 bg-[#161d2b]'
-                      : 'border-[#2a3449] hover:border-emerald-500/50'
-                  }`}
+                  className={`group relative bg-[#121722] border rounded-2xl overflow-hidden cursor-pointer transition-all duration-150 shadow-lg text-left ${isSeriesFocused
+                    ? 'border-emerald-400 ring-4 ring-emerald-400/80 scale-104 shadow-2xl z-10 bg-[#161d2b]'
+                    : 'border-[#2a3449] hover:border-emerald-500/50'
+                    }`}
                 >
                   <div className="aspect-[2/3] w-full bg-slate-900 overflow-hidden relative">
                     {series.cover ? (
@@ -1047,9 +1038,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                       </div>
                     )}
 
-                    <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition ${
-                      isSeriesFocused ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                    }`}>
+                    <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition ${isSeriesFocused ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}>
                       <div className="w-14 h-14 rounded-full bg-emerald-500 text-black flex items-center justify-center shadow-2xl">
                         <Info className="w-7 h-7 ml-0.5" />
                       </div>
@@ -1076,7 +1066,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
       {selectedSeries && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 md:p-8 animate-in fade-in duration-200">
           <div className="w-full max-w-5xl max-h-[94vh] bg-[#121722] border border-[#2a3449] rounded-2xl md:rounded-3xl flex flex-col overflow-hidden shadow-2xl">
-            
+
             {/* Header da Série: Capa + Sinopse + Botão Favoritar + Botão Fechar */}
             <div className="p-3 sm:p-4 md:p-6 border-b border-[#2a3449] flex items-start gap-3 sm:gap-4 md:gap-6 bg-gradient-to-r from-[#161f30] to-[#121722]">
               {selectedSeries.cover && (
@@ -1093,13 +1083,12 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                       ref={activeFocusColumn === 'details-header' && headerBtnIdx === 0 ? activeHeaderBtnRef : null}
                       tabIndex={0}
                       onClick={() => handleToggleFav(selectedSeries.series_id)}
-                      className={`px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 border transition cursor-pointer ${
-                        activeFocusColumn === 'details-header' && headerBtnIdx === 0
-                          ? 'ring-4 ring-amber-300 scale-105 shadow-2xl bg-amber-400 text-black border-amber-300'
-                          : isCurrentSeriesFav
+                      className={`px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 border transition cursor-pointer ${activeFocusColumn === 'details-header' && headerBtnIdx === 0
+                        ? 'ring-4 ring-amber-300 scale-105 shadow-2xl bg-amber-400 text-black border-amber-300'
+                        : isCurrentSeriesFav
                           ? 'bg-amber-400/20 text-amber-300 border-amber-400/50 hover:bg-amber-400/30'
                           : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
-                      }`}
+                        }`}
                     >
                       <Star className={`w-4 h-4 sm:w-5 sm:h-5 ${isCurrentSeriesFav || (activeFocusColumn === 'details-header' && headerBtnIdx === 0) ? 'fill-current' : 'text-amber-400'}`} />
                       <span className="hidden sm:inline">{isCurrentSeriesFav ? 'Favoritada' : 'Favoritar'}</span>
@@ -1109,18 +1098,17 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                       ref={activeFocusColumn === 'details-header' && headerBtnIdx === 1 ? activeHeaderBtnRef : null}
                       tabIndex={0}
                       onClick={closeSeriesDetails}
-                      className={`p-1.5 sm:p-2 md:p-2.5 rounded-full transition cursor-pointer ${
-                        activeFocusColumn === 'details-header' && headerBtnIdx === 1
-                          ? 'ring-4 ring-rose-400 scale-105 shadow-2xl bg-rose-600 text-white'
-                          : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-                      }`}
+                      className={`p-1.5 sm:p-2 md:p-2.5 rounded-full transition cursor-pointer ${activeFocusColumn === 'details-header' && headerBtnIdx === 1
+                        ? 'ring-4 ring-rose-400 scale-105 shadow-2xl bg-rose-600 text-white'
+                        : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                        }`}
                       title="Fechar (Voltar)"
                     >
                       <X className="w-5 h-5 sm:w-6 sm:h-6" />
                     </button>
                   </div>
                 </div>
-                
+
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1.5 sm:mt-2 text-[11px] sm:text-xs md:text-sm text-slate-300">
                   {selectedSeries.rating && (
                     <div className="flex items-center gap-1 text-amber-400 font-bold">
@@ -1156,9 +1144,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
               ) : (
                 <>
                   {/* Coluna de Temporadas */}
-                  <div className={`w-36 sm:w-48 md:w-64 bg-[#161d2b]/80 border-r border-[#2a3449] p-2 sm:p-3 md:p-4 overflow-y-auto space-y-1 sm:space-y-2 shrink-0 transition ${
-                    isFocusedContent && activeFocusColumn === 'seasons' ? 'ring-2 ring-emerald-500/50' : ''
-                  }`}>
+                  <div className={`w-36 sm:w-48 md:w-64 bg-[#161d2b]/80 border-r border-[#2a3449] p-2 sm:p-3 md:p-4 overflow-y-auto space-y-1 sm:space-y-2 shrink-0 transition ${isFocusedContent && activeFocusColumn === 'seasons' ? 'ring-2 ring-emerald-500/50' : ''
+                    }`}>
                     <h4 className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-400 px-1 sm:px-2 mb-1 sm:mb-2">
                       Temporadas
                     </h4>
@@ -1178,13 +1165,12 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                             setActiveFocusColumn('episodes');
                             setSelectedEpisodeIdx(0);
                           }}
-                          className={`w-full text-left px-2.5 py-1.5 sm:px-3 sm:py-2 md:px-4 md:py-3 rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base font-bold transition cursor-pointer ${
-                            isSeasonFocused
-                              ? 'bg-emerald-400 text-black shadow-xl ring-2 ring-emerald-300 scale-102 font-black'
-                              : isSeasonSelected
+                          className={`w-full text-left px-2.5 py-1.5 sm:px-3 sm:py-2 md:px-4 md:py-3 rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base font-bold transition cursor-pointer ${isSeasonFocused
+                            ? 'bg-emerald-400 text-black shadow-xl ring-2 ring-emerald-300 scale-102 font-black'
+                            : isSeasonSelected
                               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                               : 'text-slate-300 hover:bg-[#1b2234]'
-                          }`}
+                            }`}
                         >
                           Temporada {seasonKey}
                         </button>
@@ -1193,12 +1179,11 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                   </div>
 
                   {/* Lista de Episódios com Botão Play e Foco */}
-                  <div className={`flex-1 p-2.5 sm:p-3.5 md:p-5 overflow-y-auto space-y-2 sm:space-y-3 custom-scrollbar transition min-w-0 ${
-                    isFocusedContent && activeFocusColumn === 'episodes' ? 'ring-2 ring-emerald-500/50' : ''
-                  }`}>
+                  <div className={`flex-1 p-2.5 sm:p-3.5 md:p-5 overflow-y-auto space-y-2 sm:space-y-3 custom-scrollbar transition min-w-0 ${isFocusedContent && activeFocusColumn === 'episodes' ? 'ring-2 ring-emerald-500/50' : ''
+                    }`}>
                     <div className="flex items-center justify-between mb-1 sm:mb-2">
                       <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-300">
-                        Episódios da Temporada {selectedSeason} ({ (seriesDetails?.episodes?.[selectedSeason] || []).length })
+                        Episódios da Temporada {selectedSeason} ({(seriesDetails?.episodes?.[selectedSeason] || []).length})
                       </h4>
                       <span className="text-[10px] sm:text-xs text-slate-400 font-mono hidden sm:inline">
                         [◀] Temporadas • [OK] Assistir
@@ -1223,16 +1208,14 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                               episodeIdx: epIdx
                             });
                           }}
-                          className={`w-full flex items-center justify-between p-2.5 sm:p-3 md:p-4 rounded-xl md:rounded-2xl cursor-pointer transition select-none text-left ${
-                            isEpFocused
-                              ? 'bg-emerald-400 text-black font-black shadow-2xl scale-[1.02] ring-2 sm:ring-4 ring-emerald-300'
-                              : 'bg-[#1b2234]/70 hover:bg-[#1b2234] border border-[#2a3449] text-white'
-                          }`}
+                          className={`w-full flex items-center justify-between p-2.5 sm:p-3 md:p-4 rounded-xl md:rounded-2xl cursor-pointer transition select-none text-left ${isEpFocused
+                            ? 'bg-emerald-400 text-black font-black shadow-2xl scale-[1.02] ring-2 sm:ring-4 ring-emerald-300'
+                            : 'bg-[#1b2234]/70 hover:bg-[#1b2234] border border-[#2a3449] text-white'
+                            }`}
                         >
                           <div className="flex items-center gap-2.5 sm:gap-4 overflow-hidden flex-1 min-w-0 pr-2">
-                            <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center font-black text-xs sm:text-sm shrink-0 ${
-                              isEpFocused ? 'bg-black text-emerald-400' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                            }`}>
+                            <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center font-black text-xs sm:text-sm shrink-0 ${isEpFocused ? 'bg-black text-emerald-400' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                              }`}>
                               E{ep.episode_num}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -1244,9 +1227,8 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                               )}
                             </div>
                           </div>
-                          <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shrink-0 ${
-                            isEpFocused ? 'bg-black text-emerald-400' : 'bg-emerald-500 text-black'
-                          }`}>
+                          <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shrink-0 ${isEpFocused ? 'bg-black text-emerald-400' : 'bg-emerald-500 text-black'
+                            }`}>
                             <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 fill-current ml-0.5" />
                           </div>
                         </button>
