@@ -309,13 +309,15 @@ fun MainContent(
 
                             if (isManual) {
                                 if (result.isSuccess) {
-                                    val total = result.getOrDefault(0)
-                                    if (total > 0) {
-                                        android.widget.Toast.makeText(context, "✅ Catálogo atualizado com sucesso! ($total canais)", android.widget.Toast.LENGTH_SHORT).show()
+                                    val totalChannels = result.getOrDefault(0)
+                                    val totalVods = repository.getVodCount()
+                                    val totalSeries = repository.getSeriesCount()
+                                    if (totalChannels > 0 || totalVods > 0 || totalSeries > 0) {
+                                        android.widget.Toast.makeText(context, "✅ Catálogo atualizado: $totalChannels canais, $totalVods filmes, $totalSeries séries", android.widget.Toast.LENGTH_SHORT).show()
                                     } else if (countBefore > 0) {
                                         android.widget.Toast.makeText(context, "⚠️ Servidor retornou vazio. Mantendo catálogo em cache ($countBefore canais).", android.widget.Toast.LENGTH_LONG).show()
                                     } else {
-                                        android.widget.Toast.makeText(context, "⚠️ Nenhum canal encontrado no servidor.", android.widget.Toast.LENGTH_SHORT).show()
+                                        android.widget.Toast.makeText(context, "⚠️ Nenhum canal ou conteúdo encontrado no servidor.", android.widget.Toast.LENGTH_SHORT).show()
                                     }
                                 } else {
                                     val err = result.exceptionOrNull()?.message ?: "Erro de conexão"
@@ -337,11 +339,13 @@ fun MainContent(
                     }
                 }
 
-                // Sincroniza automaticamente apenas quando o banco estiver vazio para a lista atual
+                // Sincroniza automaticamente quando o banco estiver incompleto para a lista atual
                 LaunchedEffect(cleanDns, state.username, state.activePlaylistIndex) {
                     if (cleanDns.isNotBlank() && state.username.isNotBlank()) {
-                        val currentCount = repository.getChannelCount()
-                        if (currentCount == 0 && !isSyncing) {
+                        val currentChannels = repository.getChannelCount()
+                        val currentVods = repository.getVodCount()
+                        val currentSeries = repository.getSeriesCount()
+                        if ((currentChannels == 0 || currentVods == 0 || currentSeries == 0) && !isSyncing) {
                             performSync(isManual = false, forceClear = false)
                         }
                     }

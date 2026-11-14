@@ -1,6 +1,8 @@
 package com.zyveron.play.data.repository
 
 import android.content.Context
+import android.util.JsonReader
+import android.util.JsonToken
 import android.util.Log
 import android.util.LruCache
 import com.zyveron.play.data.local.CategoryEntity
@@ -30,13 +32,15 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.InputStream
+import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 
 class ZyveronRepository(private val context: Context) {
 
     private val channelDao: ChannelDao = ZyveronDatabase.getInstance(context).channelDao()
     private val prefs = context.getSharedPreferences("zyveron_vod_progress", Context.MODE_PRIVATE)
-    private val client = NetworkSecurityHelper.createUnsafeOkHttpClient(connectTimeoutSec = 20, readTimeoutSec = 60)
+    private val client = NetworkSecurityHelper.createUnsafeOkHttpClient(connectTimeoutSec = 20, readTimeoutSec = 180)
 
     // Cache em memória de EPG com capacidade para 150 canais (evita requisições repetidas no zapping)
     private val epgCache = object : LruCache<Int, Pair<Long, List<EpgProgram>>>(150) {}
@@ -397,32 +401,338 @@ class ZyveronRepository(private val context: Context) {
         }
     }
 
+    // --- PARSERS STREAMING VIA JSONREADER (MÁXIMA VELOCIDADE E ZERO OOM EM TV BOXES) ---
+
+    private fun JsonReader.nextStringOrNull(): String? {
+        return try {
+            if (peek() == JsonToken.NULL) {
+                nextNull()
+                null
+            } else {
+                nextString().trim().takeIf { it.isNotEmpty() }
+            }
+        } catch (_: Exception) {
+            try { skipValue() } catch (_: Exception) {}
+            null
+        }
+    }
+
+    private fun JsonReader.nextIntOrZero(default: Int = 0): Int {
+        return try {
+            when (peek()) {
+                JsonToken.NULL -> {
+                    nextNull()
+                    default
+                }
+                JsonToken.NUMBER -> nextInt()
+                JsonToken.STRING -> nextString().trim().toIntOrNull() ?: default
+                else -> {
+                    skipValue()
+                    default
+                }
+            }
+        } catch (_: Exception) {
+            try { skipValue() } catch (_: Exception) {}
+            default
+        }
+    }
+
+    private fun parseCategoriesStreaming(inputStream: InputStream, type: String): List<CategoryEntity> {
+        val categories = ArrayList<CategoryEntity>(300)
+        val reader = JsonReader(InputStreamReader(inputStream, Charsets.UTF_8))
+        try {
+            if (reader.peek() == JsonToken.BEGIN_ARRAY) {
+                reader.beginArray()
+                var fallbackIdx = 0
+                while (reader.hasNext()) {
+                    fallbackIdx++
+                    var categoryId = "$fallbackIdx"
+                    var categoryName = "Geral"
+                    var parentId = 0
+
+                    if (reader.peek() == JsonToken.BEGIN_OBJECT) {
+                        reader.beginObject()
+                        while (reader.hasNext()) {
+                            when (reader.nextName()) {
+                                "category_id" -> {
+                                    categoryId = if (reader.peek() == JsonToken.NUMBER) {
+                                        reader.nextInt().toString()
+                                    } else {
+                                        reader.nextStringOrNull() ?: "$fallbackIdx"
+                                    }
+                                }
+                                "category_name" -> categoryName = reader.nextStringOrNull() ?: "Geral"
+                                "parent_id" -> parentId = reader.nextIntOrZero(0)
+                                else -> reader.skipValue()
+                            }
+                        }
+                        reader.endObject()
+
+                        if (categoryName.isNotBlank()) {
+                            categories.add(
+                                CategoryEntity(
+                                    categoryId = categoryId,
+                                    categoryName = categoryName,
+                                    parentId = parentId,
+                                    type = type
+                                )
+                            )
+                        }
+                    } else {
+                        reader.skipValue()
+                    }
+                }
+                reader.endArray()
+            }
+        } catch (e: Exception) {
+            Log.w("ZyveronRepo", "Aviso ao ler categorias streaming ($type): ${e.message}")
+        } finally {
+            try { reader.close() } catch (_: Exception) {}
+        }
+        return categories
+    }
+
+    private fun parseChannelsStreaming(inputStream: InputStream): Pair<List<ChannelEntity>, String?> {
+        val channels = ArrayList<ChannelEntity>(3500)
+        var authErrorMsg: String? = null
+        val reader = JsonReader(InputStreamReader(inputStream, Charsets.UTF_8))
+        try {
+            val token = reader.peek()
+            if (token == JsonToken.BEGIN_ARRAY) {
+                reader.beginArray()
+                var fallbackIdx = 0
+                while (reader.hasNext()) {
+                    fallbackIdx++
+                    var streamId = 0
+                    var num = fallbackIdx
+                    var name = ""
+                    var streamIcon: String? = null
+                    var epgChannelId: String? = null
+                    var categoryId = "0"
+
+                    if (reader.peek() == JsonToken.BEGIN_OBJECT) {
+                        reader.beginObject()
+                        while (reader.hasNext()) {
+                            when (reader.nextName()) {
+                                "stream_id" -> streamId = reader.nextIntOrZero(0)
+                                "num" -> num = reader.nextIntOrZero(fallbackIdx)
+                                "name" -> name = reader.nextStringOrNull() ?: ""
+                                "stream_icon" -> streamIcon = reader.nextStringOrNull()
+                                "epg_channel_id" -> epgChannelId = reader.nextStringOrNull()
+                                "category_id" -> {
+                                    categoryId = if (reader.peek() == JsonToken.NUMBER) {
+                                        reader.nextInt().toString()
+                                    } else {
+                                        reader.nextStringOrNull() ?: "0"
+                                    }
+                                }
+                                else -> reader.skipValue()
+                            }
+                        }
+                        reader.endObject()
+
+                        if (streamId > 0 && name.isNotBlank()) {
+                            channels.add(
+                                ChannelEntity(
+                                    streamId = streamId,
+                                    num = num,
+                                    name = name,
+                                    streamIcon = streamIcon,
+                                    epgChannelId = epgChannelId,
+                                    categoryId = categoryId,
+                                    isFavorite = false
+                                )
+                            )
+                        }
+                    } else {
+                        reader.skipValue()
+                    }
+                }
+                reader.endArray()
+            } else if (token == JsonToken.BEGIN_OBJECT) {
+                reader.beginObject()
+                while (reader.hasNext()) {
+                    if (reader.nextName() == "user_info" && reader.peek() == JsonToken.BEGIN_OBJECT) {
+                        reader.beginObject()
+                        while (reader.hasNext()) {
+                            when (reader.nextName()) {
+                                "message" -> authErrorMsg = reader.nextStringOrNull()
+                                "status" -> if (authErrorMsg == null) authErrorMsg = reader.nextStringOrNull()
+                                else -> reader.skipValue()
+                            }
+                        }
+                        reader.endObject()
+                    } else {
+                        reader.skipValue()
+                    }
+                }
+                reader.endObject()
+            }
+        } catch (e: Exception) {
+            Log.w("ZyveronRepo", "Aviso ao ler canais ao vivo streaming: ${e.message}")
+        } finally {
+            try { reader.close() } catch (_: Exception) {}
+        }
+        return Pair(channels, authErrorMsg)
+    }
+
+    private fun parseVodsStreaming(inputStream: InputStream): List<VodEntity> {
+        val vods = ArrayList<VodEntity>(16000)
+        val reader = JsonReader(InputStreamReader(inputStream, Charsets.UTF_8))
+        try {
+            if (reader.peek() == JsonToken.BEGIN_ARRAY) {
+                reader.beginArray()
+                var fallbackIdx = 0
+                while (reader.hasNext()) {
+                    fallbackIdx++
+                    var streamId = 0
+                    var num = fallbackIdx
+                    var name = ""
+                    var streamIcon: String? = null
+                    var rating: String? = null
+                    var year: String? = null
+                    var categoryId = "0"
+                    var containerExtension = "mp4"
+
+                    if (reader.peek() == JsonToken.BEGIN_OBJECT) {
+                        reader.beginObject()
+                        while (reader.hasNext()) {
+                            when (reader.nextName()) {
+                                "stream_id" -> streamId = reader.nextIntOrZero(0)
+                                "num" -> num = reader.nextIntOrZero(fallbackIdx)
+                                "name" -> name = reader.nextStringOrNull() ?: ""
+                                "stream_icon" -> streamIcon = reader.nextStringOrNull()
+                                "rating" -> rating = reader.nextStringOrNull()
+                                "year" -> year = reader.nextStringOrNull()
+                                "category_id" -> {
+                                    categoryId = if (reader.peek() == JsonToken.NUMBER) {
+                                        reader.nextInt().toString()
+                                    } else {
+                                        reader.nextStringOrNull() ?: "0"
+                                    }
+                                }
+                                "container_extension" -> containerExtension = reader.nextStringOrNull() ?: "mp4"
+                                else -> reader.skipValue()
+                            }
+                        }
+                        reader.endObject()
+
+                        if (streamId > 0 && name.isNotBlank()) {
+                            vods.add(
+                                VodEntity(
+                                    streamId = streamId,
+                                    num = num,
+                                    name = name,
+                                    streamIcon = streamIcon,
+                                    rating = rating,
+                                    year = year,
+                                    categoryId = categoryId,
+                                    containerExtension = containerExtension
+                                )
+                            )
+                        }
+                    } else {
+                        reader.skipValue()
+                    }
+                }
+                reader.endArray()
+            }
+        } catch (e: Exception) {
+            Log.w("ZyveronRepo", "Aviso ao ler VOD streaming: ${e.message}")
+        } finally {
+            try { reader.close() } catch (_: Exception) {}
+        }
+        return vods
+    }
+
+    private fun parseSeriesStreaming(inputStream: InputStream): List<SeriesEntity> {
+        val seriesList = ArrayList<SeriesEntity>(6000)
+        val reader = JsonReader(InputStreamReader(inputStream, Charsets.UTF_8))
+        try {
+            if (reader.peek() == JsonToken.BEGIN_ARRAY) {
+                reader.beginArray()
+                var fallbackIdx = 0
+                while (reader.hasNext()) {
+                    fallbackIdx++
+                    var seriesId = 0
+                    var num = fallbackIdx
+                    var name = ""
+                    var cover: String? = null
+                    var plot: String? = null
+                    var cast: String? = null
+                    var rating: String? = null
+                    var year: String? = null
+                    var genre: String? = null
+                    var categoryId = "0"
+
+                    if (reader.peek() == JsonToken.BEGIN_OBJECT) {
+                        reader.beginObject()
+                        while (reader.hasNext()) {
+                            when (reader.nextName()) {
+                                "series_id" -> seriesId = reader.nextIntOrZero(0)
+                                "num" -> num = reader.nextIntOrZero(fallbackIdx)
+                                "name" -> name = reader.nextStringOrNull() ?: ""
+                                "cover" -> cover = reader.nextStringOrNull()
+                                "plot" -> plot = reader.nextStringOrNull()
+                                "cast" -> cast = reader.nextStringOrNull()
+                                "rating" -> rating = reader.nextStringOrNull()
+                                "year" -> year = reader.nextStringOrNull()
+                                "genre" -> genre = reader.nextStringOrNull()
+                                "category_id" -> {
+                                    categoryId = if (reader.peek() == JsonToken.NUMBER) {
+                                        reader.nextInt().toString()
+                                    } else {
+                                        reader.nextStringOrNull() ?: "0"
+                                    }
+                                }
+                                else -> reader.skipValue()
+                            }
+                        }
+                        reader.endObject()
+
+                        if (seriesId > 0 && name.isNotBlank()) {
+                            seriesList.add(
+                                SeriesEntity(
+                                    seriesId = seriesId,
+                                    num = num,
+                                    name = name,
+                                    cover = cover,
+                                    plot = plot,
+                                    cast = cast,
+                                    rating = rating,
+                                    year = year,
+                                    genre = genre,
+                                    categoryId = categoryId
+                                )
+                            )
+                        }
+                    } else {
+                        reader.skipValue()
+                    }
+                }
+                reader.endArray()
+            }
+        } catch (e: Exception) {
+            Log.w("ZyveronRepo", "Aviso ao ler séries streaming: ${e.message}")
+        } finally {
+            try { reader.close() } catch (_: Exception) {}
+        }
+        return seriesList
+    }
+
     private suspend fun syncLiveStreams(cleanDns: String, username: String, password: String) {
         val savedFavoriteIds = try { channelDao.getFavoriteStreamIds() } catch (_: Throwable) { emptyList() }
         val encUser = java.net.URLEncoder.encode(username.trim(), "UTF-8")
         val encPass = java.net.URLEncoder.encode(password.trim(), "UTF-8")
 
-        // Categorias Live
+        // Categorias Live via Streaming
         val parsedCategories = mutableListOf<CategoryEntity>()
         try {
             val catUrl = "$cleanDns/player_api.php?username=$encUser&password=$encPass&action=get_live_categories"
             client.newCall(Request.Builder().url(catUrl).build()).execute().use { response ->
                 if (response.isSuccessful) {
-                    val bodyStr = response.body?.string().orEmpty().trim()
-                    if (bodyStr.startsWith("[")) {
-                        val json = JSONArray(bodyStr)
-                        for (i in 0 until json.length()) {
-                            val item = json.getJSONObject(i)
-                            val catName = item.optString("category_name", "Geral")
-                            parsedCategories.add(
-                                CategoryEntity(
-                                    categoryId = item.optString("category_id", "$i"),
-                                    categoryName = catName,
-                                    parentId = item.optInt("parent_id", 0),
-                                    type = "live"
-                                )
-                            )
-                        }
+                    response.body?.byteStream()?.let { stream ->
+                        parsedCategories.addAll(parseCategoriesStreaming(stream, "live"))
                     }
                 }
             }
@@ -430,42 +740,17 @@ class ZyveronRepository(private val context: Context) {
             Log.w("ZyveronRepo", "Erro ao buscar categorias de canais: ${t.message}")
         }
 
-        // Streams Live
+        // Streams Live via Streaming
         val parsedChannels = mutableListOf<ChannelEntity>()
         var authErrorMsg: String? = null
         try {
             val liveUrl = "$cleanDns/player_api.php?username=$encUser&password=$encPass&action=get_live_streams"
             client.newCall(Request.Builder().url(liveUrl).build()).execute().use { response ->
                 if (response.isSuccessful) {
-                    val bodyStr = response.body?.string().orEmpty().trim()
-                    if (bodyStr.startsWith("[")) {
-                        val json = JSONArray(bodyStr)
-                        for (i in 0 until json.length()) {
-                            val item = json.getJSONObject(i)
-                            val name = item.optString("name", "Canal $i")
-                            parsedChannels.add(
-                                ChannelEntity(
-                                    streamId = item.optInt("stream_id", i),
-                                    num = item.optInt("num", i + 1),
-                                    name = name,
-                                    streamIcon = item.optString("stream_icon").takeIf { it.isNotEmpty() },
-                                    epgChannelId = item.optString("epg_channel_id").takeIf { it.isNotEmpty() },
-                                    categoryId = item.optString("category_id", "0"),
-                                    isFavorite = false
-                                )
-                            )
-                        }
-                    } else if (bodyStr.startsWith("{")) {
-                        try {
-                            val jsonObj = JSONObject(bodyStr)
-                            val userInfo = jsonObj.optJSONObject("user_info")
-                            val auth = userInfo?.optInt("auth", 1) ?: 1
-                            if (auth == 0) {
-                                val status = userInfo?.optString("status") ?: "Desativado"
-                                val msg = userInfo?.optString("message").takeIf { !it.isNullOrBlank() } ?: "Conta ou senha rejeitada pelo servidor ($status)"
-                                authErrorMsg = msg
-                            }
-                        } catch (_: Throwable) {}
+                    response.body?.byteStream()?.let { stream ->
+                        val result = parseChannelsStreaming(stream)
+                        parsedChannels.addAll(result.first)
+                        authErrorMsg = result.second
                     }
                 } else {
                     authErrorMsg = "Servidor retornou erro HTTP ${response.code}"
@@ -480,7 +765,6 @@ class ZyveronRepository(private val context: Context) {
             throw IllegalStateException(authErrorMsg)
         }
 
-        // ATUALIZAÇÃO ATÔMICA APENAS SE HOUVER DADOS VÁLIDOS
         if (parsedChannels.isNotEmpty()) {
             channelDao.replaceLiveCatalog(parsedCategories, parsedChannels)
             if (savedFavoriteIds.isNotEmpty()) {
@@ -488,7 +772,7 @@ class ZyveronRepository(private val context: Context) {
             }
             Log.d("ZyveronRepo", "Atualizados ${parsedChannels.size} canais e ${parsedCategories.size} categorias com sucesso.")
         } else {
-            Log.w("ZyveronRepo", "Nenhum canal ao vivo retornado pela API. Mantendo catálogo anterior para evitar lista zerada.")
+            Log.w("ZyveronRepo", "Nenhum canal ao vivo retornado pela API. Mantendo catálogo anterior.")
         }
     }
 
@@ -497,27 +781,14 @@ class ZyveronRepository(private val context: Context) {
         val encUser = java.net.URLEncoder.encode(username.trim(), "UTF-8")
         val encPass = java.net.URLEncoder.encode(password.trim(), "UTF-8")
 
-        // Categorias VOD
+        // Categorias VOD via Streaming
         val parsedCategories = mutableListOf<CategoryEntity>()
         try {
             val catUrl = "$cleanDns/player_api.php?username=$encUser&password=$encPass&action=get_vod_categories"
             client.newCall(Request.Builder().url(catUrl).build()).execute().use { response ->
                 if (response.isSuccessful) {
-                    val bodyStr = response.body?.string().orEmpty().trim()
-                    if (bodyStr.startsWith("[")) {
-                        val json = JSONArray(bodyStr)
-                        for (i in 0 until json.length()) {
-                            val item = json.getJSONObject(i)
-                            val catName = item.optString("category_name", "Filmes")
-                            parsedCategories.add(
-                                CategoryEntity(
-                                    categoryId = item.optString("category_id", "$i"),
-                                    categoryName = catName,
-                                    parentId = item.optInt("parent_id", 0),
-                                    type = "vod"
-                                )
-                            )
-                        }
+                    response.body?.byteStream()?.let { stream ->
+                        parsedCategories.addAll(parseCategoriesStreaming(stream, "vod"))
                     }
                 }
             }
@@ -525,31 +796,14 @@ class ZyveronRepository(private val context: Context) {
             Log.w("ZyveronRepo", "Erro ao buscar categorias de VOD: ${t.message}")
         }
 
-        // Filmes VOD
+        // Filmes VOD via Streaming (zero OOM e velocidade ultra-rápida)
         val parsedVods = mutableListOf<VodEntity>()
         try {
             val vodUrl = "$cleanDns/player_api.php?username=$encUser&password=$encPass&action=get_vod_streams"
             client.newCall(Request.Builder().url(vodUrl).build()).execute().use { response ->
                 if (response.isSuccessful) {
-                    val bodyStr = response.body?.string().orEmpty().trim()
-                    if (bodyStr.startsWith("[")) {
-                        val json = JSONArray(bodyStr)
-                        for (i in 0 until json.length()) {
-                            val item = json.getJSONObject(i)
-                            val name = item.optString("name", "Filme $i")
-                            parsedVods.add(
-                                VodEntity(
-                                    streamId = item.optInt("stream_id", i),
-                                    num = item.optInt("num", i + 1),
-                                    name = name,
-                                    streamIcon = item.optString("stream_icon").takeIf { it.isNotEmpty() },
-                                    rating = item.optString("rating").takeIf { it.isNotEmpty() },
-                                    year = item.optString("year").takeIf { it.isNotEmpty() },
-                                    categoryId = item.optString("category_id", "0"),
-                                    containerExtension = item.optString("container_extension", "mp4")
-                                )
-                            )
-                        }
+                    response.body?.byteStream()?.let { stream ->
+                        parsedVods.addAll(parseVodsStreaming(stream))
                     }
                 }
             }
@@ -557,7 +811,6 @@ class ZyveronRepository(private val context: Context) {
             Log.w("ZyveronRepo", "Erro ao buscar filmes VOD: ${t.message}")
         }
 
-        // ATUALIZAÇÃO ATÔMICA APENAS SE HOUVER DADOS VÁLIDOS
         if (parsedVods.isNotEmpty()) {
             channelDao.replaceVodCatalog(parsedCategories, parsedVods)
             if (savedFavoriteVodIds.isNotEmpty()) {
@@ -574,27 +827,14 @@ class ZyveronRepository(private val context: Context) {
         val encUser = java.net.URLEncoder.encode(username.trim(), "UTF-8")
         val encPass = java.net.URLEncoder.encode(password.trim(), "UTF-8")
 
-        // Categorias Séries
+        // Categorias Séries via Streaming
         val parsedCategories = mutableListOf<CategoryEntity>()
         try {
             val catUrl = "$cleanDns/player_api.php?username=$encUser&password=$encPass&action=get_series_categories"
             client.newCall(Request.Builder().url(catUrl).build()).execute().use { response ->
                 if (response.isSuccessful) {
-                    val bodyStr = response.body?.string().orEmpty().trim()
-                    if (bodyStr.startsWith("[")) {
-                        val json = JSONArray(bodyStr)
-                        for (i in 0 until json.length()) {
-                            val item = json.getJSONObject(i)
-                            val catName = item.optString("category_name", "Séries")
-                            parsedCategories.add(
-                                CategoryEntity(
-                                    categoryId = item.optString("category_id", "$i"),
-                                    categoryName = catName,
-                                    parentId = item.optInt("parent_id", 0),
-                                    type = "series"
-                                )
-                            )
-                        }
+                    response.body?.byteStream()?.let { stream ->
+                        parsedCategories.addAll(parseCategoriesStreaming(stream, "series"))
                     }
                 }
             }
@@ -602,33 +842,14 @@ class ZyveronRepository(private val context: Context) {
             Log.w("ZyveronRepo", "Erro ao buscar categorias de séries: ${t.message}")
         }
 
-        // Séries
+        // Séries via Streaming
         val parsedSeries = mutableListOf<SeriesEntity>()
         try {
             val seriesUrl = "$cleanDns/player_api.php?username=$encUser&password=$encPass&action=get_series"
             client.newCall(Request.Builder().url(seriesUrl).build()).execute().use { response ->
                 if (response.isSuccessful) {
-                    val bodyStr = response.body?.string().orEmpty().trim()
-                    if (bodyStr.startsWith("[")) {
-                        val json = JSONArray(bodyStr)
-                        for (i in 0 until json.length()) {
-                            val item = json.getJSONObject(i)
-                            val name = item.optString("name", "Série $i")
-                            parsedSeries.add(
-                                SeriesEntity(
-                                    seriesId = item.optInt("series_id", i),
-                                    num = item.optInt("num", i + 1),
-                                    name = name,
-                                    cover = item.optString("cover").takeIf { it.isNotEmpty() },
-                                    plot = item.optString("plot").takeIf { it.isNotEmpty() },
-                                    cast = item.optString("cast").takeIf { it.isNotEmpty() },
-                                    rating = item.optString("rating").takeIf { it.isNotEmpty() },
-                                    year = item.optString("year").takeIf { it.isNotEmpty() },
-                                    genre = item.optString("genre").takeIf { it.isNotEmpty() },
-                                    categoryId = item.optString("category_id", "0")
-                                )
-                            )
-                        }
+                    response.body?.byteStream()?.let { stream ->
+                        parsedSeries.addAll(parseSeriesStreaming(stream))
                     }
                 }
             }
@@ -636,7 +857,6 @@ class ZyveronRepository(private val context: Context) {
             Log.w("ZyveronRepo", "Erro ao buscar séries: ${t.message}")
         }
 
-        // ATUALIZAÇÃO ATÔMICA APENAS SE HOUVER DADOS VÁLIDOS
         if (parsedSeries.isNotEmpty()) {
             channelDao.replaceSeriesCatalog(parsedCategories, parsedSeries)
             if (savedFavoriteSeriesIds.isNotEmpty()) {

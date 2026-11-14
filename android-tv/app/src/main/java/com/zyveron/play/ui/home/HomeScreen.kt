@@ -348,7 +348,7 @@ fun HomeScreen(
                             // Filmes
                             HomeCategoryCard(
                                 title = "Filmes",
-                                subtitle = if (vodCount > 0) "$vodCount filmes" else "On Demand",
+                                subtitle = if (vodCount > 0) "$vodCount filmes" else if (isSyncing) "Sincronizando..." else "0 filmes • Atualizar",
                                 icon = "🎬",
                                 glowColor = AccentSky,
                                 modifier = Modifier
@@ -368,7 +368,7 @@ fun HomeScreen(
                             // Séries
                             HomeCategoryCard(
                                 title = "Séries",
-                                subtitle = if (seriesCount > 0) "$seriesCount séries" else "Temporadas",
+                                subtitle = if (seriesCount > 0) "$seriesCount séries" else if (isSyncing) "Sincronizando..." else "0 séries • Atualizar",
                                 icon = "📺",
                                 glowColor = AccentSky,
                                 modifier = Modifier
@@ -428,7 +428,7 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                items(featuredVods.take(8)) { vod ->
+                                items(featuredVods.distinctBy { it.name.trim().lowercase() }.take(8)) { vod ->
                                     TvTouchCard(
                                         onClick = { onPlayVod(vod) },
                                         modifier = Modifier.size(width = 82.dp, height = 110.dp),
@@ -489,7 +489,7 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                items(featuredSeries.take(8)) { series ->
+                                items(featuredSeries.distinctBy { it.name.trim().lowercase() }.take(8)) { series ->
                                     TvTouchCard(
                                         onClick = { onSelectSeries(series) },
                                         modifier = Modifier.size(width = 82.dp, height = 110.dp),
