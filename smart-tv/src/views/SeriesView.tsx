@@ -808,28 +808,28 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
 
   return (
     <div className="w-full h-full flex bg-[#0a0d14] overflow-hidden select-none relative">
-      {/* Coluna de Categorias (Fonte Aumentada para Idosos e TVs) */}
-      <div className={`w-84 lg:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 shrink-0 ${
+      {/* Coluna de Categorias */}
+      <div className={`w-44 sm:w-52 md:w-60 lg:w-80 xl:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-2.5 sm:p-3 md:p-4 flex flex-col transition-all duration-200 shrink-0 ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>
-        <div className="flex items-center justify-between mb-4 px-1">
-          <h2 className="text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+        <div className="flex items-center justify-between mb-3 sm:mb-4 px-1">
+          <h2 className="text-xs sm:text-sm md:text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5 sm:gap-2">
             <span>GÊNEROS SÉRIES</span>
-            <span className="text-sky-400 font-mono text-sm">({selectableCategories.length})</span>
+            <span className="text-sky-400 font-mono text-xs sm:text-sm">({selectableCategories.length})</span>
           </h2>
           {onBackToHome && (
             <button
               ref={backHomeBtnRef}
               type="button"
               onClick={onBackToHome}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition cursor-pointer border shadow ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl transition cursor-pointer border shadow ${
                 isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === -1
                   ? 'bg-rose-600 text-white font-black ring-4 ring-rose-400 scale-105 border-white shadow-xl'
-                  : 'bg-slate-800 hover:bg-sky-600 text-xs font-black text-slate-200 hover:text-white border-slate-700'
+                  : 'bg-slate-800 hover:bg-sky-600 text-[10px] sm:text-xs font-black text-slate-200 hover:text-white border-slate-700'
               }`}
               title="Voltar para a Home"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Início</span>
             </button>
           )}
@@ -837,11 +837,11 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
 
         {isLoadingCats ? (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
-            <Loader2 className="w-10 h-10 animate-spin text-emerald-400 mb-3" />
-            <span className="text-base font-semibold">Carregando gêneros...</span>
+            <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 animate-spin text-emerald-400 mb-2 sm:mb-3" />
+            <span className="text-xs sm:text-base font-semibold">Carregando gêneros...</span>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto space-y-1.5 sm:space-y-2.5 pr-1 custom-scrollbar">
             {selectableCategories.map((item, idx) => {
               const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === idx;
               const isSelected = selectedCategory === item.id;
@@ -862,7 +862,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                       handleCategoryClick(item.id, idx, item.name);
                     }
                   }}
-                  className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition truncate cursor-pointer flex items-center justify-between ${
+                  className={`w-full text-left px-2.5 py-2 sm:px-3.5 sm:py-2.5 md:px-4 md:py-3 lg:px-5 lg:py-3.5 rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base lg:text-lg font-black transition truncate cursor-pointer flex items-center justify-between ${
                     isSelected
                       ? item.isAdult
                         ? 'bg-rose-500 text-white font-black shadow'
@@ -890,9 +890,9 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                       : ''
                   }`}
                 >
-                  <div className="flex items-center gap-2 truncate">
+                  <div className="flex items-center gap-1.5 sm:gap-2 truncate">
                     {Icon ? (
-                      <Icon className={`w-6 h-6 shrink-0 ${
+                      <Icon className={`w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 shrink-0 ${
                         item.id === 'favorites'
                           ? isSelected || isCatFocused ? 'fill-current text-black' : 'text-amber-400'
                           : item.id === 'recently_watched'
@@ -901,9 +901,9 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                       }`} />
                     ) : null}
                     <span className="truncate">{item.name}</span>
-                    {item.isAdult && <Lock className="w-4 h-4 ml-1 shrink-0 opacity-80" />}
+                    {item.isAdult && <Lock className="w-3.5 h-3.5 ml-1 shrink-0 opacity-80" />}
                   </div>
-                  <span className={`font-mono text-xs md:text-sm px-2.5 py-0.5 rounded-lg ml-2 shrink-0 ${
+                  <span className={`font-mono text-[10px] sm:text-xs md:text-sm px-1.5 sm:px-2 py-0.5 rounded-lg ml-1.5 shrink-0 ${
                     isCatFocused
                       ? 'bg-black/30 text-black font-bold'
                       : isSelected
@@ -921,37 +921,37 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
 
       {/* Grade de Séries */}
       <div 
-        className={`flex-1 h-full p-6 overflow-y-auto custom-scrollbar transition-all ${
+        className={`flex-1 h-full p-2.5 sm:p-4 md:p-6 overflow-y-auto custom-scrollbar transition-all ${
           isFocusedContent && activeFocusColumn === 'grid' ? 'ring-2 ring-emerald-500/30' : ''
         }`}
       >
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-black text-white flex items-center gap-2.5">
-              <Clapperboard className="w-7 h-7 text-emerald-400" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-4 mb-3 sm:mb-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <h2 className="text-base sm:text-xl md:text-2xl font-black text-white flex items-center gap-2">
+              <Clapperboard className="w-5 h-5 sm:w-7 sm:h-7 text-emerald-400" />
               <span>Catálogo de Séries</span>
               {allSeries.length > 0 && (
-                <span className="text-base font-normal text-slate-400 ml-1">
+                <span className="text-xs sm:text-base font-normal text-slate-400 ml-1">
                   ({displayedSeries.length} de {allSeries.length})
                 </span>
               )}
             </h2>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             {/* Campo de Busca Rápida de Séries */}
             <button
               type="button"
               ref={searchBtnRef}
               tabIndex={0}
               onClick={() => setIsSearchModalOpen(true)}
-              className={`relative w-72 md:w-80 px-3.5 py-2 bg-[#121722] border rounded-xl flex items-center justify-between text-left transition cursor-pointer select-none ${
+              className={`relative w-48 sm:w-64 md:w-80 px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-[#121722] border rounded-xl flex items-center justify-between text-left transition cursor-pointer select-none ${
                 isFocusedContent && activeFocusColumn === 'search'
                   ? 'border-emerald-400 ring-4 ring-emerald-400/80 bg-[#161d2b]'
                   : 'border-slate-700/80 hover:border-slate-600'
               }`}
             >
-              <div className="flex items-center gap-2.5 overflow-hidden flex-1">
+              <div className="flex items-center gap-2 overflow-hidden flex-1">
                 <Search className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span className={`text-xs md:text-sm truncate ${searchQuery ? 'text-emerald-300 font-bold' : 'text-slate-400'}`}>
                   {searchQuery ? `"${searchQuery}"` : 'Buscar série por título...'}
@@ -969,7 +969,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                   <X className="w-4 h-4" />
                 </span>
               ) : (
-                <span className="text-[11px] text-slate-500 font-mono shrink-0 hidden sm:inline">
+                <span className="text-[10px] sm:text-[11px] text-slate-500 font-mono shrink-0 hidden sm:inline">
                   [OK: Buscar]
                 </span>
               )}
@@ -985,27 +985,27 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
 
         {isLoadingSeries ? (
           <div className="w-full h-80 flex flex-col items-center justify-center text-slate-400">
-            <Loader2 className="w-12 h-12 animate-spin text-emerald-400 mb-3" />
-            <span className="text-base font-semibold">Carregando catálogo de séries...</span>
+            <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 animate-spin text-emerald-400 mb-3" />
+            <span className="text-sm sm:text-base font-semibold">Carregando catálogo de séries...</span>
           </div>
         ) : allSeries.length === 0 ? (
           <div className="w-full h-80 flex flex-col items-center justify-center text-slate-500 p-6 text-center">
             {selectedCategory === 'favorites' ? (
               <>
-                <Star className="w-16 h-16 mb-3 text-amber-500/40" />
-                <p className="text-lg font-bold text-slate-200">Nenhuma série favoritada ainda.</p>
-                <p className="text-sm text-slate-400 mt-1 max-w-sm">Abra qualquer série e clique no botão [Favoritar] ou aperte a tecla 'F' no controle.</p>
+                <Star className="w-12 h-12 sm:w-16 sm:h-16 mb-2 sm:mb-3 text-amber-500/40" />
+                <p className="text-base sm:text-lg font-bold text-slate-200">Nenhuma série favoritada ainda.</p>
+                <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-sm">Abra qualquer série e clique no botão [Favoritar] ou aperte a tecla 'F' no controle.</p>
               </>
             ) : (
               <>
-                <Clapperboard className="w-16 h-16 mb-3 text-slate-600" />
-                <p className="text-base font-semibold text-slate-400">Nenhuma série disponível nesta categoria.</p>
+                <Clapperboard className="w-12 h-12 sm:w-16 sm:h-16 mb-2 sm:mb-3 text-slate-600" />
+                <p className="text-sm sm:text-base font-semibold text-slate-400">Nenhuma série disponível nesta categoria.</p>
                 <p className="text-xs text-slate-500 mt-1">Selecione outro gênero no menu à esquerda.</p>
               </>
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3.5 md:gap-5">
             {displayedSeries.map((series, seriesIdx) => {
               const isSeriesFocused = isFocusedContent && activeFocusColumn === 'grid' && selectedSeriesIdx === seriesIdx;
               const isFav = favorites.includes(series.series_id);
@@ -1056,11 +1056,11 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                     </div>
                   </div>
 
-                  <div className={`p-3.5 ${isSeriesFocused ? 'bg-emerald-500/20' : ''}`}>
-                    <h3 className="text-base font-bold text-white truncate leading-snug">{series.name}</h3>
+                  <div className={`p-2 sm:p-3 md:p-3.5 ${isSeriesFocused ? 'bg-emerald-500/20' : ''}`}>
+                    <h3 className="text-xs sm:text-sm md:text-base font-bold text-white truncate leading-snug">{series.name}</h3>
                     {series.rating && (
-                      <div className="flex items-center gap-1.5 text-xs text-amber-400 mt-1 font-semibold">
-                        <Star className="w-4 h-4 fill-current" />
+                      <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-amber-400 mt-1 font-semibold">
+                        <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
                         <span>{series.rating}</span>
                       </div>
                     )}
@@ -1074,26 +1074,26 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
 
       {/* MODAL DE DETALHES DA SÉRIE (CAPA, SINOPSE, TEMPORADAS E EPISÓDIOS) */}
       {selectedSeries && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-6 md:p-10 animate-in fade-in duration-200">
-          <div className="w-full max-w-5xl max-h-[90vh] bg-[#121722] border border-[#2a3449] rounded-3xl flex flex-col overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 md:p-8 animate-in fade-in duration-200">
+          <div className="w-full max-w-5xl max-h-[94vh] bg-[#121722] border border-[#2a3449] rounded-2xl md:rounded-3xl flex flex-col overflow-hidden shadow-2xl">
             
             {/* Header da Série: Capa + Sinopse + Botão Favoritar + Botão Fechar */}
-            <div className="p-6 border-b border-[#2a3449] flex items-start gap-6 bg-gradient-to-r from-[#161f30] to-[#121722]">
+            <div className="p-3 sm:p-4 md:p-6 border-b border-[#2a3449] flex items-start gap-3 sm:gap-4 md:gap-6 bg-gradient-to-r from-[#161f30] to-[#121722]">
               {selectedSeries.cover && (
-                <div className="w-24 md:w-28 aspect-[2/3] rounded-2xl overflow-hidden shrink-0 border border-slate-700 shadow-xl">
+                <div className="w-14 sm:w-20 md:w-28 aspect-[2/3] rounded-xl md:rounded-2xl overflow-hidden shrink-0 border border-slate-700 shadow-xl">
                   <img src={seriesDetails?.info?.cover || selectedSeries.cover} alt={selectedSeries.name} className="w-full h-full object-cover" />
                 </div>
               )}
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-2xl md:text-3xl font-black text-white">{selectedSeries.name}</h3>
-                  <div className="flex items-center gap-3">
+                  <h3 className="text-base sm:text-xl md:text-3xl font-black text-white truncate">{selectedSeries.name}</h3>
+                  <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-2">
                     <button
                       type="button"
                       ref={activeFocusColumn === 'details-header' && headerBtnIdx === 0 ? activeHeaderBtnRef : null}
                       tabIndex={0}
                       onClick={() => handleToggleFav(selectedSeries.series_id)}
-                      className={`px-5 py-2.5 rounded-xl font-black text-sm flex items-center gap-2 border transition cursor-pointer ${
+                      className={`px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 border transition cursor-pointer ${
                         activeFocusColumn === 'details-header' && headerBtnIdx === 0
                           ? 'ring-4 ring-amber-300 scale-105 shadow-2xl bg-amber-400 text-black border-amber-300'
                           : isCurrentSeriesFav
@@ -1101,35 +1101,35 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                           : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
                       }`}
                     >
-                      <Star className={`w-5 h-5 ${isCurrentSeriesFav || (activeFocusColumn === 'details-header' && headerBtnIdx === 0) ? 'fill-current' : 'text-amber-400'}`} />
-                      <span>{isCurrentSeriesFav ? 'Favoritada' : 'Favoritar'}</span>
+                      <Star className={`w-4 h-4 sm:w-5 sm:h-5 ${isCurrentSeriesFav || (activeFocusColumn === 'details-header' && headerBtnIdx === 0) ? 'fill-current' : 'text-amber-400'}`} />
+                      <span className="hidden sm:inline">{isCurrentSeriesFav ? 'Favoritada' : 'Favoritar'}</span>
                     </button>
                     <button
                       type="button"
                       ref={activeFocusColumn === 'details-header' && headerBtnIdx === 1 ? activeHeaderBtnRef : null}
                       tabIndex={0}
                       onClick={closeSeriesDetails}
-                      className={`p-2.5 rounded-full transition cursor-pointer ${
+                      className={`p-1.5 sm:p-2 md:p-2.5 rounded-full transition cursor-pointer ${
                         activeFocusColumn === 'details-header' && headerBtnIdx === 1
                           ? 'ring-4 ring-rose-400 scale-105 shadow-2xl bg-rose-600 text-white'
                           : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
                       }`}
                       title="Fechar (Voltar)"
                     >
-                      <X className="w-6 h-6" />
+                      <X className="w-5 h-5 sm:w-6 sm:h-6" />
                     </button>
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-3 mt-2 text-xs md:text-sm text-slate-300">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1.5 sm:mt-2 text-[11px] sm:text-xs md:text-sm text-slate-300">
                   {selectedSeries.rating && (
                     <div className="flex items-center gap-1 text-amber-400 font-bold">
-                      <Star className="w-4 h-4 fill-current" />
+                      <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
                       <span>{selectedSeries.rating}</span>
                     </div>
                   )}
                   {selectedSeries.genre && (
-                    <span className="text-sky-300 bg-sky-950/60 px-2.5 py-0.5 rounded font-medium">
+                    <span className="text-sky-300 bg-sky-950/60 px-2 py-0.5 rounded font-medium">
                       {selectedSeries.genre}
                     </span>
                   )}
@@ -1140,7 +1140,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                   )}
                 </div>
 
-                <p className="text-sm md:text-base text-slate-200 mt-2.5 line-clamp-3 leading-relaxed">
+                <p className="text-xs sm:text-sm md:text-base text-slate-200 mt-1.5 sm:mt-2.5 line-clamp-2 sm:line-clamp-3 leading-relaxed">
                   {seriesDetails?.info?.plot || selectedSeries.plot || 'Sinopse não disponível para esta série.'}
                 </p>
               </div>
@@ -1149,17 +1149,17 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
             {/* Conteúdo: Abas de Temporadas e Lista de Episódios */}
             <div className="flex-1 flex overflow-hidden">
               {isLoadingDetails ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-slate-400 py-16">
-                  <Loader2 className="w-10 h-10 animate-spin text-emerald-400 mb-3" />
-                  <span className="text-base font-semibold">Carregando episódios e temporadas...</span>
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-400 py-12 sm:py-16">
+                  <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 animate-spin text-emerald-400 mb-3" />
+                  <span className="text-xs sm:text-base font-semibold">Carregando episódios e temporadas...</span>
                 </div>
               ) : (
                 <>
                   {/* Coluna de Temporadas */}
-                  <div className={`w-64 bg-[#161d2b]/80 border-r border-[#2a3449] p-4 overflow-y-auto space-y-2 transition ${
+                  <div className={`w-36 sm:w-48 md:w-64 bg-[#161d2b]/80 border-r border-[#2a3449] p-2 sm:p-3 md:p-4 overflow-y-auto space-y-1 sm:space-y-2 shrink-0 transition ${
                     isFocusedContent && activeFocusColumn === 'seasons' ? 'ring-2 ring-emerald-500/50' : ''
                   }`}>
-                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 px-2 mb-2">
+                    <h4 className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-400 px-1 sm:px-2 mb-1 sm:mb-2">
                       Temporadas
                     </h4>
                     {seasonKeys.map((seasonKey, sIdx) => {
@@ -1178,7 +1178,7 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                             setActiveFocusColumn('episodes');
                             setSelectedEpisodeIdx(0);
                           }}
-                          className={`w-full text-left px-4 py-3 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer ${
+                          className={`w-full text-left px-2.5 py-1.5 sm:px-3 sm:py-2 md:px-4 md:py-3 rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base font-bold transition cursor-pointer ${
                             isSeasonFocused
                               ? 'bg-emerald-400 text-black shadow-xl ring-2 ring-emerald-300 scale-102 font-black'
                               : isSeasonSelected
@@ -1193,14 +1193,14 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                   </div>
 
                   {/* Lista de Episódios com Botão Play e Foco */}
-                  <div className={`flex-1 p-5 overflow-y-auto space-y-3 custom-scrollbar transition ${
+                  <div className={`flex-1 p-2.5 sm:p-3.5 md:p-5 overflow-y-auto space-y-2 sm:space-y-3 custom-scrollbar transition min-w-0 ${
                     isFocusedContent && activeFocusColumn === 'episodes' ? 'ring-2 ring-emerald-500/50' : ''
                   }`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-sm font-black uppercase tracking-wider text-slate-300">
+                    <div className="flex items-center justify-between mb-1 sm:mb-2">
+                      <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-300">
                         Episódios da Temporada {selectedSeason} ({ (seriesDetails?.episodes?.[selectedSeason] || []).length })
                       </h4>
-                      <span className="text-xs text-slate-400 font-mono">
+                      <span className="text-[10px] sm:text-xs text-slate-400 font-mono hidden sm:inline">
                         [◀] Temporadas • [OK] Assistir
                       </span>
                     </div>
@@ -1223,31 +1223,31 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
                               episodeIdx: epIdx
                             });
                           }}
-                          className={`w-full flex items-center justify-between p-4 rounded-2xl cursor-pointer transition select-none text-left ${
+                          className={`w-full flex items-center justify-between p-2.5 sm:p-3 md:p-4 rounded-xl md:rounded-2xl cursor-pointer transition select-none text-left ${
                             isEpFocused
-                              ? 'bg-emerald-400 text-black font-black shadow-2xl scale-[1.02] ring-4 ring-emerald-300'
+                              ? 'bg-emerald-400 text-black font-black shadow-2xl scale-[1.02] ring-2 sm:ring-4 ring-emerald-300'
                               : 'bg-[#1b2234]/70 hover:bg-[#1b2234] border border-[#2a3449] text-white'
                           }`}
                         >
-                          <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm ${
+                          <div className="flex items-center gap-2.5 sm:gap-4 overflow-hidden flex-1 min-w-0 pr-2">
+                            <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center font-black text-xs sm:text-sm shrink-0 ${
                               isEpFocused ? 'bg-black text-emerald-400' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                             }`}>
                               E{ep.episode_num}
                             </div>
-                            <div>
-                              <span className="font-bold text-base md:text-lg block truncate max-w-lg leading-tight">{ep.title}</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="font-bold text-xs sm:text-sm md:text-base lg:text-lg block truncate leading-tight">{ep.title}</span>
                               {ep.info?.duration && (
-                                <span className={`text-xs ${isEpFocused ? 'text-black/80 font-medium' : 'text-slate-400'}`}>
+                                <span className={`text-[10px] sm:text-xs block mt-0.5 ${isEpFocused ? 'text-black/80 font-medium' : 'text-slate-400'}`}>
                                   Duração: {ep.info.duration}
                                 </span>
                               )}
                             </div>
                           </div>
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                          <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shrink-0 ${
                             isEpFocused ? 'bg-black text-emerald-400' : 'bg-emerald-500 text-black'
                           }`}>
-                            <Play className="w-5 h-5 fill-current ml-0.5" />
+                            <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 fill-current ml-0.5" />
                           </div>
                         </button>
                       );

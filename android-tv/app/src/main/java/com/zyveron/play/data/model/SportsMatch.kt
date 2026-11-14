@@ -1,8 +1,6 @@
 package com.zyveron.play.data.model
 
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
+import java.util.Calendar
 
 data class SportsMatch(
     val id: String,
@@ -19,8 +17,8 @@ data class SportsMatch(
 object SportsMatchProvider {
 
     fun getTodayMatches(): List<SportsMatch> {
-        val today = LocalDate.now()
-        val dayOfWeek = today.dayOfWeek.value // 1 (Segunda) a 7 (Domingo)
+        val calendar = Calendar.getInstance()
+        val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK) // 1 (Domingo) a 7 (Sábado)
 
         // Partidas com horários do dia atual
         return listOf(

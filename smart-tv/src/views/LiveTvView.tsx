@@ -712,28 +712,28 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   return (
     <div className="w-full h-full flex bg-[#0a0d14] relative overflow-hidden select-none">
       
-      {/* Coluna 1: Categorias de Canais (Fonte Aumentada para Idosos e TVs) */}
-      <div className={`w-84 lg:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 shrink-0 ${
+      {/* Coluna 1: Categorias de Canais (Responsivo para Smart TVs e iPhones) */}
+      <div className={`w-44 sm:w-52 md:w-60 lg:w-80 xl:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-2.5 sm:p-3 md:p-4 flex flex-col transition-all duration-200 shrink-0 ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>
-        <div className="flex items-center justify-between mb-4 px-1">
-          <h2 className="text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+        <div className="flex items-center justify-between mb-3 sm:mb-4 px-1">
+          <h2 className="text-xs sm:text-sm md:text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5 sm:gap-2">
             <span>CATEGORIAS TV</span>
-            <span className="text-sky-400 font-mono text-sm">({categories.length + 2})</span>
+            <span className="text-sky-400 font-mono text-xs sm:text-sm">({categories.length + 2})</span>
           </h2>
           {onBackToHome && (
             <button
               ref={backHomeBtnRef}
               type="button"
               onClick={onBackToHome}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition cursor-pointer border shadow ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl transition cursor-pointer border shadow ${
                 isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === -1
                   ? 'bg-rose-600 text-white font-black ring-4 ring-rose-400 scale-105 border-white shadow-xl'
-                  : 'bg-slate-800 hover:bg-sky-600 text-xs font-black text-slate-200 hover:text-white border-slate-700'
+                  : 'bg-slate-800 hover:bg-sky-600 text-[10px] sm:text-xs font-black text-slate-200 hover:text-white border-slate-700'
               }`}
               title="Voltar para a Home"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Início</span>
             </button>
           )}
@@ -767,7 +767,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                     }
                   }}
                   tabIndex={0}
-                  className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition truncate cursor-pointer flex items-center justify-between ${
+                  className={`w-full text-left px-2.5 py-2 sm:px-3.5 sm:py-2.5 md:px-4 md:py-3 lg:px-5 lg:py-3.5 rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base lg:text-lg font-black transition truncate cursor-pointer flex items-center justify-between ${
                     isSelected
                       ? item.isAdult
                         ? 'bg-rose-500 text-white font-black shadow'
@@ -795,12 +795,12 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                       : ''
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 truncate">
-                    {Icon && <Icon className="w-6 h-6 shrink-0" />}
+                  <div className="flex items-center gap-1.5 sm:gap-2.5 truncate">
+                    {Icon && <Icon className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 shrink-0" />}
                     <span className="truncate">{item.name}</span>
-                    {item.isAdult && <Lock className="w-4 h-4 ml-1 shrink-0 opacity-80" />}
+                    {item.isAdult && <Lock className="w-3.5 h-3.5 ml-1 shrink-0 opacity-80" />}
                   </div>
-                  <span className={`font-mono text-xs md:text-sm px-2.5 py-0.5 rounded-lg ml-2 shrink-0 ${
+                  <span className={`font-mono text-[10px] sm:text-xs md:text-sm px-1.5 sm:px-2 py-0.5 rounded-lg ml-1.5 shrink-0 ${
                     isCatFocused
                       ? 'bg-black/30 text-black font-black'
                       : isSelected
@@ -816,16 +816,16 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         </div>
       </div>
 
-      {/* Coluna 2: Lista Virtualizada de Canais (Fonte Aumentada e Legível) */}
-      <div className={`w-[430px] lg:w-[490px] h-full bg-[#0a0d14] border-r border-[#2a3449] flex flex-col p-4 select-none transition-all shrink-0 ${
+      {/* Coluna 2: Lista Virtualizada de Canais */}
+      <div className={`w-48 sm:w-56 md:w-68 lg:w-[380px] xl:w-[460px] h-full bg-[#0a0d14] border-r border-[#2a3449] flex flex-col p-2 sm:p-3 md:p-4 select-none transition-all shrink-0 ${
         isFocusedContent && activeFocusColumn === 'channels' ? 'ring-2 ring-emerald-500/50' : ''
       }`}>
-        <div className="flex items-center justify-between mb-3 px-2">
-          <h2 className="text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+        <div className="flex items-center justify-between mb-2 sm:mb-3 px-1 sm:px-2">
+          <h2 className="text-xs sm:text-sm md:text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5 sm:gap-2">
             <span>CANAIS</span>
-            <span className="text-sky-400 font-mono text-sm">({displayedChannels.length})</span>
+            <span className="text-sky-400 font-mono text-xs sm:text-sm">({displayedChannels.length})</span>
           </h2>
-          <span className="text-xs text-slate-400 font-mono font-bold">
+          <span className="text-[10px] sm:text-xs text-slate-400 font-mono font-bold hidden sm:inline">
             [1º OK] Prévia • [2º OK] Tela Cheia
           </span>
         </div>
@@ -836,16 +836,16 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           ref={searchBtnRef}
           tabIndex={0}
           onClick={() => setIsSearchModalOpen(true)}
-          className={`w-full mb-3 px-4 py-2.5 bg-slate-900 border rounded-xl flex items-center justify-between transition cursor-pointer select-none text-left ${
+          className={`w-full mb-2 sm:mb-3 px-2.5 py-1.5 sm:px-3.5 sm:py-2.5 bg-slate-900 border rounded-xl flex items-center justify-between transition cursor-pointer select-none text-left ${
             isFocusedContent && activeFocusColumn === 'search'
               ? 'border-emerald-400 ring-4 ring-emerald-400/80 bg-slate-800'
               : 'border-slate-700 hover:border-slate-600'
           }`}
         >
-          <div className="flex items-center gap-3 overflow-hidden flex-1">
-            <Search className="w-5 h-5 text-emerald-400 shrink-0" />
-            <span className={`text-sm truncate ${searchQuery ? 'text-emerald-300 font-bold' : 'text-slate-400'}`}>
-              {searchQuery ? `Pesquisando: "${searchQuery}"` : 'Buscar canal por nome ou número...'}
+          <div className="flex items-center gap-2 sm:gap-3 overflow-hidden flex-1">
+            <Search className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400 shrink-0" />
+            <span className={`text-xs sm:text-sm truncate ${searchQuery ? 'text-emerald-300 font-bold' : 'text-slate-400'}`}>
+              {searchQuery ? `"${searchQuery}"` : 'Buscar canal...'}
             </span>
           </div>
           {searchQuery ? (
@@ -860,29 +860,29 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
               <X className="w-4 h-4" />
             </span>
           ) : (
-            <span className="text-xs text-slate-500 font-mono shrink-0 hidden sm:inline">
-              [OK: Buscar]
+            <span className="text-[10px] sm:text-xs text-slate-500 font-mono shrink-0 hidden md:inline">
+              [OK]
             </span>
           )}
         </button>
 
         {isLoadingChannels ? (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
-            <Loader2 className="w-10 h-10 animate-spin text-emerald-400 mb-3" />
-            <span className="text-base font-semibold">Carregando canais...</span>
+            <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 animate-spin text-emerald-400 mb-2 sm:mb-3" />
+            <span className="text-xs sm:text-base font-semibold">Carregando canais...</span>
           </div>
         ) : displayedChannels.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-6 text-center">
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-500 p-4 sm:p-6 text-center">
             {selectedCategory === 'favorites' ? (
               <>
-                <Star className="w-14 h-14 mb-3 text-amber-500/50" />
-                <span className="text-base font-bold text-slate-200">Nenhum canal favoritado ainda.</span>
-                <span className="text-xs text-slate-400 mt-1.5">Clique na estrela ao lado de um canal ou pressione a tecla 'F' no controle remoto.</span>
+                <Star className="w-10 h-10 sm:w-14 sm:h-14 mb-2 sm:mb-3 text-amber-500/50" />
+                <span className="text-xs sm:text-base font-bold text-slate-200">Nenhum canal favoritado ainda.</span>
+                <span className="text-[10px] sm:text-xs text-slate-400 mt-1">Clique na estrela ao lado de um canal.</span>
               </>
             ) : (
               <>
-                <AlertCircle className="w-10 h-10 mb-2" />
-                <span className="text-base font-semibold">Nenhum canal encontrado.</span>
+                <AlertCircle className="w-8 h-8 sm:w-10 sm:h-10 mb-2" />
+                <span className="text-xs sm:text-base font-semibold">Nenhum canal encontrado.</span>
               </>
             )}
           </div>
@@ -890,7 +890,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           <div className="flex-1 min-h-0 w-full overflow-hidden">
             <VirtualList
               items={displayedChannels}
-              itemHeight={80}
+              itemHeight={typeof window !== 'undefined' && (window.innerWidth < 1024 || window.innerHeight < 500) ? 56 : 76}
               selectedIndex={selectedChannelIdx}
               renderItem={(channel, index, isSelected) => {
                 const isFav = favorites.includes(channel.stream_id);
@@ -941,9 +941,9 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                         longPressMouseTimer.current = null;
                       }
                     }}
-                    className={`w-full h-[72px] px-4 rounded-2xl flex items-center justify-between cursor-pointer transition select-none text-left ${
+                    className={`w-full h-[50px] sm:h-[56px] md:h-[66px] lg:h-[72px] px-2 sm:px-3 md:px-4 rounded-xl md:rounded-2xl flex items-center justify-between cursor-pointer transition select-none text-left ${
                       isItemFocused
-                        ? 'bg-emerald-400 text-black font-black shadow-2xl scale-[1.02] ring-4 ring-emerald-300'
+                        ? 'bg-emerald-400 text-black font-black shadow-2xl scale-[1.02] ring-2 sm:ring-4 ring-emerald-300'
                         : isNowPlayingInPreview
                         ? 'bg-emerald-500/20 border-2 border-emerald-500/60 text-white'
                         : isSelected
@@ -951,26 +951,26 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                         : 'bg-[#121722]/90 hover:bg-[#1b2234] text-slate-200 border border-transparent'
                     }`}
                   >
-                    <div className="flex items-center gap-3.5 overflow-hidden flex-1 min-w-0 pr-2">
-                      <span className={`font-mono text-base md:text-lg font-black w-9 shrink-0 ${isItemFocused ? 'text-black' : 'text-slate-400'}`}>
+                    <div className="flex items-center gap-2 sm:gap-3 overflow-hidden flex-1 min-w-0 pr-1 sm:pr-2">
+                      <span className={`font-mono text-xs sm:text-sm md:text-base font-black w-6 sm:w-7 md:w-9 shrink-0 ${isItemFocused ? 'text-black' : 'text-slate-400'}`}>
                         {channel.num || index + 1}
                       </span>
                       {channel.stream_icon ? (
                         <img
                           src={channel.stream_icon}
                           alt=""
-                          className="w-11 h-11 object-contain rounded-xl bg-black/40 p-0.5 shrink-0"
+                          className="w-7 h-7 sm:w-8 sm:h-8 md:w-11 md:h-11 object-contain rounded-lg md:rounded-xl bg-black/40 p-0.5 shrink-0"
                           onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                         />
                       ) : (
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${isItemFocused ? 'bg-black/20 text-black' : 'bg-[#1b2234] text-slate-500'}`}>
-                          <Tv className="w-6 h-6" />
+                        <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-11 md:h-11 rounded-lg md:rounded-xl flex items-center justify-center shrink-0 ${isItemFocused ? 'bg-black/20 text-black' : 'bg-[#1b2234] text-slate-500'}`}>
+                          <Tv className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <span className="font-black text-lg md:text-xl block truncate leading-tight">{channel.name}</span>
+                        <span className="font-black text-xs sm:text-sm md:text-base lg:text-lg block truncate leading-tight">{channel.name}</span>
                         {isNowPlayingInPreview && (
-                          <span className={`text-xs font-black uppercase tracking-wider block mt-1 ${
+                          <span className={`text-[9px] sm:text-[10px] md:text-xs font-black uppercase tracking-wider block mt-0.5 ${
                             isItemFocused ? 'text-black' : 'text-emerald-400'
                           }`}>
                             ▶ No Ar {isConfirmed ? '• [OK: Tela Cheia]' : '• [Prévia Ativa]'}
@@ -981,12 +981,12 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
 
                     <div
                       onClick={(e) => handleToggleFav(channel.stream_id, e)}
-                      className={`p-2.5 rounded-xl transition ${
+                      className={`p-1.5 sm:p-2 md:p-2.5 rounded-lg md:rounded-xl transition shrink-0 ${
                         isItemFocused ? 'text-black hover:bg-black/10' : 'text-slate-400 hover:text-amber-400 hover:bg-slate-800'
                       }`}
                       title={isFav ? "Remover dos Favoritos" : "Favoritar"}
                     >
-                      <Star className={`w-5 h-5 ${isFav ? 'fill-amber-400 text-amber-400' : ''}`} />
+                      <Star className={`w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 ${isFav ? 'fill-amber-400 text-amber-400' : ''}`} />
                     </div>
                   </button>
                 );
@@ -997,7 +997,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       </div>
 
       {/* Coluna 3: Mini Preview Player & Detalhes */}
-      <div className="flex-1 h-full p-6 flex flex-col justify-between select-none overflow-y-auto custom-scrollbar">
+      <div className="flex-1 min-w-0 h-full p-2.5 sm:p-4 md:p-6 flex flex-col justify-between select-none overflow-y-auto custom-scrollbar">
         <div>
           {currentPlayingChannel ? (
             <div className="space-y-4">
@@ -1135,11 +1135,11 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
 
                         {/* Corpo: Duas Colunas Lado a Lado (Categorias na Esquerda + Canais na Direita) */}
                         <div className="flex-1 flex gap-3 overflow-hidden">
-                          {/* Coluna 1: Categorias (Esquerda, w-72 lg:w-80) */}
-                          <div className={`w-72 lg:w-80 bg-[#121722]/90 border border-slate-800 rounded-2xl p-2.5 overflow-y-auto space-y-2 custom-scrollbar ${
+                          {/* Coluna 1: Categorias */}
+                          <div className={`w-44 sm:w-56 md:w-72 lg:w-80 bg-[#121722]/90 border border-slate-800 rounded-2xl p-1.5 sm:p-2.5 overflow-y-auto space-y-1 sm:space-y-2 custom-scrollbar shrink-0 ${
                             guideFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60' : ''
                           }`}>
-                            <span className="text-xs font-black uppercase tracking-wider text-slate-400 px-2 block mb-1">
+                            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-400 px-2 block mb-1">
                               CATEGORIAS
                             </span>
 
@@ -1150,7 +1150,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                               return (
                                 <React.Fragment key={`guide-${item.id}-${idx}`}>
                                   {item.groupHeader && (
-                                    <div className="pt-2 pb-1 px-2 text-[11px] font-black tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+                                    <div className="pt-2 pb-1 px-2 text-[10px] sm:text-[11px] font-black tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
                                       <span className="h-px bg-slate-700/60 flex-1"></span>
                                       <span className="truncate">{item.groupHeader}</span>
                                       <span className="h-px bg-slate-700/60 flex-1"></span>
@@ -1170,7 +1170,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                                       setSelectedCategoryIdx(idx);
                                       setGuideFocusColumn('channels');
                                     }}
-                                    className={`w-full text-left px-4 py-3 rounded-2xl text-base md:text-lg font-bold transition cursor-pointer flex items-center justify-between ${
+                                    className={`w-full text-left px-2.5 py-1.5 sm:px-3.5 sm:py-2.5 md:px-4 md:py-3 rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base font-bold transition cursor-pointer flex items-center justify-between ${
                                       isFocused
                                         ? item.isAdult
                                           ? 'bg-rose-500 text-white font-black ring-2 ring-rose-300 shadow'
@@ -1293,50 +1293,50 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
               </div>
 
               {/* Informações e Ações do Canal Ativo */}
-              <div className="bg-[#121722] border border-[#2a3449] p-6 rounded-3xl shadow-xl">
-                <div className="flex items-center gap-5">
+              <div className="bg-[#121722] border border-[#2a3449] p-3 sm:p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-xl">
+                <div className="flex items-center gap-3 sm:gap-4 md:gap-5">
                   {currentPlayingChannel.stream_icon && (
                     <img
                       src={currentPlayingChannel.stream_icon}
                       alt=""
-                      className="w-20 h-20 object-contain rounded-2xl bg-black/40 p-1.5 border border-slate-700"
+                      className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 object-contain rounded-xl md:rounded-2xl bg-black/40 p-1 border border-slate-700 shrink-0"
                     />
                   )}
-                  <div className="flex-1">
-                    <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-xs font-black tracking-wider uppercase rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <span className="px-2 py-0.5 sm:px-3 sm:py-1 bg-emerald-500/20 text-emerald-400 text-[10px] sm:text-xs font-black tracking-wider uppercase rounded-md sm:rounded-lg">
                       HLS TRANSMISSÃO ATIVA
                     </span>
-                    <h3 className="text-2xl font-black text-white mt-1.5 leading-snug">
+                    <h3 className="text-base sm:text-xl md:text-2xl font-black text-white mt-1 leading-snug truncate">
                       {currentPlayingChannel.name}
                     </h3>
-                    <p className="text-sm text-slate-400 font-mono mt-1">
+                    <p className="text-[11px] sm:text-xs md:text-sm text-slate-400 font-mono mt-0.5 truncate">
                       Canal #{currentPlayingChannel.num || selectedChannelIdx + 1} • ID: {currentPlayingChannel.stream_id}
                     </p>
                   </div>
                 </div>
 
                 {/* Botões de Ação na Prévia */}
-                <div className="flex items-center gap-3 mt-5 pt-4 border-t border-slate-800">
+                <div className="flex items-center gap-2 sm:gap-3 mt-3 sm:mt-4 md:mt-5 pt-3 sm:pt-4 border-t border-slate-800">
                   <button
                     type="button"
                     onClick={() => setFullScreenMode(true)}
-                    className="flex-1 py-4 px-5 rounded-2xl bg-emerald-400 hover:bg-emerald-300 text-black font-black flex items-center justify-center gap-2.5 cursor-pointer transition shadow-xl text-base"
+                    className="flex-1 py-2.5 px-3 sm:py-3 sm:px-4 md:py-4 md:px-5 rounded-xl md:rounded-2xl bg-emerald-400 hover:bg-emerald-300 text-black font-black flex items-center justify-center gap-1.5 sm:gap-2.5 cursor-pointer transition shadow-xl text-xs sm:text-sm md:text-base"
                   >
-                    <Maximize2 className="w-5 h-5" />
-                    <span>Confirmar Tela Cheia [OK]</span>
+                    <Maximize2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                    <span>Tela Cheia [OK]</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={(e) => handleToggleFav(currentPlayingChannel.stream_id, e)}
-                    className={`py-4 px-5 rounded-2xl font-bold flex items-center gap-2.5 cursor-pointer transition border text-base ${
+                    className={`py-2.5 px-3 sm:py-3 sm:px-4 md:py-4 md:px-5 rounded-xl md:rounded-2xl font-bold flex items-center gap-1.5 sm:gap-2.5 cursor-pointer transition border text-xs sm:text-sm md:text-base ${
                       isCurrentPlayingFav
                         ? 'bg-amber-400/20 text-amber-300 border-amber-400/50 hover:bg-amber-400/30'
                         : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
                     }`}
                   >
-                    <Star className={`w-5 h-5 ${isCurrentPlayingFav ? 'fill-amber-400 text-amber-400' : ''}`} />
-                    <span>{isCurrentPlayingFav ? 'Favoritado' : 'Favoritar'}</span>
+                    <Star className={`w-4 h-4 sm:w-5 sm:h-5 ${isCurrentPlayingFav ? 'fill-amber-400 text-amber-400' : ''}`} />
+                    <span className="hidden sm:inline">{isCurrentPlayingFav ? 'Favoritado' : 'Favoritar'}</span>
                   </button>
                 </div>
               </div>

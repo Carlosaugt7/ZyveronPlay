@@ -605,28 +605,28 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
 
   return (
     <div className="w-full h-full flex bg-[#0a0d14] overflow-hidden select-none relative">
-      {/* Coluna de Gêneros/Categorias (Fonte Grande para Idosos e TVs) */}
-      <div className={`w-84 lg:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-4 flex flex-col transition-all duration-200 shrink-0 ${
+      {/* Coluna de Gêneros/Categorias */}
+      <div className={`w-44 sm:w-52 md:w-60 lg:w-80 xl:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-2.5 sm:p-3 md:p-4 flex flex-col transition-all duration-200 shrink-0 ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>
-        <div className="flex items-center justify-between mb-4 px-1">
-          <h2 className="text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-2">
+        <div className="flex items-center justify-between mb-3 sm:mb-4 px-1">
+          <h2 className="text-xs sm:text-sm md:text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5 sm:gap-2">
             <span>GÊNEROS VOD</span>
-            <span className="text-sky-400 font-mono text-sm">({categories.length + 3})</span>
+            <span className="text-sky-400 font-mono text-xs sm:text-sm">({categories.length + 3})</span>
           </h2>
           {onBackToHome && (
             <button
               ref={backHomeBtnRef}
               type="button"
               onClick={onBackToHome}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition cursor-pointer border shadow ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl transition cursor-pointer border shadow ${
                 isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === -1
                   ? 'bg-rose-600 text-white font-black ring-4 ring-rose-400 scale-105 border-white shadow-xl'
-                  : 'bg-slate-800 hover:bg-sky-600 text-xs font-black text-slate-200 hover:text-white border-slate-700'
+                  : 'bg-slate-800 hover:bg-sky-600 text-[10px] sm:text-xs font-black text-slate-200 hover:text-white border-slate-700'
               }`}
               title="Voltar para a Home"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Início</span>
             </button>
           )}
@@ -634,11 +634,11 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
 
         {isLoadingCats ? (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
-            <Loader2 className="w-10 h-10 animate-spin text-emerald-400 mb-3" />
-            <span className="text-base font-semibold">Carregando gêneros...</span>
+            <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 animate-spin text-emerald-400 mb-2 sm:mb-3" />
+            <span className="text-xs sm:text-base font-semibold">Carregando gêneros...</span>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto space-y-1.5 sm:space-y-2.5 pr-1 custom-scrollbar">
             {selectableCategories.map((item, idx) => {
               const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === idx;
               const isSelected = selectedCategory === item.id;
@@ -659,7 +659,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                       handleCategoryClick(item.id, idx, item.name);
                     }
                   }}
-                  className={`w-full text-left px-5 py-4 rounded-2xl text-lg md:text-xl font-black transition truncate cursor-pointer flex items-center justify-between ${
+                  className={`w-full text-left px-2.5 py-2 sm:px-3.5 sm:py-2.5 md:px-4 md:py-3 lg:px-5 lg:py-3.5 rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base lg:text-lg font-black transition truncate cursor-pointer flex items-center justify-between ${
                     isSelected
                       ? item.isAdult
                         ? 'bg-rose-500 text-white font-black shadow'
@@ -687,12 +687,12 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                       : ''
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 truncate">
-                    {Icon && <Icon className="w-6 h-6 shrink-0" />}
+                  <div className="flex items-center gap-1.5 sm:gap-2.5 truncate">
+                    {Icon && <Icon className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 shrink-0" />}
                     <span className="truncate">{item.name}</span>
-                    {item.isAdult && <Lock className="w-4 h-4 ml-1 shrink-0 opacity-80" />}
+                    {item.isAdult && <Lock className="w-3.5 h-3.5 ml-1 shrink-0 opacity-80" />}
                   </div>
-                  <span className={`font-mono text-xs md:text-sm px-2.5 py-0.5 rounded-lg ml-2 shrink-0 ${
+                  <span className={`font-mono text-[10px] sm:text-xs md:text-sm px-1.5 sm:px-2 py-0.5 rounded-lg ml-1.5 shrink-0 ${
                     isCatFocused
                       ? 'bg-black/30 text-black font-black'
                       : isSelected
@@ -711,37 +711,37 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
       {/* Grade de Filmes */}
       <div 
         ref={gridContainerRef}
-        className={`flex-1 h-full p-6 overflow-y-auto custom-scrollbar transition-all ${
+        className={`flex-1 h-full p-2.5 sm:p-4 md:p-6 overflow-y-auto custom-scrollbar transition-all ${
           isFocusedContent && activeFocusColumn === 'grid' ? 'ring-2 ring-emerald-500/30' : ''
         }`}
       >
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-black text-white flex items-center gap-2.5">
-              <Film className="w-7 h-7 text-emerald-400" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-4 mb-3 sm:mb-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <h2 className="text-base sm:text-xl md:text-2xl font-black text-white flex items-center gap-2">
+              <Film className="w-5 h-5 sm:w-7 sm:h-7 text-emerald-400" />
               <span>Catálogo de Filmes</span>
               {allMovies.length > 0 && (
-                <span className="text-base font-normal text-slate-400 ml-1">
+                <span className="text-xs sm:text-base font-normal text-slate-400 ml-1">
                   ({displayedMovies.length} de {allMovies.length})
                 </span>
               )}
             </h2>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             {/* Campo de Busca Rápida de Filmes */}
             <button
               type="button"
               ref={searchBtnRef}
               tabIndex={0}
               onClick={() => setIsSearchModalOpen(true)}
-              className={`relative w-72 md:w-80 px-3.5 py-2 bg-[#121722] border rounded-xl flex items-center justify-between text-left transition cursor-pointer select-none ${
+              className={`relative w-48 sm:w-64 md:w-80 px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-[#121722] border rounded-xl flex items-center justify-between text-left transition cursor-pointer select-none ${
                 isFocusedContent && activeFocusColumn === 'search'
                   ? 'border-emerald-400 ring-4 ring-emerald-400/80 bg-[#161d2b]'
                   : 'border-slate-700/80 hover:border-slate-600'
               }`}
             >
-              <div className="flex items-center gap-2.5 overflow-hidden flex-1">
+              <div className="flex items-center gap-2 overflow-hidden flex-1">
                 <Search className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span className={`text-xs md:text-sm truncate ${searchQuery ? 'text-emerald-300 font-bold' : 'text-slate-400'}`}>
                   {searchQuery ? `"${searchQuery}"` : 'Buscar filme por título...'}
@@ -759,7 +759,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                   <X className="w-4 h-4" />
                 </span>
               ) : (
-                <span className="text-[11px] text-slate-500 font-mono shrink-0 hidden sm:inline">
+                <span className="text-[10px] sm:text-[11px] text-slate-500 font-mono shrink-0 hidden sm:inline">
                   [OK: Buscar]
                 </span>
               )}
@@ -775,27 +775,27 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
 
         {isLoadingMovies ? (
           <div className="w-full h-80 flex flex-col items-center justify-center text-slate-400">
-            <Loader2 className="w-12 h-12 animate-spin text-emerald-400 mb-3" />
-            <span className="text-base font-semibold">Carregando catálogo de filmes...</span>
+            <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 animate-spin text-emerald-400 mb-3" />
+            <span className="text-sm sm:text-base font-semibold">Carregando catálogo de filmes...</span>
           </div>
         ) : allMovies.length === 0 ? (
           <div className="w-full h-80 flex flex-col items-center justify-center text-slate-500 p-6 text-center">
             {selectedCategory === 'favorites' ? (
               <>
-                <Heart className="w-16 h-16 mb-3 text-red-500/40" />
-                <p className="text-lg font-bold text-slate-200">Nenhum filme favoritado ainda.</p>
-                <p className="text-sm text-slate-400 mt-1 max-w-sm">Abra qualquer filme no catálogo e selecione o botão [Favorito] para salvá-lo nesta lista.</p>
+                <Heart className="w-12 h-12 sm:w-16 sm:h-16 mb-2 sm:mb-3 text-red-500/40" />
+                <p className="text-base sm:text-lg font-bold text-slate-200">Nenhum filme favoritado ainda.</p>
+                <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-sm">Abra qualquer filme no catálogo e selecione o botão [Favorito] para salvá-lo nesta lista.</p>
               </>
             ) : (
               <>
-                <Film className="w-16 h-16 mb-3 text-slate-600" />
-                <p className="text-base font-semibold text-slate-400">Nenhum filme disponível nesta categoria.</p>
+                <Film className="w-12 h-12 sm:w-16 sm:h-16 mb-2 sm:mb-3 text-slate-600" />
+                <p className="text-sm sm:text-base font-semibold text-slate-400">Nenhum filme disponível nesta categoria.</p>
                 <p className="text-xs text-slate-500 mt-1">Selecione outro gênero no menu à esquerda.</p>
               </>
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3.5 md:gap-5">
             {displayedMovies.map((movie, movieIdx) => {
               const isMovieFocused = isFocusedContent && activeFocusColumn === 'grid' && selectedMovieIdx === movieIdx;
               const isFav = favorites.includes(movie.stream_id);
@@ -846,11 +846,11 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                     </div>
                   </div>
 
-                  <div className={`p-3.5 ${isMovieFocused ? 'bg-emerald-500/20' : ''}`}>
-                    <h3 className="text-base font-bold text-white truncate leading-snug">{movie.name}</h3>
+                  <div className={`p-2 sm:p-3 md:p-3.5 ${isMovieFocused ? 'bg-emerald-500/20' : ''}`}>
+                    <h3 className="text-xs sm:text-sm md:text-base font-bold text-white truncate leading-snug">{movie.name}</h3>
                     {movie.rating && (
-                      <div className="flex items-center gap-1.5 text-xs text-amber-400 mt-1 font-semibold">
-                        <Star className="w-4 h-4 fill-current" />
+                      <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-amber-400 mt-1 font-semibold">
+                        <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
                         <span>{movie.rating}</span>
                       </div>
                     )}
@@ -864,7 +864,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
 
       {/* MODAL / TELA DE DETALHES DO FILME */}
       {selectedMovieForDetails && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-6 md:p-12 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-8 animate-in fade-in duration-200">
           {movieDetails?.info?.backdrop_path?.[0] && (
             <div 
               className="absolute inset-0 bg-cover bg-center opacity-20 filter blur-xl"
@@ -872,10 +872,10 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
             />
           )}
 
-          <div className="relative w-full max-w-5xl bg-[#121722]/95 border border-[#2a3449] rounded-3xl p-6 md:p-8 shadow-2xl overflow-hidden flex flex-col md:flex-row gap-8 items-start">
+          <div className="relative w-full max-w-5xl max-h-[92vh] bg-[#121722]/95 border border-[#2a3449] rounded-2xl md:rounded-3xl p-3 sm:p-5 md:p-8 shadow-2xl overflow-y-auto flex flex-col md:flex-row gap-4 sm:gap-6 md:gap-8 items-start custom-scrollbar">
             
             {/* Pôster Grande */}
-            <div className="w-56 md:w-72 shrink-0 aspect-[2/3] rounded-2xl overflow-hidden bg-slate-900 border-2 border-slate-700/80 shadow-2xl relative">
+            <div className="w-24 sm:w-36 md:w-56 lg:w-72 shrink-0 aspect-[2/3] rounded-xl md:rounded-2xl overflow-hidden bg-slate-900 border-2 border-slate-700/80 shadow-2xl relative">
               {selectedMovieForDetails.stream_icon ? (
                 <img
                   src={movieDetails?.info?.movie_image || selectedMovieForDetails.stream_icon}
@@ -884,60 +884,60 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-slate-600">
-                  <Film className="w-16 h-16" />
+                  <Film className="w-12 h-12 sm:w-16 sm:h-16" />
                 </div>
               )}
             </div>
 
             {/* Informações & Sinopse */}
-            <div className="flex-1 flex flex-col justify-between h-full space-y-4">
+            <div className="flex-1 flex flex-col justify-between h-full space-y-2.5 sm:space-y-4 min-w-0">
               <div>
-                <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-wide leading-tight">
+                <h1 className="text-lg sm:text-2xl md:text-3xl font-extrabold text-white tracking-wide leading-tight">
                   {movieDetails?.info?.name || selectedMovieForDetails.name}
                 </h1>
 
                 {/* Metadados: Ano, Duração, Classificação, Gênero */}
-                <div className="flex flex-wrap items-center gap-3 mt-3 text-xs md:text-sm text-slate-300 font-medium">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2 sm:mt-3 text-[11px] sm:text-xs md:text-sm text-slate-300 font-medium">
                   {movieDetails?.info?.release_date && (
-                    <div className="flex items-center gap-1 bg-[#1a2233] px-2.5 py-1 rounded-lg border border-slate-700">
+                    <div className="flex items-center gap-1 bg-[#1a2233] px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg border border-slate-700">
                       <Calendar className="w-3.5 h-3.5 text-sky-400" />
                       <span>{movieDetails.info.release_date.substring(0, 4)}</span>
                     </div>
                   )}
 
                   {movieDetails?.info?.duration && (
-                    <div className="flex items-center gap-1 bg-[#1a2233] px-2.5 py-1 rounded-lg border border-slate-700">
+                    <div className="flex items-center gap-1 bg-[#1a2233] px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg border border-slate-700">
                       <Clock className="w-3.5 h-3.5 text-emerald-400" />
                       <span>{movieDetails.info.duration}</span>
                     </div>
                   )}
 
                   {(movieDetails?.info?.rating || selectedMovieForDetails.rating) && (
-                    <div className="flex items-center gap-1 bg-[#1a2233] px-2.5 py-1 rounded-lg border border-slate-700 text-amber-400">
+                    <div className="flex items-center gap-1 bg-[#1a2233] px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg border border-slate-700 text-amber-400">
                       <Star className="w-3.5 h-3.5 fill-current" />
                       <span>{movieDetails?.info?.rating || selectedMovieForDetails.rating}</span>
                     </div>
                   )}
 
                   {movieDetails?.info?.genre && (
-                    <span className="text-sky-300 bg-sky-950/60 border border-sky-800/60 px-2.5 py-1 rounded-lg font-semibold">
+                    <span className="text-sky-300 bg-sky-950/60 border border-sky-800/60 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg font-semibold">
                       {movieDetails.info.genre}
                     </span>
                   )}
                 </div>
 
                 {/* Sinopse */}
-                <div className="mt-4">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                <div className="mt-2.5 sm:mt-4">
+                  <h3 className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
                     Sinopse
                   </h3>
                   {isLoadingDetails ? (
-                    <div className="flex items-center gap-2 text-slate-400 text-sm py-4">
-                      <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
+                    <div className="flex items-center gap-2 text-slate-400 text-xs sm:text-sm py-2 sm:py-4">
+                      <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-emerald-400" />
                       <span>Buscando sinopse do filme...</span>
                     </div>
                   ) : (
-                    <p className="text-sm md:text-base text-slate-200 leading-relaxed max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                    <p className="text-xs sm:text-sm md:text-base text-slate-200 leading-relaxed max-h-24 sm:max-h-32 md:max-h-40 overflow-y-auto pr-2 custom-scrollbar">
                       {movieDetails?.info?.plot || movieDetails?.info?.description || 'Nenhuma sinopse disponível para este título no servidor.'}
                     </p>
                   )}
@@ -945,7 +945,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
 
                 {/* Diretor / Elenco */}
                 {movieDetails?.info?.cast && (
-                  <div className="mt-2 text-xs text-slate-400">
+                  <div className="mt-2 text-[11px] sm:text-xs text-slate-400">
                     <span className="font-semibold text-slate-300">Elenco: </span>
                     <span className="line-clamp-1">{movieDetails.info.cast}</span>
                   </div>
@@ -953,20 +953,20 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
               </div>
 
               {/* Botões de Ação com Foco D-Pad */}
-              <div className="flex items-center gap-3 pt-4 border-t border-slate-800">
+              <div className="flex items-center gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-slate-800">
                 {/* 0. Botão Assistir */}
                 <button
                   type="button"
                   tabIndex={0}
                   ref={detailsButtonIdx === 0 ? activeDetailBtnRef : null}
                   onClick={() => startPlaying(selectedMovieForDetails)}
-                  className={`flex items-center gap-2.5 px-6 py-3.5 rounded-2xl font-black text-sm md:text-base cursor-pointer transition-all duration-200 ${
+                  className={`flex items-center gap-1.5 sm:gap-2.5 px-3.5 py-2 sm:px-5 sm:py-3 md:px-6 md:py-3.5 rounded-xl md:rounded-2xl font-black text-xs sm:text-sm md:text-base cursor-pointer transition-all duration-200 ${
                     detailsButtonIdx === 0
                       ? 'bg-emerald-400 text-black scale-105 shadow-2xl ring-4 ring-emerald-300'
                       : 'bg-emerald-600/90 text-white hover:bg-emerald-500'
                   }`}
                 >
-                  <Play className="w-5 h-5 fill-current" />
+                  <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
                   <span>Assistir Filme</span>
                 </button>
 
@@ -976,7 +976,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                   tabIndex={0}
                   ref={detailsButtonIdx === 1 ? activeDetailBtnRef : null}
                   onClick={() => handleToggleFav(selectedMovieForDetails.stream_id)}
-                  className={`flex items-center gap-2 px-5 py-3.5 rounded-2xl font-bold text-sm cursor-pointer transition-all duration-200 border ${
+                  className={`flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:px-4 sm:py-3 md:px-5 md:py-3.5 rounded-xl md:rounded-2xl font-bold text-xs sm:text-sm cursor-pointer transition-all duration-200 border ${
                     detailsButtonIdx === 1
                       ? 'bg-white text-black scale-105 shadow-xl ring-4 ring-sky-400 border-white'
                       : isCurrentFav
@@ -984,7 +984,7 @@ export const MoviesView: React.FC<MoviesViewProps> = ({
                       : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
                   }`}
                 >
-                  <Heart className={`w-4 h-4 ${isCurrentFav ? 'fill-current text-red-500' : ''}`} />
+                  <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isCurrentFav ? 'fill-current text-red-500' : ''}`} />
                   <span>{isCurrentFav ? 'Favoritado' : 'Favorito'}</span>
                 </button>
 

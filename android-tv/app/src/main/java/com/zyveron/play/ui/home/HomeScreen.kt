@@ -60,8 +60,26 @@ import com.zyveron.play.ui.theme.ZyveronTvBackground
 import com.zyveron.play.util.NetworkStatus
 import com.zyveron.play.util.rememberNetworkStatus
 import kotlinx.coroutines.delay
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+
+private fun getFormattedCurrentTime(): String {
+    return try {
+        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+    } catch (_: Exception) {
+        "12:00"
+    }
+}
+
+private fun getCurrentHourOfDay(): Int {
+    return try {
+        Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+    } catch (_: Exception) {
+        12
+    }
+}
 
 @Composable
 fun HomeScreen(
@@ -95,10 +113,10 @@ fun HomeScreen(
         NetworkStatus.DISCONNECTED -> AccentRose
     }
 
-    // Relógio e Saudação Dinâmica
-    var currentTime by remember { mutableStateOf(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))) }
+    // Relógio e Saudação Dinâmica (Compatível com Android 7.0+ / TV Box sem falha de LocalTime)
+    var currentTime by remember { mutableStateOf(getFormattedCurrentTime()) }
     val greeting = remember(currentTime) {
-        val hour = LocalTime.now().hour
+        val hour = getCurrentHourOfDay()
         when {
             hour in 5..11 -> "Bom dia"
             hour in 12..17 -> "Boa tarde"
@@ -114,7 +132,7 @@ fun HomeScreen(
 
         while (true) {
             delay(10000)
-            currentTime = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+            currentTime = getFormattedCurrentTime()
         }
     }
 
