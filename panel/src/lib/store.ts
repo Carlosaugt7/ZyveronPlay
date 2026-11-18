@@ -192,12 +192,27 @@ class LocalStore {
     }
   }
 
-  // --- SERVIDORES & DNS EM MASSA ---
+  // --- SERVIDORES & DNS EM MASSA (ISOLAMENTO MULTI-TENANT POR CONTA) ---
   getServers(userRole?: UserRole, userId?: string): ServerDocument[] {
     this.init();
-    // Todos os usuários (Super Admin, Revenda, Sub-Revenda) visualizam os servidores disponíveis
-    // para verificação de DNS e ativação de aparelhos (MACs)
-    return [...this.servers];
+    if (!userId) {
+      return [...this.servers];
+    }
+
+    const isSuper =
+      userRole === "superadmin" ||
+      userId === "usr-admin-master";
+
+    if (isSuper) {
+      // O Administrador Mestre visualiza exclusivamente os servidores pertencentes a ele
+      return this.servers.filter(
+        s => !s.ownerId || s.ownerId === "usr-admin-master" || s.ownerRole === "superadmin"
+      );
+    }
+
+    // Isolamento estrito por conta: Revenda Master e Sub-Revenda visualizam
+    // exclusivamente os servidores e DNS cadastrados por elas mesmas
+    return this.servers.filter(s => s.ownerId === userId);
   }
 
   updateServerDns(serverId: string, newDns: string, fallbacks?: string[]): { server: ServerDocument; updatedDevicesCount: number } {
