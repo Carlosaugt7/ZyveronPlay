@@ -30,7 +30,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { user, switchRole, logout } = useAuth();
+  const { user, realUser, canSimulate, isSimulating, switchRole, logout } = useAuth();
   const { theme, setTheme } = useTheme();
 
   const isSuperAdmin = user?.role === "superadmin";
@@ -38,9 +38,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const navigation = [
     { name: "Visão Geral", href: "/", icon: LayoutDashboard, show: true },
     { name: "Aparelhos (MACs)", href: "/devices", icon: Tv, show: true },
-    { name: "Servidores & DNS", href: "/servers", icon: Server, show: true },
-    { name: "Revendas & Saldo", href: "/resellers", icon: Users, show: true },
-    { name: "Mensagens na TV", href: "/messages", icon: MessageSquare, show: true },
+    { name: "Servidores & DNS", href: "/servers", icon: Server, show: isSuperAdmin },
+    { name: "Revendas & Saldo", href: "/resellers", icon: Users, show: user?.role !== "sub_reseller" },
+    { name: "Mensagens na TV", href: "/messages", icon: MessageSquare, show: isSuperAdmin },
     { name: "Auditoria de Créditos", href: "/logs", icon: History, show: true },
   ];
 
@@ -137,44 +137,57 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             })}
         </nav>
 
-        {/* Role Switcher (Simulação de Multi-Tenant) */}
-        <div className="p-3 border-t border-zinc-800/80 bg-zinc-950/60">
-          <div className="flex items-center justify-between mb-2 px-1">
-            <span className="text-[10px] text-zinc-300 font-semibold uppercase flex items-center gap-1">
-              <ArrowRightLeft className="w-3 h-3" /> Simular Visão
-            </span>
-            <span className="text-[9px] text-zinc-300">Testar Permissões</span>
+        {/* Role Switcher (Simulação de Multi-Tenant) - EXCLUSIVO PARA O ADMINISTRADOR REAL */}
+        {canSimulate && (
+          <div className="p-3 border-t border-zinc-800/80 bg-zinc-950/60">
+            <div className="flex items-center justify-between mb-2 px-1">
+              <span className="text-[10px] text-zinc-300 font-semibold uppercase flex items-center gap-1">
+                <ArrowRightLeft className="w-3 h-3 text-emerald-400" /> Simular Visão
+              </span>
+              <span className="text-[9px] text-emerald-400 font-mono">Admin Only</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              <button
+                onClick={() => switchRole("superadmin")}
+                className={`px-1.5 py-1 text-[10px] rounded font-medium transition ${user?.role === "superadmin"
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold"
+                  : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
+                  }`}
+              >
+                Admin
+              </button>
+              <button
+                onClick={() => switchRole("reseller")}
+                className={`px-1.5 py-1 text-[10px] rounded font-medium transition ${user?.role === "reseller"
+                  ? "bg-sky-500/20 text-sky-300 border border-sky-500/30 font-semibold"
+                  : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
+                  }`}
+              >
+                Revenda
+              </button>
+              <button
+                onClick={() => switchRole("sub_reseller")}
+                className={`px-1.5 py-1 text-[10px] rounded font-medium transition ${user?.role === "sub_reseller"
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold"
+                  : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
+                  }`}
+              >
+                Sub-Rev.
+              </button>
+            </div>
+            {isSimulating && (
+              <div className="mt-2 pt-2 border-t border-zinc-800/60 flex items-center justify-between">
+                <span className="text-[9px] text-amber-400 font-medium">⚠️ Simulação ativa</span>
+                <button
+                  onClick={() => switchRole("superadmin")}
+                  className="text-[9px] text-emerald-400 hover:underline font-semibold"
+                >
+                  Sair da simulação
+                </button>
+              </div>
+            )}
           </div>
-          <div className="grid grid-cols-3 gap-1">
-            <button
-              onClick={() => switchRole("superadmin")}
-              className={`px-1.5 py-1 text-[10px] rounded font-medium transition ${user?.role === "superadmin"
-                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
-                }`}
-            >
-              Admin
-            </button>
-            <button
-              onClick={() => switchRole("reseller")}
-              className={`px-1.5 py-1 text-[10px] rounded font-medium transition ${user?.role === "reseller"
-                ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
-                : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
-                }`}
-            >
-              Revenda
-            </button>
-            <button
-              onClick={() => switchRole("sub_reseller")}
-              className={`px-1.5 py-1 text-[10px] rounded font-medium transition ${user?.role === "sub_reseller"
-                ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
-                }`}
-            >
-              Sub-Rev.
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Seletor de Tema (Claro / Escuro) */}
         <div className="px-3 py-2 border-t border-zinc-800/80 bg-zinc-950/40">

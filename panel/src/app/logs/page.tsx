@@ -2,21 +2,28 @@
 
 import React, { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
+import { useAuth } from "@/context/AuthContext";
 import { store } from "@/lib/store";
 import { CreditLogDocument } from "@/types";
 import { History, Coins, ArrowUpRight, ArrowDownLeft, ShieldCheck, Tv } from "lucide-react";
 
 export default function LogsPage() {
+  const { user } = useAuth();
   const [logs, setLogs] = useState<CreditLogDocument[]>([]);
 
   const loadData = () => {
-    const l = store.getCreditLogs();
+    if (!user) return;
+    const l = store.getCreditLogs(user.role, user.uid);
     setLogs(l);
   };
 
   useEffect(() => {
     loadData();
-  }, []);
+    const unsubscribe = store.subscribe(() => {
+      loadData();
+    });
+    return () => unsubscribe();
+  }, [user]);
 
   const actionLabels: Record<string, { label: string; color: string }> = {
     deposit: { label: "Recarga / Depósito", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },

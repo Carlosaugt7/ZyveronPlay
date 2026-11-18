@@ -10,7 +10,10 @@ import { hashPassword, verifyPassword, isBcryptHash } from "@/lib/auth";
 
 interface AuthContextType {
   user: UserDocument | null;
+  realUser: UserDocument | null;
   loading: boolean;
+  canSimulate: boolean;
+  isSimulating: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   switchRole: (role: UserRole) => void;
@@ -20,7 +23,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  realUser: null,
   loading: true,
+  canSimulate: false,
+  isSimulating: false,
   login: async () => ({ success: false }),
   logout: () => {},
   switchRole: () => {},
@@ -30,8 +36,19 @@ const AuthContext = createContext<AuthContextType>({
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserDocument | null>(null);
+  const [realUser, setRealUser] = useState<UserDocument | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [allUsers, setAllUsers] = useState<UserDocument[]>([]);
+
+  const isMasterAccount = (u: UserDocument | null): boolean => {
+    if (!u) return false;
+    const masterEmail = (process.env.NEXT_PUBLIC_MASTER_EMAIL || "admin@zyveronplay.com").toLowerCase();
+    const email = u.email?.trim().toLowerCase() || "";
+    return u.uid === "usr-admin-master" || email === masterEmail || (u.role === "superadmin" && email === "admin@zyveronplay.com");
+  };
+
+  const canSimulate = Boolean(realUser && (realUser.role === "superadmin" || isMasterAccount(realUser)));
 
   useEffect(() => {
     // 1. Inicia sincronização bidirecional com o Firestore
@@ -44,14 +61,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const parsed = JSON.parse(saved);
           if (parsed && parsed.email) {
-            if (
-              parsed.name?.toLowerCase().includes("super admin") ||
-              parsed.name?.toLowerCase().includes("administrador") ||
-              parsed.email?.toLowerCase().includes("admin")
-            ) {
+            if (isMasterAccount(parsed)) {
               parsed.role = "superadmin";
             }
+            setRealUser(parsed);
             setUser(parsed);
+            setIsSimulating(false);
           }
         } catch (_) {}
       }
@@ -68,7 +83,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAllUsers(users);
     const updated = users.find(u => u.uid === user.uid);
     if (updated) {
+      if (isMasterAccount(updated)) {
+        updated.role = "superadmin";
+      }
       setUser({ ...updated });
+      setRealUser({ ...updated });
       if (typeof window !== "undefined") {
         localStorage.setItem("zyveron_auth_session", JSON.stringify(updated));
       }
@@ -112,7 +131,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updatedAt: new Date().toISOString(),
       };
 
+      setRealUser(adminUser);
       setUser(adminUser);
+      setIsSimulating(false);
       if (typeof window !== "undefined") {
         localStorage.setItem("zyveron_auth_session", JSON.stringify(adminUser));
       }
@@ -167,14 +188,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
-      if (
-        found.name?.toLowerCase().includes("super admin") ||
-        found.name?.toLowerCase().includes("administrador") ||
-        found.email?.toLowerCase().includes("admin")
-      ) {
+      // Preserva rigorosamente o papel real da conta (não promove para superadmin)
+      if (isMasterAccount(found)) {
         found.role = "superadmin";
+      } else {
+        found.role = found.role || "reseller";
       }
+
+      setRealUser(found);
       setUser(found);
+      setIsSimulating(false);
       if (typeof window !== "undefined") {
         localStorage.setItem("zyveron_auth_session", JSON.stringify(found));
       }
@@ -185,20 +208,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const switchRole = (role: UserRole) => {
-    if (!user) return;
+    // 🛡️ SEGURANÇA ESTRITA: Apenas o Administrador Mestre pode simular outras visões.
+    // Revenda Master e Sub-Revenda são bloqueados terminantemente de alternar papéis ou acessar modo admin.
+    if (!realUser || (!isMasterAccount(realUser) && realUser.role !== "superadmin")) {
+      console.warn("[Auth Security] Tentativa não autorizada de simulação de papel bloqueada.");
+      return;
+    }
+
+    if (role === "superadmin") {
+      // Retorna à visão real do Super Admin
+      setUser(realUser);
+      setIsSimulating(false);
+      return;
+    }
+
+    // Modo simulação para teste visual do Super Admin
+    setIsSimulating(true);
     const users = store.getUsers("superadmin", "usr-admin-master");
-    const found = users.find(u => u.role === role);
+    const found = users.find(u => u.role === role && u.uid !== realUser.uid);
     if (found) {
-      setUser(found);
+      setUser({ ...found, isSimulated: true } as any);
     } else {
       // Cria uma identidade simulada para teste de permissão instantâneo
       const simulated: UserDocument = {
         uid: `sim-${role}-${Date.now().toString(36)}`,
-        name: role === "superadmin" ? "Administrador Zyveron" : role === "reseller" ? "Revenda Demonstração" : "Sub-Revenda Demonstração",
+        name: role === "reseller" ? "Simulação: Revenda Master" : "Simulação: Sub-Revenda",
         email: `${role}@zyveronplay.com`,
         role: role,
-        parentId: role === "sub_reseller" ? "usr-admin-master" : null,
-        credits: role === "superadmin" ? 99999 : 50,
+        parentId: role === "sub_reseller" ? realUser.uid : null,
+        credits: role === "reseller" ? 50 : 20,
         status: "active",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -209,6 +247,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
+    setRealUser(null);
+    setIsSimulating(false);
     if (typeof window !== "undefined") {
       localStorage.removeItem("zyveron_auth_session");
     }
@@ -221,7 +261,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
+        realUser,
         loading,
+        canSimulate,
+        isSimulating,
         login,
         logout,
         switchRole,

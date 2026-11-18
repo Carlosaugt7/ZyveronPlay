@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { useAuth } from "@/context/AuthContext";
 import { store } from "@/lib/store";
@@ -38,8 +39,16 @@ import {
 } from "lucide-react";
 
 export default function ResellersPage() {
+  const router = useRouter();
   const { user, refreshUser } = useAuth();
   const [users, setUsers] = useState<UserDocument[]>([]);
+
+  // Bloqueio de rota: Sub-revenda não gerencia outras revendas
+  useEffect(() => {
+    if (user && user.role === "sub_reseller") {
+      router.replace("/");
+    }
+  }, [user, router]);
 
   // Modal: Criar Revenda
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);

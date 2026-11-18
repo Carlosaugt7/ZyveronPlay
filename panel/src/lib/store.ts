@@ -117,11 +117,10 @@ class LocalStore {
       const fsMap = new Map<string, UserDocument>();
       firestoreUsers.forEach(u => {
         if (u.uid) {
-          const isSuper =
-            u.name?.toLowerCase().includes("super admin") ||
-            u.name?.toLowerCase().includes("administrador") ||
-            u.email?.toLowerCase().includes("admin");
-          if (isSuper) {
+          const isMasterAdmin =
+            u.uid === "usr-admin-master" ||
+            u.email?.trim().toLowerCase() === "admin@zyveronplay.com";
+          if (isMasterAdmin) {
             u.role = "superadmin";
           }
           fsMap.set(u.uid, u);
@@ -161,9 +160,8 @@ class LocalStore {
         this.users = JSON.parse(u);
         this.users.forEach(usr => {
           if (
-            usr.name?.toLowerCase().includes("super admin") ||
-            usr.name?.toLowerCase().includes("administrador") ||
-            usr.email?.toLowerCase().includes("admin")
+            usr.uid === "usr-admin-master" ||
+            usr.email?.trim().toLowerCase() === "admin@zyveronplay.com"
           ) {
             usr.role = "superadmin";
           }
@@ -199,12 +197,10 @@ class LocalStore {
     this.init();
     const currentUser = userId ? this.users.find(u => u.uid === userId) : null;
     const isSuper =
-      !userRole ||
       userRole === "superadmin" ||
       currentUser?.role === "superadmin" ||
-      currentUser?.name?.toLowerCase().includes("super admin") ||
-      currentUser?.name?.toLowerCase().includes("administrador") ||
-      currentUser?.email?.toLowerCase().includes("admin");
+      currentUser?.uid === "usr-admin-master" ||
+      currentUser?.email?.trim().toLowerCase() === "admin@zyveronplay.com";
 
     if (isSuper) {
       return [...this.servers];
@@ -386,9 +382,8 @@ class LocalStore {
     const isSuper =
       userRole === "superadmin" ||
       currentUser?.role === "superadmin" ||
-      currentUser?.name?.toLowerCase().includes("super admin") ||
-      currentUser?.name?.toLowerCase().includes("administrador") ||
-      currentUser?.email?.toLowerCase().includes("admin");
+      currentUser?.uid === "usr-admin-master" ||
+      currentUser?.email?.trim().toLowerCase() === "admin@zyveronplay.com";
 
     if (isSuper) {
       return [...this.devices];
@@ -674,9 +669,8 @@ class LocalStore {
     const isSuper =
       userRole === "superadmin" ||
       currentUser?.role === "superadmin" ||
-      currentUser?.name?.toLowerCase().includes("super admin") ||
-      currentUser?.name?.toLowerCase().includes("administrador") ||
-      currentUser?.email?.toLowerCase().includes("admin");
+      currentUser?.uid === "usr-admin-master" ||
+      currentUser?.email?.trim().toLowerCase() === "admin@zyveronplay.com";
 
     if (isSuper) {
       return [...this.users];
@@ -1100,9 +1094,13 @@ class LocalStore {
     };
   }
 
-  getCreditLogs(): CreditLogDocument[] {
+  getCreditLogs(userRole?: UserRole, userId?: string): CreditLogDocument[] {
     this.init();
-    return [...this.logs];
+    if (!userRole || userRole === "superadmin" || userId === "usr-admin-master") {
+      return [...this.logs];
+    }
+    // Revenda e Sub-revenda visualizam apenas transações onde foram origem ou destino
+    return this.logs.filter(l => l.fromUserId === userId || l.toUserId === userId);
   }
 
   // --- MENSAGENS PARA A TV ---

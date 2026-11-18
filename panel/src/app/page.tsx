@@ -48,7 +48,7 @@ export default function DashboardPage() {
     const s = store.getServers(user.role, user.uid);
     const d = store.getDevices(user.role, user.uid);
     const n = store.getNotifications();
-    const users = store.getUsers("superadmin", "usr-admin-master");
+    const users = store.getUsers(user.role, user.uid);
 
     setServers(s);
     setDevices(d);
@@ -57,8 +57,7 @@ export default function DashboardPage() {
     // Estatísticas de Revendas e Sub-revendas
     const resellersList = users.filter((u) => u.role === "reseller" || u.role === "sub_reseller");
     const resellerUids = new Set(resellersList.map((u) => u.uid));
-    const allDevs = store.getDevices("superadmin", "usr-admin-master");
-    const rDevs = allDevs.filter((dev) => resellerUids.has(dev.resellerId));
+    const rDevs = d.filter((dev) => resellerUids.has(dev.resellerId));
     const rActive = rDevs.filter(
       (dev) => dev.status === "active" && new Date(dev.expirationDate) > new Date()
     ).length;
@@ -177,12 +176,14 @@ export default function DashboardPage() {
               >
                 <Tv className="w-4 h-4" /> Ativar Aparelho (MAC)
               </Link>
-              <Link
-                href="/servers"
-                className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-xs border border-zinc-700/60 transition flex items-center gap-2"
-              >
-                <Server className="w-4 h-4 text-sky-400" /> Servidores & DNS
-              </Link>
+              {user?.role === "superadmin" && (
+                <Link
+                  href="/servers"
+                  className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-xs border border-zinc-700/60 transition flex items-center gap-2"
+                >
+                  <Server className="w-4 h-4 text-sky-400" /> Servidores & DNS
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -256,19 +257,21 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          {/* Card 4: Servidores & DNS (Emerald / Verde) */}
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#0a1c15] to-[#0a1017] border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-300 shadow-lg shadow-emerald-950/20 hover:shadow-emerald-950/40">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-emerald-200/80">Servidores & DNS</span>
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                <Server className="w-4 h-4" />
+          {/* Card 4: Servidores & DNS (Emerald / Verde) - Exclusivo Admin */}
+          {user?.role === "superadmin" && (
+            <div className="p-5 rounded-2xl bg-gradient-to-br from-[#0a1c15] to-[#0a1017] border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-300 shadow-lg shadow-emerald-950/20 hover:shadow-emerald-950/40">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-emerald-200/80">Servidores & DNS</span>
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <Server className="w-4 h-4" />
+                </div>
               </div>
+              <p className="text-2xl font-bold text-white mt-3">{servers.length}</p>
+              <p className="text-[11px] text-emerald-400 font-medium flex items-center gap-1 mt-3">
+                <Radio className="w-3 h-3" /> Endpoints saudáveis
+              </p>
             </div>
-            <p className="text-2xl font-bold text-white mt-3">{servers.length}</p>
-            <p className="text-[11px] text-emerald-400 font-medium flex items-center gap-1 mt-3">
-              <Radio className="w-3 h-3" /> Endpoints saudáveis
-            </p>
-          </div>
+          )}
 
           {/* Card 5: Aparelhos Bloqueados (Rose / Vermelho Suave) */}
           <div className="p-5 rounded-2xl bg-gradient-to-br from-[#200d11] to-[#0a1017] border border-rose-500/20 hover:border-rose-500/40 transition-all duration-300 shadow-lg shadow-rose-950/20 hover:shadow-rose-950/40">
@@ -285,8 +288,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Sessão Especial: Troca de DNS em Massa em 1 Clique (Card Rápido) */}
-        {servers.length > 0 && (
+        {/* Sessão Especial: Troca de DNS em Massa em 1 Clique (Card Rápido - Exclusivo Admin) */}
+        {user?.role === "superadmin" && servers.length > 0 && (
           <div className="p-6 rounded-2xl bg-[#0f1824] border border-sky-800/40 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800/80 pb-4">
               <div className="flex items-center gap-3">

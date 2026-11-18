@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { useAuth } from "@/context/AuthContext";
 import { store } from "@/lib/store";
@@ -117,8 +118,16 @@ const SERVER_CARD_THEMES = [
 ];
 
 export default function ServersPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const [servers, setServers] = useState<ServerDocument[]>([]);
+
+  // Bloqueio estrito de rota para Revenda e Sub-Revenda
+  useEffect(() => {
+    if (user && user.role !== "superadmin") {
+      router.replace("/");
+    }
+  }, [user, router]);
 
   // Modal Novo Servidor
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
