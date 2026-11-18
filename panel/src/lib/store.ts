@@ -746,7 +746,7 @@ class LocalStore {
       const childTierIdx = RESELLER_TIER_ORDER.indexOf(tier);
       if (childTierIdx > parentTierIdx) {
         throw new Error(
-          `Limite hierárquico: Sua conta está no modo "${RESELLER_TIERS[parentTier]?.name || parentTier}" e não pode cadastrar uma sub-revenda com modo superior ("${tierConfig.name}").`
+          `Limite hierárquico: Sua conta está no modo "${RESELLER_TIERS[parentTier]?.name || parentTier}" e não pode cadastrar uma conta com modo superior ("${tierConfig.name}").`
         );
       }
     }

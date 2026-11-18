@@ -740,15 +740,13 @@ export default function ResellersPage() {
                 </div>
 
                 <div>
-                  <label className="block text-zinc-300 font-medium mb-1">Nível de Conta</label>
+                  <label className="block text-zinc-300 font-medium mb-1">Nível de Conta *</label>
                   <select
                     value={roleInput}
                     onChange={(e) => setRoleInput(e.target.value as any)}
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
                   >
-                    {user?.role === "superadmin" && (
-                      <option value="reseller">Revenda Master</option>
-                    )}
+                    <option value="reseller">Revenda Master</option>
                     <option value="sub_reseller">Sub-Revenda</option>
                   </select>
                 </div>
@@ -1167,18 +1165,16 @@ export default function ResellersPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-zinc-300 font-medium mb-1">Nível</label>
+                    <label className="block text-zinc-300 font-medium mb-1">Nível *</label>
                     <select
                       value={editRoleInput}
                       onChange={(e) => setEditRoleInput(e.target.value as any)}
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-sky-500"
                     >
                       {user?.role === "superadmin" && (
-                        <>
-                          <option value="superadmin">Super Admin</option>
-                          <option value="reseller">Revenda Master</option>
-                        </>
+                        <option value="superadmin">Super Admin</option>
                       )}
+                      <option value="reseller">Revenda Master</option>
                       <option value="sub_reseller">Sub-Revenda</option>
                     </select>
                   </div>

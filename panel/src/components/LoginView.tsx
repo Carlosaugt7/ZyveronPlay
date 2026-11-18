@@ -99,8 +99,8 @@ export function LoginView() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@zyveronplay.com"
-                  autoComplete="email"
+                  placeholder="seu@email.com"
+                  autoComplete="off"
                   required
                   className="w-full pl-10 pr-3.5 py-2.5 bg-zinc-900/90 border border-zinc-700/80 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition font-medium"
                 />
@@ -120,8 +120,8 @@ export function LoginView() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  autoComplete="current-password"
+                  placeholder="Digite sua senha"
+                  autoComplete="new-password"
                   required
                   className="w-full pl-10 pr-10 py-2.5 bg-zinc-900/90 border border-zinc-700/80 rounded-xl text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition font-medium"
                 />
