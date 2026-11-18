@@ -195,18 +195,9 @@ class LocalStore {
   // --- SERVIDORES & DNS EM MASSA ---
   getServers(userRole?: UserRole, userId?: string): ServerDocument[] {
     this.init();
-    const currentUser = userId ? this.users.find(u => u.uid === userId) : null;
-    const isSuper =
-      userRole === "superadmin" ||
-      currentUser?.role === "superadmin" ||
-      currentUser?.uid === "usr-admin-master" ||
-      currentUser?.email?.trim().toLowerCase() === "admin@zyveronplay.com";
-
-    if (isSuper) {
-      return [...this.servers];
-    }
-    // Isolamento estrito: Revenda e Sub-revenda gerenciam apenas os servidores cadastrados por elas
-    return this.servers.filter(s => (s.ownerId || "usr-admin-master") === userId);
+    // Todos os usuários (Super Admin, Revenda, Sub-Revenda) visualizam os servidores disponíveis
+    // para verificação de DNS e ativação de aparelhos (MACs)
+    return [...this.servers];
   }
 
   updateServerDns(serverId: string, newDns: string, fallbacks?: string[]): { server: ServerDocument; updatedDevicesCount: number } {

@@ -118,16 +118,8 @@ const SERVER_CARD_THEMES = [
 ];
 
 export default function ServersPage() {
-  const router = useRouter();
   const { user } = useAuth();
   const [servers, setServers] = useState<ServerDocument[]>([]);
-
-  // Bloqueio estrito de rota para Revenda e Sub-Revenda
-  useEffect(() => {
-    if (user && user.role !== "superadmin") {
-      router.replace("/");
-    }
-  }, [user, router]);
 
   // Modal Novo Servidor
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);

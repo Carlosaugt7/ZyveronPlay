@@ -176,14 +176,12 @@ export default function DashboardPage() {
               >
                 <Tv className="w-4 h-4" /> Ativar Aparelho (MAC)
               </Link>
-              {user?.role === "superadmin" && (
-                <Link
-                  href="/servers"
-                  className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-xs border border-zinc-700/60 transition flex items-center gap-2"
-                >
-                  <Server className="w-4 h-4 text-sky-400" /> Servidores & DNS
-                </Link>
-              )}
+              <Link
+                href="/servers"
+                className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-xs border border-zinc-700/60 transition flex items-center gap-2"
+              >
+                <Server className="w-4 h-4 text-sky-400" /> Servidores & DNS
+              </Link>
             </div>
           </div>
         </div>
@@ -257,21 +255,19 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          {/* Card 4: Servidores & DNS (Emerald / Verde) - Exclusivo Admin */}
-          {user?.role === "superadmin" && (
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-[#0a1c15] to-[#0a1017] border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-300 shadow-lg shadow-emerald-950/20 hover:shadow-emerald-950/40">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-emerald-200/80">Servidores & DNS</span>
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                  <Server className="w-4 h-4" />
-                </div>
+          {/* Card 4: Servidores & DNS (Emerald / Verde) */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#0a1c15] to-[#0a1017] border border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-300 shadow-lg shadow-emerald-950/20 hover:shadow-emerald-950/40">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-emerald-200/80">Servidores & DNS</span>
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <Server className="w-4 h-4" />
               </div>
-              <p className="text-2xl font-bold text-white mt-3">{servers.length}</p>
-              <p className="text-[11px] text-emerald-400 font-medium flex items-center gap-1 mt-3">
-                <Radio className="w-3 h-3" /> Endpoints saudáveis
-              </p>
             </div>
-          )}
+            <p className="text-2xl font-bold text-white mt-3">{servers.length}</p>
+            <p className="text-[11px] text-emerald-400 font-medium flex items-center gap-1 mt-3">
+              <Radio className="w-3 h-3" /> Endpoints saudáveis
+            </p>
+          </div>
 
           {/* Card 5: Aparelhos Bloqueados (Rose / Vermelho Suave) */}
           <div className="p-5 rounded-2xl bg-gradient-to-br from-[#200d11] to-[#0a1017] border border-rose-500/20 hover:border-rose-500/40 transition-all duration-300 shadow-lg shadow-rose-950/20 hover:shadow-rose-950/40">
