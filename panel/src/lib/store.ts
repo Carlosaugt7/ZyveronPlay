@@ -34,12 +34,20 @@ const INITIAL_LOGS: CreditLogDocument[] = [];
 const INITIAL_NOTIFICATIONS: NotificationDocument[] = [];
 
 function normalizeDnsUrl(url: string): string {
-  let clean = (url || "").trim().replace(/\/+$/, "");
+  let clean = (url || "").trim();
   if (!clean) return "";
-  if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
+  if (!/^https?:\/\//i.test(clean)) {
     clean = "http://" + clean;
   }
-  return clean;
+  try {
+    const parsed = new URL(clean);
+    let port = parsed.port ? `:${parsed.port}` : "";
+    if (port === ":80" && parsed.protocol === "http:") port = "";
+    if (port === ":443" && parsed.protocol === "https:") port = "";
+    return `${parsed.protocol}//${parsed.hostname}${port}`;
+  } catch {
+    return clean.replace(/\/+$/, "");
+  }
 }
 
 // Gerenciador em memória persistido no localStorage (Client-Side)

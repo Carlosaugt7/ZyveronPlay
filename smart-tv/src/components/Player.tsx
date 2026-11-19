@@ -128,12 +128,12 @@ export const Player: React.FC<PlayerProps> = ({
     };
   }, [isMutedByAutoplay, handleUnmute]);
 
-  // Se transicionar para tela cheia e estiver mutado por autoplay, força desmutar com volume 100%
+  // Se transicionar para tela cheia, garante desmutar imediatamente com volume 100%
   useEffect(() => {
-    if (isFullScreen && isMutedByAutoplay) {
+    if (isFullScreen) {
       handleUnmute();
     }
-  }, [isFullScreen, isMutedByAutoplay, handleUnmute]);
+  }, [isFullScreen, handleUnmute]);
 
   // Foco espacial nos botões de controle OSD (0: Anterior, 1: Play/Pause, 2: Próximo, 3: Auto-Próximo)
   const [focusedButtonIndex, setFocusedButtonIndex] = useState<number | null>(null);
@@ -442,6 +442,12 @@ export const Player: React.FC<PlayerProps> = ({
               if (fallbackUrl && activeUrl !== fallbackUrl) {
                 console.warn("[Player] HLS com falha de rede. Tentando stream TS alternativo...");
                 setActiveUrl(fallbackUrl);
+              } else if (!activeUrl.includes('/api/proxy') && !activeUrl.startsWith('data:') && !activeUrl.startsWith('blob:')) {
+                console.warn("[Player] Tentando HLS via proxy seguro da VPS...");
+                const isFile = typeof window !== 'undefined' && (window.location.protocol === 'file:' || !window.location.host);
+                const proxyBase = isFile ? 'https://tvplay.loja-am.top/api/proxy' : '/api/proxy';
+                const proxied = `${proxyBase}?url=${encodeURIComponent(activeUrl.replace(/^https:\/\//i, 'http://'))}`;
+                setActiveUrl(proxied);
               } else {
                 hls.destroy();
                 setIsLoading(false);
@@ -497,8 +503,15 @@ export const Player: React.FC<PlayerProps> = ({
       }
     };
     const handleError = () => {
+      console.warn('[Player] Erro fatal no elemento de vídeo:', activeUrl);
       if (fallbackUrl && activeUrl !== fallbackUrl) {
         setActiveUrl(fallbackUrl);
+      } else if (!activeUrl.includes('/api/proxy') && !activeUrl.startsWith('data:') && !activeUrl.startsWith('blob:')) {
+        console.warn('[Player] Tentando reprodução via proxy seguro da VPS...');
+        const isFile = typeof window !== 'undefined' && (window.location.protocol === 'file:' || !window.location.host);
+        const proxyBase = isFile ? 'https://tvplay.loja-am.top/api/proxy' : '/api/proxy';
+        const proxied = `${proxyBase}?url=${encodeURIComponent(activeUrl.replace(/^https:\/\//i, 'http://'))}`;
+        setActiveUrl(proxied);
       } else {
         setIsLoading(false);
         setHasError(true);

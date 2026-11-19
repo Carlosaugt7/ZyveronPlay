@@ -4,6 +4,9 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
+// Desabilita rejeição estrita de certificados TLS não confiáveis/auto-assinados de servidores IPTV
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 const PORT = parseInt(process.env.PORT || '80', 10);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(__dirname, 'dist');
@@ -46,25 +49,65 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
-      const clientIp = req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+      // Extrai e sanitiza IP do cliente
+      let rawIp = req.headers['cf-connecting-ip'] || req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+      if (typeof rawIp === 'string' && rawIp.includes(',')) {
+        rawIp = rawIp.split(',')[0].trim();
+      }
+      // Painéis Xtream Codes / IPTV crasham (500) ou bloqueiam (403) com endereços IPv6 em X-Forwarded-For
+      const isIpv4 = typeof rawIp === 'string' && /^(\d{1,3}\.){3}\d{1,3}$/.test(rawIp.trim());
+      const clientIp = isIpv4 ? rawIp.trim() : '';
 
       const upstreamHeaders = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Accept': '*/*', // Aceita streams de vídeo, m3u8, ts, json sem disparar HTTP 406
         'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-        'X-Forwarded-For': String(clientIp || ''),
-        'X-Real-IP': String(clientIp || '')
+        'Connection': 'keep-alive'
       };
+
+      if (clientIp) {
+        upstreamHeaders['X-Forwarded-For'] = clientIp;
+        upstreamHeaders['X-Real-IP'] = clientIp;
+      }
 
       if (req.headers.range) {
         upstreamHeaders['Range'] = req.headers.range;
       }
 
-      const upstreamRes = await fetch(target, {
-        method: req.method === 'HEAD' ? 'HEAD' : 'GET',
-        headers: upstreamHeaders,
-        redirect: 'follow'
-      });
+      let upstreamRes;
+      try {
+        upstreamRes = await fetch(target, {
+          method: req.method === 'HEAD' ? 'HEAD' : 'GET',
+          headers: upstreamHeaders,
+          redirect: 'follow',
+          signal: AbortSignal.timeout(25000)
+        });
+      } catch (fetchErr) {
+        // Se a chamada falhou (possível bloqueio de User-Agent de browser), tenta com User-Agent de IPTV Player
+        upstreamHeaders['User-Agent'] = 'IPTVSmartersPro';
+        upstreamRes = await fetch(target, {
+          method: req.method === 'HEAD' ? 'HEAD' : 'GET',
+          headers: upstreamHeaders,
+          redirect: 'follow',
+          signal: AbortSignal.timeout(25000)
+        });
+      }
+
+      // Se o servidor IPTV respondeu 403 Forbidden para o User-Agent Chrome, tenta novamente como IPTVSmartersPro
+      if (upstreamRes.status === 403 && upstreamHeaders['User-Agent'] !== 'IPTVSmartersPro') {
+        upstreamHeaders['User-Agent'] = 'IPTVSmartersPro';
+        try {
+          const retryRes = await fetch(target, {
+            method: req.method === 'HEAD' ? 'HEAD' : 'GET',
+            headers: upstreamHeaders,
+            redirect: 'follow',
+            signal: AbortSignal.timeout(25000)
+          });
+          if (retryRes.ok || retryRes.status < 400) {
+            upstreamRes = retryRes;
+          }
+        } catch (_) {}
+      }
 
       const contentType = upstreamRes.headers.get('content-type') || 'application/octet-stream';
       const contentLength = upstreamRes.headers.get('content-length');

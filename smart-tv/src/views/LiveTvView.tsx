@@ -249,6 +249,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
 
   // Carrega categorias e contagens ao iniciar
   useEffect(() => {
+    setCurrentPlayingChannel(null);
+    setPreviewConfirmedChannelId(null);
     setFavorites(getFavorites('live'));
     client.getLiveCategories()
       .then((rawCats) => {

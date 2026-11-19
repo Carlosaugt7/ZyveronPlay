@@ -43,11 +43,19 @@ export type DeviceStatusCallback = (state: {
 
 function normalizeDns(url: string): string {
   if (!url) return '';
-  let clean = url.trim().replace(/\/+$/, '');
+  let clean = url.trim();
   if (!/^https?:\/\//i.test(clean)) {
     clean = `http://${clean}`;
   }
-  return clean;
+  try {
+    const parsed = new URL(clean);
+    let port = parsed.port ? `:${parsed.port}` : '';
+    if (port === ':80' && parsed.protocol === 'http:') port = '';
+    if (port === ':443' && parsed.protocol === 'https:') port = '';
+    return `${parsed.protocol}//${parsed.hostname}${port}`;
+  } catch {
+    return clean.replace(/\/+$/, '').replace(/:80$/, '');
+  }
 }
 
 /**
@@ -84,12 +92,15 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
       let rawServerDns2 = (data.serverDns2 || data.activeDns2 || data.dns2 || data.url2 || '').trim();
       const expirationDate2 = data.expirationDate2 || '';
 
-      // Busca dados do servidor 1 na coleção servers se tiver serverId
-      if (serverId) {
+      // Busca dados complementares do servidor 1 na coleção servers se necessário
+      if (serverId && (!rawServerDns || serverName === 'Lista 1')) {
         try {
           const serverDocRef = doc(firestore, "servers", serverId);
-          const serverSnap = await getDoc(serverDocRef);
-          if (serverSnap.exists()) {
+          const serverSnap = await Promise.race([
+            getDoc(serverDocRef),
+            new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
+          ]);
+          if (serverSnap && serverSnap.exists()) {
             const sData = serverSnap.data();
             if (sData.name) serverName = sData.name;
             if (!rawServerDns) {
@@ -97,16 +108,19 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
             }
           }
         } catch (err) {
-          console.error("Erro ao carregar dados do servidor 1:", err);
+          console.warn("Aviso ao carregar dados do servidor 1:", err);
         }
       }
 
-      // Busca dados do servidor 2 na coleção servers se tiver serverId2
-      if (serverId2) {
+      // Busca dados complementares do servidor 2 na coleção servers se necessário
+      if (serverId2 && (!rawServerDns2 || serverName2 === 'Lista 2')) {
         try {
           const server2DocRef = doc(firestore, "servers", serverId2);
-          const server2Snap = await getDoc(server2DocRef);
-          if (server2Snap.exists()) {
+          const server2Snap = await Promise.race([
+            getDoc(server2DocRef),
+            new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
+          ]);
+          if (server2Snap && server2Snap.exists()) {
             const s2Data = server2Snap.data();
             if (s2Data.name) serverName2 = s2Data.name;
             if (!rawServerDns2) {
@@ -114,7 +128,7 @@ export function listenDeviceActivation(mac: string, callback: DeviceStatusCallba
             }
           }
         } catch (err) {
-          console.error("Erro ao carregar dados do servidor 2:", err);
+          console.warn("Aviso ao carregar dados do servidor 2:", err);
         }
       }
 

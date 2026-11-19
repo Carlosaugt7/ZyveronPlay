@@ -7,6 +7,23 @@ import {
   XtreamSeason 
 } from '../types';
 
+export function normalizeBaseDns(rawDns: string): string {
+  let clean = (rawDns || '').trim();
+  if (!clean) return '';
+  if (!/^https?:\/\//i.test(clean)) {
+    clean = `http://${clean}`;
+  }
+  try {
+    const u = new URL(clean);
+    let port = u.port ? `:${u.port}` : '';
+    if (port === ':80' && u.protocol === 'http:') port = '';
+    if (port === ':443' && u.protocol === 'https:') port = '';
+    return `${u.protocol}//${u.hostname}${port}`;
+  } catch {
+    return clean.replace(/\/+$/, '').replace(/:80$/, '');
+  }
+}
+
 export class XtreamClient {
   private baseDns: string;
   private user: string;
@@ -14,21 +31,7 @@ export class XtreamClient {
   private cache = new Map<string, { data: any; timestamp: number }>();
 
   constructor(dns: string, user: string, pass: string) {
-    let cleanDns = dns.trim().replace(/\/+$/, '').replace(/:80$/, '');
-    
-    // Se a aplicação está rodando via HTTPS (ex: https://tvplay.loja-am.top),
-    // promovemos automaticamente para HTTPS para permitir chamadas diretas do cliente (IP residencial)
-    // sem bloqueio de Mixed Content do navegador e sem acionar o WAF de Datacenter da VPS.
-    const isHttpsOrigin = typeof window !== 'undefined' && window.location.protocol === 'https:';
-
-    if (!/^https?:\/\//i.test(cleanDns)) {
-      cleanDns = isHttpsOrigin ? `https://${cleanDns}` : `http://${cleanDns}`;
-    } else if (isHttpsOrigin && cleanDns.startsWith('http://') && !cleanDns.slice(7).includes(':')) {
-      // Se não há porta customizada especificada (como :8080), tenta https direto
-      cleanDns = cleanDns.replace(/^http:\/\//i, 'https://');
-    }
-
-    this.baseDns = cleanDns;
+    this.baseDns = normalizeBaseDns(dns);
     this.user = user.trim();
     this.pass = pass.trim();
   }
@@ -44,6 +47,30 @@ export class XtreamClient {
     return `${this.baseDns}/player_api.php?username=${encodeURIComponent(this.user)}&password=${encodeURIComponent(this.pass)}`;
   }
 
+  private getProxyBase(): string {
+    if (typeof window === 'undefined') return '/api/proxy';
+    // Se estiver rodando como pacote local (ex: Samsung Tizen ou LG webOS via file://)
+    const isFileOrigin = window.location.protocol === 'file:' || !window.location.host;
+    if (isFileOrigin) {
+      return 'https://tvplay.loja-am.top/api/proxy';
+    }
+    return '/api/proxy';
+  }
+
+  /**
+   * Transforma URLs de vídeo HTTP em seguras quando a aplicação está em HTTPS,
+   * evitando bloqueio de Mixed Content pelo navegador ou WebView da Smart TV.
+   */
+  public ensurePlayableUrl(directUrl: string): string {
+    if (typeof window === 'undefined') return directUrl;
+    const isHttpsOrigin = window.location.protocol === 'https:';
+    if (isHttpsOrigin && directUrl.startsWith('http://')) {
+      const proxyBase = this.getProxyBase();
+      return `${proxyBase}?url=${encodeURIComponent(directUrl)}`;
+    }
+    return directUrl;
+  }
+
   private async fetchJson<T>(action: string, extraParams: Record<string, string | number> = {}): Promise<T> {
     const cacheKey = `${action}_${JSON.stringify(extraParams)}`;
     const cached = this.cache.get(cacheKey);
@@ -57,47 +84,76 @@ export class XtreamClient {
       targetUrl += `&${key}=${encodeURIComponent(value)}`;
     }
 
-    // 1. Prioridade Máxima: Conexão direta do dispositivo cliente (Smart TV / PC)
-    // Os clientes têm IP residencial e não são bloqueados por Cloudflare WAF, além de terem CORS livre (*)
-    try {
-      const response = await fetch(targetUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json, text/plain, */*'
-        }
-      });
+    const isHttpsOrigin = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const isDirectMixedContent = isHttpsOrigin && targetUrl.startsWith('http://');
 
-      if (response.ok) {
-        const data = await response.json();
-        this.cache.set(cacheKey, { data, timestamp: Date.now() });
-        return data;
+    // 1. Conexão direta do dispositivo cliente (Smart TV / PC)
+    // Se a aplicação é HTTPS e o alvo é HTTP, chamadas diretas são bloqueadas pelo navegador (Mixed Content).
+    // Nesse caso, pula direto para o proxy seguro sem esperar timeout.
+    if (!isDirectMixedContent) {
+      try {
+        const response = await fetch(targetUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json, text/plain, */*'
+          },
+          signal: AbortSignal.timeout(3500)
+        });
+
+        if (response.ok) {
+          const rawText = await response.text();
+          try {
+            const data = JSON.parse(rawText);
+            this.cache.set(cacheKey, { data, timestamp: Date.now() });
+            return data as T;
+          } catch {
+            console.warn(`[Xtream] Resposta direta não-JSON para ${action}. Tentando fallback...`);
+          }
+        } else {
+          console.warn(`[Xtream] Resposta HTTP ${response.status} na conexão direta para ${action}. Tentando fallback...`);
+        }
+      } catch (directErr: any) {
+        console.warn(`[Xtream] Conexão direta falhou para ${action} (${directErr.message}). Tentando contingência...`);
       }
-      console.warn(`[Xtream] Resposta HTTP ${response.status} na conexão direta para ${action}. Tentando fallback...`);
-    } catch (directErr: any) {
-      console.warn(`[Xtream] Conexão direta falhou para ${action} (${directErr.message}). Tentando contingência...`);
     }
 
-    // 2. Se a conexão direta falhou e a página é HTTPS, tenta via proxy da VPS
+    // 2. Fallback via proxy resiliente da VPS
+    // Se o alvo for HTTPS mas falhou na porta 443, tenta http:// no proxy
     const fallbackTarget = targetUrl.replace(/^https:\/\//i, 'http://');
-    const proxyUrl = `/api/proxy?url=${encodeURIComponent(fallbackTarget)}`;
+    const proxyBase = this.getProxyBase();
+    const proxyUrl = `${proxyBase}?url=${encodeURIComponent(fallbackTarget)}`;
 
     try {
       const proxyResponse = await fetch(proxyUrl, {
         method: 'GET',
         headers: {
           'Accept': 'application/json, text/plain, */*'
-        }
+        },
+        signal: AbortSignal.timeout(25000)
       });
 
       if (!proxyResponse.ok) {
         throw new Error(`HTTP ${proxyResponse.status} ao consultar ${action}`);
       }
 
-      const data = await proxyResponse.json();
+      const rawText = await proxyResponse.text();
+      let data: any;
+      try {
+        data = JSON.parse(rawText);
+      } catch (parseErr) {
+        console.warn(`[Xtream] Resposta proxy não-JSON para ${action}:`, rawText.slice(0, 120));
+        // Se for lista, retorna array vazio para não quebrar a interface
+        data = (action.includes('categories') || action.includes('streams') || action === 'get_series') ? [] : {};
+      }
+
       this.cache.set(cacheKey, { data, timestamp: Date.now() });
-      return data;
+      return data as T;
     } catch (proxyErr: any) {
       console.error(`[Xtream] Falha total ao consultar ${action}:`, proxyErr.message);
+      // Retorna array vazio em caso de listagens para permitir exibição graciosa na UI
+      if (action.includes('categories') || action.includes('streams') || action === 'get_series') {
+        return [] as unknown as T;
+      }
       throw proxyErr;
     }
   }
@@ -117,11 +173,13 @@ export class XtreamClient {
 
   // URLs de reprodução HLS primária e TS de contingência diretas da CDN do servidor IPTV
   buildLiveHlsUrl(streamId: number): string {
-    return `${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.m3u8`;
+    const rawUrl = `${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.m3u8`;
+    return this.ensurePlayableUrl(rawUrl);
   }
 
   buildLiveTsUrl(streamId: number): string {
-    return `${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.ts`;
+    const rawUrl = `${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.ts`;
+    return this.ensurePlayableUrl(rawUrl);
   }
 
   // --- FILMES (VOD) ---
@@ -161,7 +219,8 @@ export class XtreamClient {
 
   buildVodUrl(streamId: number, extension: string = 'mp4'): string {
     const ext = extension.replace(/^\./, '') || 'mp4';
-    return `${this.baseDns}/movie/${this.user}/${this.pass}/${streamId}.${ext}`;
+    const rawUrl = `${this.baseDns}/movie/${this.user}/${this.pass}/${streamId}.${ext}`;
+    return this.ensurePlayableUrl(rawUrl);
   }
 
   // --- SÉRIES ---
@@ -187,6 +246,7 @@ export class XtreamClient {
 
   buildEpisodeUrl(streamId: string | number, extension: string = 'mp4'): string {
     const ext = extension.replace(/^\./, '') || 'mp4';
-    return `${this.baseDns}/series/${this.user}/${this.pass}/${streamId}.${ext}`;
+    const rawUrl = `${this.baseDns}/series/${this.user}/${this.pass}/${streamId}.${ext}`;
+    return this.ensurePlayableUrl(rawUrl);
   }
 }

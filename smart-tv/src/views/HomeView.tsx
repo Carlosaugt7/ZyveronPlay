@@ -158,23 +158,34 @@ export const HomeView: React.FC<HomeViewProps> = ({
     return 'Boa noite';
   }, []);
 
-  // Carrega contagens e destaques da API Xtream
+  // Carrega contagens e destaques da API Xtream com sincronização real
   useEffect(() => {
     let isMounted = true;
+    setIsLoading(true);
 
     const loadData = async () => {
       try {
-        // 1. Canais
-        client.getLiveStreams().then((streams) => {
-          if (isMounted && streams) {
+        const [streams, vods, seriesList] = await Promise.all([
+          client.getLiveStreams().catch((err) => {
+            console.warn('[HomeView] Erro ao carregar canais:', err);
+            return null;
+          }),
+          client.getVodStreams().catch((err) => {
+            console.warn('[HomeView] Erro ao carregar filmes:', err);
+            return null;
+          }),
+          client.getSeries().catch((err) => {
+            console.warn('[HomeView] Erro ao carregar séries:', err);
+            return null;
+          }),
+        ]);
+
+        if (isMounted) {
+          if (streams) {
             setLiveCount(streams.length);
             localStorage.setItem('zyveron_live_count', String(streams.length));
           }
-        }).catch((err) => console.warn('[HomeView] Erro ao carregar canais:', err));
-
-        // 2. Filmes (Deduplicados)
-        client.getVodStreams().then((vods) => {
-          if (isMounted && vods) {
+          if (vods) {
             setVodCount(vods.length);
             localStorage.setItem('zyveron_vod_count', String(vods.length));
             const topVods = deduplicateVods(vods, 10);
@@ -183,11 +194,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               localStorage.setItem('zyveron_featured_vods', JSON.stringify(topVods));
             } catch {}
           }
-        }).catch((err) => console.warn('[HomeView] Erro ao carregar filmes:', err));
-
-        // 3. Séries (Deduplicadas)
-        client.getSeries().then((seriesList) => {
-          if (isMounted && seriesList) {
+          if (seriesList) {
             setSeriesCount(seriesList.length);
             localStorage.setItem('zyveron_series_count', String(seriesList.length));
             const topSeries = deduplicateSeries(seriesList, 10);
@@ -196,7 +203,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
               localStorage.setItem('zyveron_featured_series', JSON.stringify(topSeries));
             } catch {}
           }
-        }).catch((err) => console.warn('[HomeView] Erro ao carregar séries:', err));
+        }
+      } catch (err) {
+        console.warn('[HomeView] Erro ao processar dados do catálogo:', err);
       } finally {
         if (isMounted) setIsLoading(false);
       }
