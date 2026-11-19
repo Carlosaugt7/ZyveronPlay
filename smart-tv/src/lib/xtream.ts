@@ -31,7 +31,22 @@ export class XtreamClient {
   private cache = new Map<string, { data: any; timestamp: number }>();
 
   constructor(dns: string, user: string, pass: string) {
-    this.baseDns = normalizeBaseDns(dns);
+    let cleanDns = normalizeBaseDns(dns);
+
+    // Se a aplicação está rodando via HTTPS (ex: https://tvplay.loja-am.top),
+    // promovemos automaticamente para HTTPS quando não houver porta customizada (como :8080).
+    // Isso permite chamadas diretas do cliente (IP residencial) sem bloqueio de Mixed Content
+    // e sem acionar o WAF de Datacenter do Cloudflare na VPS!
+    const isHttpsOrigin = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
+    if (!/^https?:\/\//i.test(cleanDns)) {
+      cleanDns = isHttpsOrigin ? `https://${cleanDns}` : `http://${cleanDns}`;
+    } else if (isHttpsOrigin && cleanDns.startsWith('http://') && !cleanDns.slice(7).includes(':')) {
+      // Se não há porta customizada (ex: http://strattontech.sbs ou http://proxbrut.top), promove para https://
+      cleanDns = cleanDns.replace(/^http:\/\//i, 'https://');
+    }
+
+    this.baseDns = cleanDns;
     this.user = user.trim();
     this.pass = pass.trim();
   }
@@ -173,13 +188,11 @@ export class XtreamClient {
 
   // URLs de reprodução HLS primária e TS de contingência diretas da CDN do servidor IPTV
   buildLiveHlsUrl(streamId: number): string {
-    const rawUrl = `${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.m3u8`;
-    return this.ensurePlayableUrl(rawUrl);
+    return `${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.m3u8`;
   }
 
   buildLiveTsUrl(streamId: number): string {
-    const rawUrl = `${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.ts`;
-    return this.ensurePlayableUrl(rawUrl);
+    return `${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.ts`;
   }
 
   // --- FILMES (VOD) ---
@@ -219,8 +232,7 @@ export class XtreamClient {
 
   buildVodUrl(streamId: number, extension: string = 'mp4'): string {
     const ext = extension.replace(/^\./, '') || 'mp4';
-    const rawUrl = `${this.baseDns}/movie/${this.user}/${this.pass}/${streamId}.${ext}`;
-    return this.ensurePlayableUrl(rawUrl);
+    return `${this.baseDns}/movie/${this.user}/${this.pass}/${streamId}.${ext}`;
   }
 
   // --- SÉRIES ---
@@ -246,7 +258,6 @@ export class XtreamClient {
 
   buildEpisodeUrl(streamId: string | number, extension: string = 'mp4'): string {
     const ext = extension.replace(/^\./, '') || 'mp4';
-    const rawUrl = `${this.baseDns}/series/${this.user}/${this.pass}/${streamId}.${ext}`;
-    return this.ensurePlayableUrl(rawUrl);
+    return `${this.baseDns}/series/${this.user}/${this.pass}/${streamId}.${ext}`;
   }
 }

@@ -408,12 +408,12 @@ export const Player: React.FC<PlayerProps> = ({
     if (isHls && Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: isActuallyLive,
-        backBufferLength: 15,
-        maxBufferLength: 25,
-        maxMaxBufferLength: 45,
-        liveSyncDurationCount: 4,
-        liveMaxLatencyDurationCount: 8,
+        lowLatencyMode: false, // Desabilitado para garantir buffer contínuo sem pausas ou engasgos na TV
+        backBufferLength: 30,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        liveSyncDurationCount: 3,
+        liveMaxLatencyDurationCount: 10,
         manifestLoadingTimeOut: 15000,
         levelLoadingTimeOut: 15000,
         fragLoadingTimeOut: 20000,
