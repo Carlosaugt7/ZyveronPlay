@@ -429,20 +429,19 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     setSelectedChannelIdx(index);
     const now = Date.now();
     const isRapidSecondClick = lastChannelClickTimeRef.current.id === channel.stream_id && (now - lastChannelClickTimeRef.current.time) < 1400;
-    const isAlreadyPlaying = currentPlayingChannel?.stream_id === channel.stream_id;
     const isAlreadyConfirmed = previewConfirmedChannelIdRef.current === channel.stream_id;
 
     lastChannelClickTimeRef.current = { id: channel.stream_id, time: now };
 
-    if (isRapidSecondClick || isAlreadyConfirmed || isAlreadyPlaying) {
-      // 2º clique, canal já confirmado ou já reproduzindo na prévia: expande para tela cheia!
+    if (isRapidSecondClick || isAlreadyConfirmed) {
+      // 2º clique rápido (< 1.4s) ou canal já confirmado na prévia: expande para tela cheia!
       setFullScreenMode(true);
     } else {
-      // 1º clique: seleciona o canal e carrega na prévia
+      // 1º clique: seleciona o canal e carrega na prévia lateral
       setPreviewConfirmedChannelId(channel.stream_id);
       setCurrentPlayingChannel(channel);
     }
-  }, [currentPlayingChannel?.stream_id, setPreviewConfirmedChannelId]);
+  }, [setPreviewConfirmedChannelId]);
 
   // Teclas do Controle Remoto (D-Pad para Smart TV)
   useSpatialNav({

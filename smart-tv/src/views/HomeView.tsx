@@ -387,7 +387,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   }, [focusedId, featuredVods, featuredSeries, triggerAction, showExitConfirmModal, exitModalBtnIdx, hasMultiplePlaylists]);
 
   return (
-    <div className="w-full h-full min-h-[100dvh] bg-[#0a0d14] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900/40 via-[#0a0d14] to-[#07090e] text-white flex flex-col justify-between p-2 sm:p-2.5 md:p-4 lg:p-6 select-none overflow-y-auto lg:overflow-hidden custom-scrollbar">
+    <div className="w-full h-[100dvh] bg-[#0a0d14] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900/40 via-[#0a0d14] to-[#07090e] text-white flex flex-col justify-between p-2 sm:p-2.5 md:p-4 lg:p-6 select-none overflow-y-auto overflow-x-hidden custom-scrollbar">
       
       {/* 1. CABEÇALHO SUPERIOR (Logo Central Oficial + Relógio/Status) */}
       <header className="w-full flex items-center justify-between shrink-0 mb-1 sm:mb-2 md:mb-3">
@@ -618,7 +618,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         {/* --- COLUNA DIREITA: CARROSSÉIS DE DESTAQUES (6 Colunas Otimizadas para Preencher a Tela) --- */}
-        <div className="col-span-12 md:col-span-6 flex flex-col justify-between gap-2 sm:gap-2.5 md:gap-4 h-full min-h-0 overflow-hidden">
+        <div className="hidden md:flex col-span-12 md:col-span-6 flex-col justify-between gap-2 sm:gap-2.5 md:gap-4 h-full min-h-0 overflow-hidden">
           
           {/* Seção 1: Filmes em Destaque */}
           <div className="flex-1 min-h-0 flex flex-col justify-between bg-[#121722]/90 border border-[#222d42] rounded-xl sm:rounded-2xl md:rounded-3xl p-2 sm:p-2.5 md:p-3.5 overflow-hidden shadow-2xl">

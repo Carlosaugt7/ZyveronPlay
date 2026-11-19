@@ -42,9 +42,18 @@ export class XtreamClient {
 
     if (!/^https?:\/\//i.test(cleanDns)) {
       cleanDns = isHttpsOrigin ? `https://${cleanDns}` : `http://${cleanDns}`;
-    } else if (isHttpsOrigin && cleanDns.startsWith('http://') && !cleanDns.slice(7).includes(':')) {
-      // Se não há porta customizada (ex: http://strattontech.sbs ou http://proxbrut.top), promove para https://
-      cleanDns = cleanDns.replace(/^http:\/\//i, 'https://');
+    } else if (isHttpsOrigin && cleanDns.startsWith('http://')) {
+      // Promove para HTTPS quando na porta padrão 80 (ou sem porta) para evitar Mixed Content.
+      // Portas customizadas (ex: :8080, :2095) NÃO são promovidas — conectam via proxy.
+      try {
+        const tmpUrl = new URL(cleanDns);
+        const isDefaultPort = !tmpUrl.port || tmpUrl.port === '80';
+        if (isDefaultPort) {
+          cleanDns = `https://${tmpUrl.hostname}`;
+        }
+      } catch {
+        // URL malformada: não promover
+      }
     }
 
     this.baseDns = cleanDns;
