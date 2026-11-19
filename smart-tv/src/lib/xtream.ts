@@ -29,6 +29,7 @@ export class XtreamClient {
   private user: string;
   private pass: string;
   private cache = new Map<string, { data: any; timestamp: number }>();
+  private pendingRequests = new Map<string, Promise<any>>();
 
   constructor(dns: string, user: string, pass: string) {
     let cleanDns = normalizeBaseDns(dns);
@@ -56,6 +57,7 @@ export class XtreamClient {
    */
   public clearCache(): void {
     this.cache.clear();
+    this.pendingRequests.clear();
   }
 
   private get apiUrl(): string {
@@ -94,82 +96,97 @@ export class XtreamClient {
       return cached.data as T;
     }
 
-    let targetUrl = `${this.apiUrl}&action=${action}`;
-    for (const [key, value] of Object.entries(extraParams)) {
-      targetUrl += `&${key}=${encodeURIComponent(value)}`;
+    // Se já houver uma requisição idêntica em andamento, compartilha a mesma Promise
+    // evitando que múltiplas chamadas concorrentes travem a conexão da TV
+    if (this.pendingRequests.has(cacheKey)) {
+      return this.pendingRequests.get(cacheKey) as Promise<T>;
     }
 
-    const isHttpsOrigin = typeof window !== 'undefined' && window.location.protocol === 'https:';
-    const isDirectMixedContent = isHttpsOrigin && targetUrl.startsWith('http://');
+    const requestPromise = (async (): Promise<T> => {
+      let targetUrl = `${this.apiUrl}&action=${action}`;
+      for (const [key, value] of Object.entries(extraParams)) {
+        targetUrl += `&${key}=${encodeURIComponent(value)}`;
+      }
 
-    // 1. Conexão direta do dispositivo cliente (Smart TV / PC)
-    // Se a aplicação é HTTPS e o alvo é HTTP, chamadas diretas são bloqueadas pelo navegador (Mixed Content).
-    // Nesse caso, pula direto para o proxy seguro sem esperar timeout.
-    if (!isDirectMixedContent) {
+      const isHttpsOrigin = typeof window !== 'undefined' && window.location.protocol === 'https:';
+      const isDirectMixedContent = isHttpsOrigin && targetUrl.startsWith('http://');
+
+      // 1. Conexão direta do dispositivo cliente (Smart TV / PC)
+      // Se a aplicação é HTTPS e o alvo é HTTP, chamadas diretas são bloqueadas pelo navegador (Mixed Content).
+      // Nesse caso, pula direto para o proxy seguro sem esperar timeout.
+      if (!isDirectMixedContent) {
+        try {
+          const response = await fetch(targetUrl, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json, text/plain, */*'
+            },
+            signal: AbortSignal.timeout(15000)
+          });
+
+          if (response.ok) {
+            const rawText = await response.text();
+            try {
+              const data = JSON.parse(rawText);
+              this.cache.set(cacheKey, { data, timestamp: Date.now() });
+              return data as T;
+            } catch {
+              console.warn(`[Xtream] Resposta direta não-JSON para ${action}. Tentando fallback...`);
+            }
+          } else {
+            console.warn(`[Xtream] Resposta HTTP ${response.status} na conexão direta para ${action}. Tentando fallback...`);
+          }
+        } catch (directErr: any) {
+          console.warn(`[Xtream] Conexão direta falhou para ${action} (${directErr.message}). Tentando contingência...`);
+        }
+      }
+
+      // 2. Fallback via proxy resiliente da VPS
+      // Se o alvo for HTTPS mas falhou na porta 443, tenta http:// no proxy
+      const fallbackTarget = targetUrl.replace(/^https:\/\//i, 'http://');
+      const proxyBase = this.getProxyBase();
+      const proxyUrl = `${proxyBase}?url=${encodeURIComponent(fallbackTarget)}`;
+
       try {
-        const response = await fetch(targetUrl, {
+        const proxyResponse = await fetch(proxyUrl, {
           method: 'GET',
           headers: {
             'Accept': 'application/json, text/plain, */*'
           },
-          signal: AbortSignal.timeout(3500)
+          signal: AbortSignal.timeout(25000)
         });
 
-        if (response.ok) {
-          const rawText = await response.text();
-          try {
-            const data = JSON.parse(rawText);
-            this.cache.set(cacheKey, { data, timestamp: Date.now() });
-            return data as T;
-          } catch {
-            console.warn(`[Xtream] Resposta direta não-JSON para ${action}. Tentando fallback...`);
-          }
-        } else {
-          console.warn(`[Xtream] Resposta HTTP ${response.status} na conexão direta para ${action}. Tentando fallback...`);
+        if (!proxyResponse.ok) {
+          throw new Error(`HTTP ${proxyResponse.status} ao consultar ${action}`);
         }
-      } catch (directErr: any) {
-        console.warn(`[Xtream] Conexão direta falhou para ${action} (${directErr.message}). Tentando contingência...`);
+
+        const rawText = await proxyResponse.text();
+        let data: any;
+        try {
+          data = JSON.parse(rawText);
+        } catch (parseErr) {
+          console.warn(`[Xtream] Resposta proxy não-JSON para ${action}:`, rawText.slice(0, 120));
+          // Se for lista, retorna array vazio para não quebrar a interface
+          data = (action.includes('categories') || action.includes('streams') || action === 'get_series') ? [] : {};
+        }
+
+        this.cache.set(cacheKey, { data, timestamp: Date.now() });
+        return data as T;
+      } catch (proxyErr: any) {
+        console.error(`[Xtream] Falha total ao consultar ${action}:`, proxyErr.message);
+        // Retorna array vazio em caso de listagens para permitir exibição graciosa na UI
+        if (action.includes('categories') || action.includes('streams') || action === 'get_series') {
+          return [] as unknown as T;
+        }
+        throw proxyErr;
       }
-    }
+    })();
 
-    // 2. Fallback via proxy resiliente da VPS
-    // Se o alvo for HTTPS mas falhou na porta 443, tenta http:// no proxy
-    const fallbackTarget = targetUrl.replace(/^https:\/\//i, 'http://');
-    const proxyBase = this.getProxyBase();
-    const proxyUrl = `${proxyBase}?url=${encodeURIComponent(fallbackTarget)}`;
-
+    this.pendingRequests.set(cacheKey, requestPromise);
     try {
-      const proxyResponse = await fetch(proxyUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json, text/plain, */*'
-        },
-        signal: AbortSignal.timeout(25000)
-      });
-
-      if (!proxyResponse.ok) {
-        throw new Error(`HTTP ${proxyResponse.status} ao consultar ${action}`);
-      }
-
-      const rawText = await proxyResponse.text();
-      let data: any;
-      try {
-        data = JSON.parse(rawText);
-      } catch (parseErr) {
-        console.warn(`[Xtream] Resposta proxy não-JSON para ${action}:`, rawText.slice(0, 120));
-        // Se for lista, retorna array vazio para não quebrar a interface
-        data = (action.includes('categories') || action.includes('streams') || action === 'get_series') ? [] : {};
-      }
-
-      this.cache.set(cacheKey, { data, timestamp: Date.now() });
-      return data as T;
-    } catch (proxyErr: any) {
-      console.error(`[Xtream] Falha total ao consultar ${action}:`, proxyErr.message);
-      // Retorna array vazio em caso de listagens para permitir exibição graciosa na UI
-      if (action.includes('categories') || action.includes('streams') || action === 'get_series') {
-        return [] as unknown as T;
-      }
-      throw proxyErr;
+      return await requestPromise;
+    } finally {
+      this.pendingRequests.delete(cacheKey);
     }
   }
 

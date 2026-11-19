@@ -52,7 +52,13 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const [isLoadingChannels, setIsLoadingChannels] = useState<boolean>(true);
   const [favorites, setFavorites] = useState<number[]>(() => getFavorites('live'));
   const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'channels' | 'search'>('channels');
-  const [previewConfirmedChannelId, setPreviewConfirmedChannelId] = useState<number | null>(null);
+  const previewConfirmedChannelIdRef = useRef<number | null>(null);
+  const [previewConfirmedChannelId, setPreviewConfirmedChannelIdState] = useState<number | null>(null);
+
+  const setPreviewConfirmedChannelId = useCallback((id: number | null) => {
+    previewConfirmedChannelIdRef.current = id;
+    setPreviewConfirmedChannelIdState(id);
+  }, []);
 
   // Controle Parental (PIN 0000 para Conteúdo Adulto)
   const [showAdultPinModal, setShowAdultPinModal] = useState<boolean>(false);
@@ -371,7 +377,11 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           activeCategoryBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
       } else if (activeFocusColumn === 'channels' && activeChannelBtnRef.current) {
-        activeChannelBtnRef.current.focus();
+        try {
+          activeChannelBtnRef.current.focus({ preventScroll: true });
+        } catch {
+          activeChannelBtnRef.current.focus();
+        }
       } else if (activeFocusColumn === 'search' && searchBtnRef.current) {
         searchBtnRef.current.focus();
       }
@@ -411,19 +421,28 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     setActiveFocusColumn('channels');
   };
 
+  const lastChannelClickTimeRef = useRef<{ id: number; time: number }>({ id: 0, time: 0 });
+
   // 1º Clique / Enter: Seleciona o canal e carrega na prévia lateral
-  // 2º Clique / Enter no mesmo canal ativo: Confirma e expande para tela cheia
-  const handleChannelSelectOrPlay = (channel: XtreamStream, index: number) => {
+  // 2º Clique / Enter ou duplo clique no mesmo canal: Confirma e expande imediatamente para tela cheia
+  const handleChannelSelectOrPlay = useCallback((channel: XtreamStream, index: number) => {
     setSelectedChannelIdx(index);
-    if (previewConfirmedChannelId === channel.stream_id) {
-      // 2º clique: confirma e expande para tela cheia!
+    const now = Date.now();
+    const isRapidSecondClick = lastChannelClickTimeRef.current.id === channel.stream_id && (now - lastChannelClickTimeRef.current.time) < 1400;
+    const isAlreadyPlaying = currentPlayingChannel?.stream_id === channel.stream_id;
+    const isAlreadyConfirmed = previewConfirmedChannelIdRef.current === channel.stream_id;
+
+    lastChannelClickTimeRef.current = { id: channel.stream_id, time: now };
+
+    if (isRapidSecondClick || isAlreadyConfirmed || isAlreadyPlaying) {
+      // 2º clique, canal já confirmado ou já reproduzindo na prévia: expande para tela cheia!
       setFullScreenMode(true);
     } else {
       // 1º clique: seleciona o canal e carrega na prévia
       setPreviewConfirmedChannelId(channel.stream_id);
       setCurrentPlayingChannel(channel);
     }
-  };
+  }, [currentPlayingChannel?.stream_id, setPreviewConfirmedChannelId]);
 
   // Teclas do Controle Remoto (D-Pad para Smart TV)
   useSpatialNav({
@@ -912,7 +931,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                       }
                       handleChannelSelectOrPlay(channel, index);
                     }}
-                    onDoubleClick={() => {
+                    onDoubleClick={(e) => {
+                      e.preventDefault();
                       setSelectedChannelIdx(index);
                       setCurrentPlayingChannel(channel);
                       setFullScreenMode(true);

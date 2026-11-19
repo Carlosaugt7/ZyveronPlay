@@ -56,21 +56,33 @@ export function VirtualList<T>({
     }
   }, [containerHeight]);
 
-  // Sincroniza a barra de rolagem instantaneamente com a posição do seletor selecionado
+  // Sincroniza a barra de rolagem com a posição do seletor selecionado
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || items.length === 0) return;
+    if (!container || items.length === 0 || selectedIndex < 0) return;
 
-    // Centraliza o item selecionado na tela da TV para excelente visualização
-    const targetScrollTop = Math.max(
-      0,
-      Math.min(
-        (items.length * itemHeight) - measuredHeight,
-        (selectedIndex * itemHeight) - (measuredHeight / 2) + (itemHeight / 2)
-      )
-    );
+    const itemTop = selectedIndex * itemHeight;
+    const itemBottom = itemTop + itemHeight;
+    const currentScrollTop = container.scrollTop;
+    const currentScrollBottom = currentScrollTop + measuredHeight;
 
-    // Ajusta o scroll nativo do container para que o thumb da barra de rolagem acompanhe o seletor
+    // Se o item já estiver confortavelmente visível na tela da TV, NÃO mova a rolagem!
+    // Isso evita que o item "pule" de posição quando o usuário clica com mouse/ponteiro da Samsung TV,
+    // garantindo que o 2º clique acerte com precisão o mesmo canal e expanda em tela cheia sem mudar de canal.
+    const isAlreadyVisible = itemTop >= currentScrollTop + 8 && itemBottom <= currentScrollBottom - 8;
+    if (isAlreadyVisible) {
+      return;
+    }
+
+    // Se estiver fora da área visível (ex: navegação com setas do controle remoto), traz o item suavemente para a tela
+    let targetScrollTop = currentScrollTop;
+    if (itemTop < currentScrollTop + 8) {
+      targetScrollTop = Math.max(0, itemTop - 8);
+    } else if (itemBottom > currentScrollBottom - 8) {
+      targetScrollTop = Math.min((items.length * itemHeight) - measuredHeight, itemBottom - measuredHeight + 8);
+    }
+
+    targetScrollTop = Math.max(0, targetScrollTop);
     container.scrollTop = targetScrollTop;
     setScrollTop(targetScrollTop);
   }, [selectedIndex, itemHeight, measuredHeight, items.length]);

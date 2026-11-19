@@ -165,11 +165,20 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
     const loadData = async () => {
       try {
-        const [streams, vods, seriesList] = await Promise.all([
-          client.getLiveStreams().catch((err) => {
-            console.warn('[HomeView] Erro ao carregar canais:', err);
-            return null;
-          }),
+        // Prioridade 1: Canais ao Vivo (carrega primeiro para liberar a navegação imediatamente e pré-aquecer o cache do LiveTvView)
+        const streams = await client.getLiveStreams().catch((err) => {
+          console.warn('[HomeView] Erro ao carregar canais:', err);
+          return null;
+        });
+
+        if (isMounted && streams) {
+          setLiveCount(streams.length);
+          localStorage.setItem('zyveron_live_count', String(streams.length));
+          setIsLoading(false); // Libera o spinner da Home imediatamente
+        }
+
+        // Prioridade 2: Filmes e Séries em segundo plano
+        const [vods, seriesList] = await Promise.all([
           client.getVodStreams().catch((err) => {
             console.warn('[HomeView] Erro ao carregar filmes:', err);
             return null;
@@ -181,10 +190,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
         ]);
 
         if (isMounted) {
-          if (streams) {
-            setLiveCount(streams.length);
-            localStorage.setItem('zyveron_live_count', String(streams.length));
-          }
           if (vods) {
             setVodCount(vods.length);
             localStorage.setItem('zyveron_vod_count', String(vods.length));
