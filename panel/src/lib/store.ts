@@ -142,6 +142,30 @@ class LocalStore {
       });
 
       this.users = Array.from(fsMap.values());
+
+      // Auto-reconciliação única para revendas que ativaram aparelhos antes do fix de persistência no Firestore
+      const reconciledKey = "zyveron_credits_reconciled_v2";
+      if (typeof window !== "undefined" && !localStorage.getItem(reconciledKey) && this.devices.length > 0) {
+        let anyFixed = false;
+        this.users.forEach(u => {
+          if (u.role !== "superadmin" && u.tierCredits && u.credits === u.tierCredits) {
+            const directActiveDevs = this.devices.filter(d => d.resellerId === u.uid).length;
+            if (directActiveDevs > 0) {
+              const corrected = Math.max(0, u.tierCredits - directActiveDevs);
+              if (corrected !== u.credits) {
+                u.credits = corrected;
+                u.updatedAt = new Date().toISOString();
+                FirestoreSync.syncUserToFirestore(u);
+                anyFixed = true;
+              }
+            }
+          }
+        });
+        if (anyFixed) {
+          localStorage.setItem(reconciledKey, "true");
+        }
+      }
+
       this.save();
       this.notify();
     });
@@ -464,6 +488,7 @@ class LocalStore {
     if (reseller.role !== "superadmin") {
       reseller.credits -= months;
       reseller.updatedAt = new Date().toISOString();
+      FirestoreSync.syncUserToFirestore(reseller);
     }
 
     // Registra log de crédito
@@ -516,6 +541,7 @@ class LocalStore {
 
     this.save();
     FirestoreSync.syncDeviceToFirestore(deviceData);
+    this.notify();
     return deviceData;
   }
 
@@ -536,6 +562,7 @@ class LocalStore {
     if (actingUser.role !== "superadmin") {
       actingUser.credits -= months;
       actingUser.updatedAt = new Date().toISOString();
+      FirestoreSync.syncUserToFirestore(actingUser);
     }
 
     // Calcula nova data: se já estiver vencido, começa de hoje; se ainda ativo, adiciona aos dias restantes
@@ -564,6 +591,7 @@ class LocalStore {
 
     this.save();
     FirestoreSync.syncDeviceToFirestore(dev);
+    this.notify();
     return dev;
   }
 
@@ -674,6 +702,7 @@ class LocalStore {
     this.devices = this.devices.filter(d => d.mac !== mac);
     this.save();
     FirestoreSync.removeDeviceFromFirestore(mac);
+    this.notify();
   }
 
   // --- REVENDAS & CRÉDITOS ---
@@ -707,9 +736,11 @@ class LocalStore {
     if (fromUser.role !== "superadmin") {
       fromUser.credits -= amount;
       fromUser.updatedAt = new Date().toISOString();
+      FirestoreSync.syncUserToFirestore(fromUser);
     }
     toUser.credits += amount;
     toUser.updatedAt = new Date().toISOString();
+    FirestoreSync.syncUserToFirestore(toUser);
 
     this.logs.unshift({
       id: "log-" + Math.random().toString(36).substring(2, 9),
@@ -724,6 +755,7 @@ class LocalStore {
     });
 
     this.save();
+    this.notify();
   }
 
   async createReseller(

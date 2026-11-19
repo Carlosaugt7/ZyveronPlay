@@ -75,7 +75,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const users = store.getUsers("superadmin", "usr-admin-master");
     setAllUsers(users);
     setLoading(false);
-  }, []);
+
+    const unsubscribe = store.subscribe(() => {
+      refreshUser();
+    });
+    return () => unsubscribe();
+  }, [user?.uid]);
 
   const refreshUser = () => {
     if (!user) return;

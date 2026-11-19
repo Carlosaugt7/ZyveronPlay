@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { useAuth } from "@/context/AuthContext";
 import { store } from "@/lib/store";
-import { DeviceDocument, ServerDocument, DeviceStatus } from "@/types";
+import { DeviceDocument, ServerDocument, DeviceStatus, UserDocument } from "@/types";
 import { FirestoreSync } from "@/lib/firestoreSync";
 import {
   Tv,
@@ -21,15 +21,18 @@ import {
   Filter,
   Pencil,
   Download,
-  MessageCircle
+  MessageCircle,
+  Users
 } from "lucide-react";
 
 export default function DevicesPage() {
   const { user, refreshUser } = useAuth();
   const [devices, setDevices] = useState<DeviceDocument[]>([]);
   const [servers, setServers] = useState<ServerDocument[]>([]);
+  const [resellers, setResellers] = useState<UserDocument[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [resellerFilter, setResellerFilter] = useState<string>("all");
 
   // Modal de Novo Aparelho
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -76,8 +79,10 @@ export default function DevicesPage() {
     if (!user) return;
     const d = store.getDevices(user.role, user.uid);
     const s = store.getServers(user.role, user.uid);
+    const u = store.getUsers(user.role, user.uid);
     setDevices(d);
     setServers(s);
+    setResellers(u);
 
     if (s.length > 0 && !serverIdInput) {
       setServerIdInput(s[0].id);
@@ -390,7 +395,21 @@ export default function DevicesPage() {
       (statusFilter === "expired" && currentStatus === "expired") ||
       (statusFilter === "blocked" && currentStatus === "blocked");
 
-    return matchesSearch && matchesStatus;
+    // Filtro por Revenda / Origem
+    let matchesReseller = true;
+    if (resellerFilter === "direct_admin" || resellerFilter === "direct_me") {
+      matchesReseller = dev.resellerId === user?.uid;
+    } else if (resellerFilter !== "all") {
+      const selectedUser = resellers.find((u) => u.uid === resellerFilter);
+      if (selectedUser && selectedUser.role === "reseller") {
+        const subUids = resellers.filter((sub) => sub.parentId === resellerFilter).map((sub) => sub.uid);
+        matchesReseller = dev.resellerId === resellerFilter || subUids.includes(dev.resellerId);
+      } else {
+        matchesReseller = dev.resellerId === resellerFilter;
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesReseller;
   });
 
   return (
@@ -403,9 +422,9 @@ export default function DevicesPage() {
 
       <main className="p-8 space-y-6 flex-1">
         {/* Top Actions Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3 flex-1 max-w-md">
-            <div className="relative w-full">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3 flex-1">
+            <div className="relative min-w-[200px] flex-1 max-w-sm">
               <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -416,20 +435,51 @@ export default function DevicesPage() {
               />
             </div>
 
-            <div className="flex items-center gap-1.5 bg-[#0c121a] border border-zinc-800 rounded-xl px-2 py-1.5">
-              <Filter className="w-3.5 h-3.5 text-zinc-400" />
+            {/* Filtro por Status */}
+            <div className="flex items-center gap-1.5 bg-[#0c121a] border border-zinc-800 rounded-xl px-2.5 py-1.5">
+              <Filter className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-transparent text-xs text-zinc-300 focus:outline-none"
+                className="bg-transparent text-xs text-zinc-300 focus:outline-none cursor-pointer"
               >
-                <option value="all">Todos</option>
-                <option value="active">Ativos</option>
-                <option value="expiring_soon">Vencendo (≤ 3 dias)</option>
-                <option value="expired">Vencidos</option>
-                <option value="blocked">Bloqueados</option>
+                <option value="all" className="bg-[#0c121a] text-zinc-200">Todos os Status</option>
+                <option value="active" className="bg-[#0c121a] text-zinc-200">Ativos</option>
+                <option value="expiring_soon" className="bg-[#0c121a] text-zinc-200">Vencendo (≤ 3 dias)</option>
+                <option value="expired" className="bg-[#0c121a] text-zinc-200">Vencidos</option>
+                <option value="blocked" className="bg-[#0c121a] text-zinc-200">Bloqueados</option>
               </select>
             </div>
+
+            {/* Filtro por Revenda / Sub-revenda */}
+            {(user?.role === "superadmin" || (user?.role === "reseller" && resellers.length > 0)) && (
+              <div className="flex items-center gap-1.5 bg-[#0c121a] border border-zinc-800 rounded-xl px-2.5 py-1.5">
+                <Users className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                <select
+                  value={resellerFilter}
+                  onChange={(e) => setResellerFilter(e.target.value)}
+                  className="bg-transparent text-xs text-zinc-300 focus:outline-none cursor-pointer max-w-[210px] truncate"
+                  title="Filtrar por Revenda / Origem"
+                >
+                  <option value="all" className="bg-[#0c121a] text-zinc-200">
+                    {user?.role === "superadmin" ? "Todas as Revendas" : "Todos (Meus + Sub-revendas)"}
+                  </option>
+                  <option
+                    value={user?.role === "superadmin" ? "direct_admin" : "direct_me"}
+                    className="bg-[#0c121a] text-emerald-400 font-semibold"
+                  >
+                    {user?.role === "superadmin" ? "Meus Aparelhos (Admin Direto)" : "Meus Aparelhos Diretos"}
+                  </option>
+                  {resellers
+                    .filter((r) => r.uid !== user?.uid)
+                    .map((r) => (
+                      <option key={r.uid} value={r.uid} className="bg-[#0c121a] text-zinc-200">
+                        {r.name} ({r.role === "sub_reseller" ? "Sub-revenda" : "Revenda Master"})
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
