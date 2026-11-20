@@ -109,7 +109,11 @@ export function VirtualList<T>({
       ref={containerRef}
       onScroll={handleScroll}
       className={`overflow-y-auto custom-scrollbar relative w-full h-full select-none ${className}`}
-      style={containerHeight ? { height: `${containerHeight}px` } : undefined}
+      style={{
+        WebkitOverflowScrolling: 'touch',
+        touchAction: 'pan-y',
+        ...(containerHeight ? { height: `${containerHeight}px` } : {})
+      }}
     >
       {/* Elemento espaçador com a altura total real para desenhar a barra de rolagem proporcional */}
       <div style={{ height: `${totalHeight}px`, width: '100%', position: 'relative' }}>

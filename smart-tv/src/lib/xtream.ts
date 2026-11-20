@@ -67,17 +67,6 @@ export class XtreamClient {
 
     if (!/^https?:\/\//i.test(cleanDns)) {
       cleanDns = isHttpsOrigin ? `https://${cleanDns}` : `http://${cleanDns}`;
-    } else if (isHttpsOrigin && cleanDns.startsWith('http://')) {
-      // Promove para HTTPS quando na porta padrão 80 (ou sem porta) para tentar conexão direta.
-      try {
-        const tmpUrl = new URL(cleanDns);
-        const isDefaultPort = !tmpUrl.port || tmpUrl.port === '80';
-        if (isDefaultPort) {
-          cleanDns = `https://${tmpUrl.hostname}`;
-        }
-      } catch {
-        // URL malformada: não promover
-      }
     }
 
     this.baseDns = cleanDns;
@@ -98,13 +87,16 @@ export class XtreamClient {
   }
 
   private getProxyBase(): string {
-    if (typeof window === 'undefined') return '/api/proxy';
-    // Se estiver rodando como pacote local (ex: Samsung Tizen ou LG webOS via file://)
-    const isFileOrigin = window.location.protocol === 'file:' || !window.location.host;
-    if (isFileOrigin) {
-      return 'https://tvplay.loja-am.top/api/proxy';
+    if (typeof window !== 'undefined') {
+      const h = window.location.hostname;
+      if (h === 'localhost' || h === '127.0.0.1') {
+        return '/api/proxy';
+      }
+      if (window.location.host.includes('tvplay.loja-am.top')) {
+        return '/api/proxy';
+      }
     }
-    return '/api/proxy';
+    return 'https://tvplay.loja-am.top/api/proxy';
   }
 
   /**
@@ -142,7 +134,8 @@ export class XtreamClient {
       }
 
       const isHttpsOrigin = typeof window !== 'undefined' && window.location.protocol === 'https:';
-      const isDirectMixedContent = isHttpsOrigin && targetUrl.startsWith('http://');
+      // Se a aplicação está em HTTPS e o DNS do provedor é HTTP, navegadores (Safari, Chrome) bloqueiam Mixed Content
+      const isDirectMixedContent = isHttpsOrigin && this.rawOriginalDns.startsWith('http://');
 
       let targetHost = '';
       try {
@@ -153,9 +146,9 @@ export class XtreamClient {
 
       // 1. Conexão direta do dispositivo cliente (Smart TV / PC)
       // Se a aplicação é HTTPS e o alvo é HTTP, chamadas diretas são bloqueadas pelo navegador (Mixed Content).
-      // Se o host já falhou no teste direto de HTTPS anteriormente, pula direto para o proxy em 0ms.
+      // Se for Mixed Content ou se o host já falhou anteriormente, pula direto para o proxy em 0ms.
       if (!isDirectMixedContent && !isKnownHttpsFailure) {
-        const directTimeout = createAbortTimeout(3500);
+        const directTimeout = createAbortTimeout(2500);
         try {
           const directOpts: RequestInit = {
             method: 'GET',

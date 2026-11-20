@@ -1,13 +1,18 @@
 /**
- * Utilitário Unificado para Encerramento Seguro da Aplicação Smart TV
- * Suporta Media Station X (MSX), Samsung Tizen, LG webOS, Android TV e Desktop
+ * Utilitário Unificado para Encerramento Seguro da Aplicação Smart TV e Mobile
+ * Suporta Media Station X (MSX), Samsung Tizen, LG webOS, Android TV, iOS e Desktop
  */
 export function executeExitApp(): void {
   console.log('[ExitApp] Solicitando saída da aplicação...');
 
-  // 1. Media Station X (MSX)
+  // 1. Media Station X (MSX) - Comandos oficiais de navegação e postMessage
   try {
     if (typeof window !== 'undefined') {
+      // Protocolo oficial MSX via hash / URL scheme
+      try {
+        window.location.href = 'msx:leave';
+      } catch {}
+
       if (window.parent && window.parent !== window) {
         window.parent.postMessage(JSON.stringify({ action: 'leave' }), '*');
         window.parent.postMessage(JSON.stringify({ action: 'exit' }), '*');
@@ -17,6 +22,9 @@ export function executeExitApp(): void {
         window.parent.postMessage('exit', '*');
       }
       const tvx = (window as any).TVXInteractionPlugin || (window as any).TVXInteraction || (window as any).TVXServices;
+      if (typeof tvx?.executeAction === 'function') {
+        tvx.executeAction('leave');
+      }
       if (typeof tvx?.execute === 'function') {
         tvx.execute('leave');
       }
@@ -67,9 +75,20 @@ export function executeExitApp(): void {
     }
   } catch {}
 
-  // 6. Fechamento padrão de janela web
+  // 6. Navegador Web / Mobile (iOS Safari, Android Chrome)
   try {
-    window.close();
+    if (typeof window !== 'undefined') {
+      if (window.history.length > 1) {
+        window.history.back();
+      }
+      window.close();
+      // Se não fechar após 300ms, volta para a tela inicial / recarrega limpo
+      setTimeout(() => {
+        try {
+          window.location.hash = '#exit';
+        } catch {}
+      }, 300);
+    }
   } catch {}
 }
 

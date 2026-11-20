@@ -43,6 +43,24 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const [currentPlayingChannel, setCurrentPlayingChannel] = useState<XtreamStream | null>(null);
   const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
 
+  // Detecção reativa de iPhone / dispositivo móvel compacto em landscape
+  const [isCompactMobile, setIsCompactMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerHeight < 550 || (navigator.maxTouchPoints > 0 && window.innerWidth < 1100);
+  });
+
+  useEffect(() => {
+    const handleCheckScreen = () => {
+      setIsCompactMobile(window.innerHeight < 550 || (navigator.maxTouchPoints > 0 && window.innerWidth < 1100));
+    };
+    window.addEventListener('resize', handleCheckScreen);
+    window.addEventListener('orientationchange', handleCheckScreen);
+    return () => {
+      window.removeEventListener('resize', handleCheckScreen);
+      window.removeEventListener('orientationchange', handleCheckScreen);
+    };
+  }, []);
+
   // Guia Unificado em Tela Cheia (Dual-Column: Categorias à Esquerda e Canais à Direita)
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
   const [guideFocusColumn, setGuideFocusColumn] = useState<'categories' | 'channels' | 'search'>('channels');
@@ -206,10 +224,6 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       if (lateralTriggersTimerRef.current) clearTimeout(lateralTriggersTimerRef.current);
     };
   }, [isFullScreen, triggerLateralVisibility]);
-
-  // Controle de Long-Press para Mouse / Touch
-  const longPressMouseTimer = useRef<any>(null);
-  const isLongPressMouse = useRef<boolean>(false);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -429,12 +443,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   const handleChannelSelectOrPlay = useCallback((channel: XtreamStream, index: number) => {
     setSelectedChannelIdx(index);
 
-    const isMobileTouch = typeof window !== 'undefined' && (
-      window.innerHeight < 520 ||
-      (window.matchMedia('(pointer: coarse)').matches && window.innerWidth < 1024)
-    );
-
-    if (isMobileTouch) {
+    if (isCompactMobile) {
       setCurrentPlayingChannel(channel);
       setPreviewConfirmedChannelId(channel.stream_id);
       setFullScreenMode(true);
@@ -455,7 +464,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       setPreviewConfirmedChannelId(channel.stream_id);
       setCurrentPlayingChannel(channel);
     }
-  }, [setPreviewConfirmedChannelId]);
+  }, [setPreviewConfirmedChannelId, isCompactMobile]);
 
   // Teclas do Controle Remoto (D-Pad para Smart TV)
   useSpatialNav({
@@ -747,7 +756,9 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     <div className="w-full h-full flex bg-[#0a0d14] relative overflow-hidden select-none">
       
       {/* Coluna 1: Categorias de Canais (Responsivo para Smart TVs e iPhones) */}
-      <div className={`w-36 sm:w-44 md:w-60 lg:w-80 xl:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-2 sm:p-3 md:p-4 flex flex-col transition-all duration-200 shrink-0 ${
+      <div className={`${
+        isCompactMobile ? 'w-36 sm:w-44' : 'w-44 sm:w-52 md:w-60 lg:w-80 xl:w-96'
+      } h-full bg-[#121722]/90 border-r border-[#2a3449] p-2 sm:p-3 md:p-4 flex flex-col transition-all duration-200 shrink-0 ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>
         <div className="flex items-center justify-between mb-3 sm:mb-4 px-1">
@@ -773,7 +784,11 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
           )}
         </div>
 
-        <div ref={categoriesContainerRef} className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
+        <div 
+          ref={categoriesContainerRef} 
+          className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar"
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+        >
           {selectableCategories.map((item, idx) => {
             const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === idx;
             const isSelected = selectedCategory === item.id;
@@ -851,7 +866,9 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       </div>
 
       {/* Coluna 2: Lista Virtualizada de Canais (Ocupa todo o espaço no iPhone em conjunto com Categorias) */}
-      <div className={`flex-1 md:flex-initial md:w-68 lg:w-[380px] xl:w-[460px] h-full bg-[#0a0d14] border-r border-[#2a3449] flex flex-col p-2 sm:p-3 md:p-4 select-none transition-all min-w-0 ${
+      <div className={`flex-1 ${
+        isCompactMobile ? 'w-auto' : 'md:flex-initial md:w-68 lg:w-[380px] xl:w-[460px]'
+      } h-full bg-[#0a0d14] border-r border-[#2a3449] flex flex-col p-2 sm:p-3 md:p-4 select-none transition-all min-w-0 ${
         isFocusedContent && activeFocusColumn === 'channels' ? 'ring-2 ring-emerald-500/50' : ''
       }`}>
         <div className="flex items-center justify-between mb-2 sm:mb-3 px-1 sm:px-2">
@@ -938,10 +955,6 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                     tabIndex={0}
                     ref={isItemFocused ? activeChannelBtnRef : null}
                     onClick={() => {
-                      if (isLongPressMouse.current) {
-                        isLongPressMouse.current = false;
-                        return;
-                      }
                       handleChannelSelectOrPlay(channel, index);
                     }}
                     onDoubleClick={(e) => {
@@ -950,32 +963,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
                       setCurrentPlayingChannel(channel);
                       setFullScreenMode(true);
                     }}
-                    onMouseDown={() => {
-                      isLongPressMouse.current = false;
-                      longPressMouseTimer.current = setTimeout(() => {
-                        isLongPressMouse.current = true;
-                        handleToggleFav(channel.stream_id);
-                      }, 1500);
-                    }}
-                    onMouseUp={() => {
-                      if (longPressMouseTimer.current) {
-                        clearTimeout(longPressMouseTimer.current);
-                        longPressMouseTimer.current = null;
-                      }
-                    }}
-                    onTouchStart={() => {
-                      isLongPressMouse.current = false;
-                      longPressMouseTimer.current = setTimeout(() => {
-                        isLongPressMouse.current = true;
-                        handleToggleFav(channel.stream_id);
-                      }, 1500);
-                    }}
-                    onTouchEnd={() => {
-                      if (longPressMouseTimer.current) {
-                        clearTimeout(longPressMouseTimer.current);
-                        longPressMouseTimer.current = null;
-                      }
-                    }}
+                    style={{ touchAction: 'pan-y' }}
                     className={`w-full h-[50px] sm:h-[56px] md:h-[66px] lg:h-[72px] px-2 sm:px-3 md:px-4 rounded-xl md:rounded-2xl flex items-center justify-between cursor-pointer transition select-none text-left ${
                       isItemFocused
                         ? 'bg-emerald-400 text-black font-black shadow-2xl scale-[1.02] ring-2 sm:ring-4 ring-emerald-300'
@@ -1035,7 +1023,9 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
       <div className={
         isFullScreen 
           ? "fixed inset-0 z-[9999] w-screen h-screen bg-black" 
-          : "hidden md:flex flex-1 min-w-0 h-full p-2.5 sm:p-4 md:p-6 flex-col justify-between select-none overflow-y-auto custom-scrollbar"
+          : isCompactMobile
+          ? "hidden"
+          : "flex flex-1 min-w-0 h-full p-2.5 sm:p-4 md:p-6 flex-col justify-between select-none overflow-y-auto custom-scrollbar"
       }>
         <div>
           {currentPlayingChannel ? (
