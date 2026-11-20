@@ -24,15 +24,40 @@ export function normalizeBaseDns(rawDns: string): string {
   }
 }
 
+/**
+ * Helper de timeout universal compatível com Tizen 4/5/6, webOS antigo e browsers modernos
+ * (Evita quebras com AbortSignal.timeout que só existe a partir do Chrome 103)
+ */
+function createAbortTimeout(ms: number): { signal?: AbortSignal; cleanup: () => void } {
+  try {
+    if (typeof AbortController !== 'undefined') {
+      const controller = new AbortController();
+      const timer = setTimeout(() => {
+        try {
+          controller.abort();
+        } catch {}
+      }, ms);
+      return {
+        signal: controller.signal,
+        cleanup: () => clearTimeout(timer)
+      };
+    }
+  } catch {}
+  return { cleanup: () => {} };
+}
+
 export class XtreamClient {
   private baseDns: string;
+  private rawOriginalDns: string;
   private user: string;
   private pass: string;
   private cache = new Map<string, { data: any; timestamp: number }>();
   private pendingRequests = new Map<string, Promise<any>>();
+  private static httpsFailedHosts = new Set<string>();
 
   constructor(dns: string, user: string, pass: string) {
-    let cleanDns = normalizeBaseDns(dns);
+    this.rawOriginalDns = normalizeBaseDns(dns);
+    let cleanDns = this.rawOriginalDns;
 
     // Se a aplicação está rodando via HTTPS (ex: https://tvplay.loja-am.top),
     // promovemos automaticamente para HTTPS quando não houver porta customizada (como :8080).
@@ -43,8 +68,7 @@ export class XtreamClient {
     if (!/^https?:\/\//i.test(cleanDns)) {
       cleanDns = isHttpsOrigin ? `https://${cleanDns}` : `http://${cleanDns}`;
     } else if (isHttpsOrigin && cleanDns.startsWith('http://')) {
-      // Promove para HTTPS quando na porta padrão 80 (ou sem porta) para evitar Mixed Content.
-      // Portas customizadas (ex: :8080, :2095) NÃO são promovidas — conectam via proxy.
+      // Promove para HTTPS quando na porta padrão 80 (ou sem porta) para tentar conexão direta.
       try {
         const tmpUrl = new URL(cleanDns);
         const isDefaultPort = !tmpUrl.port || tmpUrl.port === '80';
@@ -120,18 +144,28 @@ export class XtreamClient {
       const isHttpsOrigin = typeof window !== 'undefined' && window.location.protocol === 'https:';
       const isDirectMixedContent = isHttpsOrigin && targetUrl.startsWith('http://');
 
+      let targetHost = '';
+      try {
+        targetHost = new URL(targetUrl).hostname;
+      } catch {}
+
+      const isKnownHttpsFailure = targetHost ? XtreamClient.httpsFailedHosts.has(targetHost) : false;
+
       // 1. Conexão direta do dispositivo cliente (Smart TV / PC)
       // Se a aplicação é HTTPS e o alvo é HTTP, chamadas diretas são bloqueadas pelo navegador (Mixed Content).
-      // Nesse caso, pula direto para o proxy seguro sem esperar timeout.
-      if (!isDirectMixedContent) {
+      // Se o host já falhou no teste direto de HTTPS anteriormente, pula direto para o proxy em 0ms.
+      if (!isDirectMixedContent && !isKnownHttpsFailure) {
+        const directTimeout = createAbortTimeout(3500);
         try {
-          const response = await fetch(targetUrl, {
+          const directOpts: RequestInit = {
             method: 'GET',
             headers: {
               'Accept': 'application/json, text/plain, */*'
-            },
-            signal: AbortSignal.timeout(15000)
-          });
+            }
+          };
+          if (directTimeout.signal) directOpts.signal = directTimeout.signal;
+
+          const response = await fetch(targetUrl, directOpts);
 
           if (response.ok) {
             const rawText = await response.text();
@@ -144,26 +178,37 @@ export class XtreamClient {
             }
           } else {
             console.warn(`[Xtream] Resposta HTTP ${response.status} na conexão direta para ${action}. Tentando fallback...`);
+            if (targetHost) XtreamClient.httpsFailedHosts.add(targetHost);
           }
         } catch (directErr: any) {
-          console.warn(`[Xtream] Conexão direta falhou para ${action} (${directErr.message}). Tentando contingência...`);
+          console.warn(`[Xtream] Conexão direta falhou para ${action} (${directErr?.message || 'erro de rede'}). Tentando contingência...`);
+          if (targetHost) XtreamClient.httpsFailedHosts.add(targetHost);
+        } finally {
+          directTimeout.cleanup();
         }
       }
 
       // 2. Fallback via proxy resiliente da VPS
-      // Se o alvo for HTTPS mas falhou na porta 443, tenta http:// no proxy
-      const fallbackTarget = targetUrl.replace(/^https:\/\//i, 'http://');
+      // Usa o DNS original cadastrado (mantendo :80 ou http:// se for o caso)
+      let queryParams = `username=${encodeURIComponent(this.user)}&password=${encodeURIComponent(this.pass)}&action=${action}`;
+      for (const [key, value] of Object.entries(extraParams)) {
+        queryParams += `&${key}=${encodeURIComponent(value)}`;
+      }
+      const fallbackTarget = `${this.rawOriginalDns}/player_api.php?${queryParams}`;
       const proxyBase = this.getProxyBase();
       const proxyUrl = `${proxyBase}?url=${encodeURIComponent(fallbackTarget)}`;
 
+      const proxyTimeout = createAbortTimeout(25000);
       try {
-        const proxyResponse = await fetch(proxyUrl, {
+        const proxyOpts: RequestInit = {
           method: 'GET',
           headers: {
             'Accept': 'application/json, text/plain, */*'
-          },
-          signal: AbortSignal.timeout(25000)
-        });
+          }
+        };
+        if (proxyTimeout.signal) proxyOpts.signal = proxyTimeout.signal;
+
+        const proxyResponse = await fetch(proxyUrl, proxyOpts);
 
         if (!proxyResponse.ok) {
           throw new Error(`HTTP ${proxyResponse.status} ao consultar ${action}`);
@@ -182,12 +227,14 @@ export class XtreamClient {
         this.cache.set(cacheKey, { data, timestamp: Date.now() });
         return data as T;
       } catch (proxyErr: any) {
-        console.error(`[Xtream] Falha total ao consultar ${action}:`, proxyErr.message);
+        console.error(`[Xtream] Falha total ao consultar ${action}:`, proxyErr?.message || proxyErr);
         // Retorna array vazio em caso de listagens para permitir exibição graciosa na UI
         if (action.includes('categories') || action.includes('streams') || action === 'get_series') {
           return [] as unknown as T;
         }
         throw proxyErr;
+      } finally {
+        proxyTimeout.cleanup();
       }
     })();
 

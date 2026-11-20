@@ -210,7 +210,10 @@ export default function App() {
 
   // 3. Aplicação Principal Ativa (Home Dashboard, TV Ao Vivo, Filmes, Séries, Ajustes)
   return (
-    <div className="w-full h-full min-h-[100dvh] flex flex-col bg-[#0a0d14] overflow-hidden select-none safe-area-padding">
+    <div 
+      className="w-full h-full min-h-screen flex flex-col bg-[#0a0d14] overflow-hidden select-none safe-area-padding"
+      style={{ minHeight: '100vh', height: '100%' }}
+    >
       <RotateDevicePrompt />
       <TitleBar isFullScreen={isFullScreen} />
       <div className="flex-1 flex bg-[#0a0d14] overflow-hidden relative w-full h-full">

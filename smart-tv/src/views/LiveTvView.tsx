@@ -425,8 +425,22 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
 
   // 1º Clique / Enter: Seleciona o canal e carrega na prévia lateral
   // 2º Clique / Enter ou duplo clique no mesmo canal: Confirma e expande imediatamente para tela cheia
+  // No iPhone / Mobile Touch: 1º toque já abre direto em tela cheia com áudio (Opção 1A)
   const handleChannelSelectOrPlay = useCallback((channel: XtreamStream, index: number) => {
     setSelectedChannelIdx(index);
+
+    const isMobileTouch = typeof window !== 'undefined' && (
+      window.innerHeight < 520 ||
+      (window.matchMedia('(pointer: coarse)').matches && window.innerWidth < 1024)
+    );
+
+    if (isMobileTouch) {
+      setCurrentPlayingChannel(channel);
+      setPreviewConfirmedChannelId(channel.stream_id);
+      setFullScreenMode(true);
+      return;
+    }
+
     const now = Date.now();
     const isRapidSecondClick = lastChannelClickTimeRef.current.id === channel.stream_id && (now - lastChannelClickTimeRef.current.time) < 1400;
     const isAlreadyConfirmed = previewConfirmedChannelIdRef.current === channel.stream_id;
@@ -733,7 +747,7 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
     <div className="w-full h-full flex bg-[#0a0d14] relative overflow-hidden select-none">
       
       {/* Coluna 1: Categorias de Canais (Responsivo para Smart TVs e iPhones) */}
-      <div className={`w-44 sm:w-52 md:w-60 lg:w-80 xl:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-2.5 sm:p-3 md:p-4 flex flex-col transition-all duration-200 shrink-0 ${
+      <div className={`w-36 sm:w-44 md:w-60 lg:w-80 xl:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-2 sm:p-3 md:p-4 flex flex-col transition-all duration-200 shrink-0 ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>
         <div className="flex items-center justify-between mb-3 sm:mb-4 px-1">
@@ -836,8 +850,8 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         </div>
       </div>
 
-      {/* Coluna 2: Lista Virtualizada de Canais */}
-      <div className={`w-48 sm:w-56 md:w-68 lg:w-[380px] xl:w-[460px] h-full bg-[#0a0d14] border-r border-[#2a3449] flex flex-col p-2 sm:p-3 md:p-4 select-none transition-all shrink-0 ${
+      {/* Coluna 2: Lista Virtualizada de Canais (Ocupa todo o espaço no iPhone em conjunto com Categorias) */}
+      <div className={`flex-1 md:flex-initial md:w-68 lg:w-[380px] xl:w-[460px] h-full bg-[#0a0d14] border-r border-[#2a3449] flex flex-col p-2 sm:p-3 md:p-4 select-none transition-all min-w-0 ${
         isFocusedContent && activeFocusColumn === 'channels' ? 'ring-2 ring-emerald-500/50' : ''
       }`}>
         <div className="flex items-center justify-between mb-2 sm:mb-3 px-1 sm:px-2">
@@ -1017,8 +1031,12 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
         )}
       </div>
 
-      {/* Coluna 3: Mini Preview Player & Detalhes */}
-      <div className="flex-1 min-w-0 h-full p-2.5 sm:p-4 md:p-6 flex flex-col justify-between select-none overflow-y-auto custom-scrollbar">
+      {/* Coluna 3: Mini Preview Player & Detalhes (Oculta no iPhone em modo lista para manter 2 colunas; em tela cheia assume 100% da tela) */}
+      <div className={
+        isFullScreen 
+          ? "fixed inset-0 z-[9999] w-screen h-screen bg-black" 
+          : "hidden md:flex flex-1 min-w-0 h-full p-2.5 sm:p-4 md:p-6 flex-col justify-between select-none overflow-y-auto custom-scrollbar"
+      }>
         <div>
           {currentPlayingChannel ? (
             <div className="space-y-4">

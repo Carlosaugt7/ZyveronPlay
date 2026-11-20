@@ -387,7 +387,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
   }, [focusedId, featuredVods, featuredSeries, triggerAction, showExitConfirmModal, exitModalBtnIdx, hasMultiplePlaylists]);
 
   return (
-    <div className="w-full h-[100dvh] bg-[#0a0d14] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900/40 via-[#0a0d14] to-[#07090e] text-white flex flex-col justify-between p-2 sm:p-2.5 md:p-4 lg:p-6 select-none overflow-y-auto overflow-x-hidden custom-scrollbar">
+    <div 
+      className="w-full h-full min-h-screen bg-[#0a0d14] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900/40 via-[#0a0d14] to-[#07090e] text-white flex flex-col justify-between p-1.5 sm:p-2 md:p-4 lg:p-6 select-none overflow-y-auto overflow-x-hidden custom-scrollbar"
+      style={{ minHeight: '100vh', height: '100%' }}
+    >
       
       {/* 1. CABEÇALHO SUPERIOR (Logo Central Oficial + Relógio/Status) */}
       <header className="w-full flex items-center justify-between shrink-0 mb-1 sm:mb-2 md:mb-3">
@@ -469,40 +472,40 @@ export const HomeView: React.FC<HomeViewProps> = ({
       <main className="w-full flex-1 min-h-0 grid grid-cols-12 gap-2 sm:gap-2.5 md:gap-4 items-stretch mb-1.5 sm:mb-2 md:mb-3">
         
         {/* --- COLUNA ESQUERDA: GRID 2x2 DE CARDS PRINCIPAIS (6 Colunas lado a lado no iPhone e Smart TV) --- */}
-        <div className="col-span-12 md:col-span-6 grid grid-cols-2 gap-2 sm:gap-2.5 md:gap-4 h-full min-h-0">
+        <div className="col-span-12 md:col-span-6 grid grid-cols-2 gap-1.5 sm:gap-2 md:gap-4 h-full min-h-0">
           
           {/* 1. CANAIS AO VIVO */}
           <button
             type="button"
             onClick={() => onNavigate('live')}
             onMouseEnter={() => setFocusedId(0)}
-            className={`group h-full rounded-xl sm:rounded-2xl md:rounded-3xl p-2 sm:p-2.5 md:p-5 lg:p-8 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
+            className={`group h-full rounded-xl sm:rounded-2xl md:rounded-3xl p-1.5 sm:p-2 md:p-4 lg:p-6 xl:p-8 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
               focusedId === 0
                 ? 'scale-[1.02] sm:scale-[1.03] border-3 border-sky-400 shadow-2xl shadow-sky-500/35 bg-gradient-to-br from-[#182a45] via-[#121c2e] to-[#0e1724] ring-2 sm:ring-4 ring-sky-400/50'
                 : 'border-2 border-[#222d42] bg-[#121722]/95 hover:border-slate-500'
             }`}
           >
             {/* Badge no canto superior direito */}
-            <span className={`absolute top-1.5 right-1.5 sm:top-2 sm:right-2 md:top-3 md:right-3 text-[9px] sm:text-[10px] md:text-xs px-1.5 sm:px-2 md:px-3 py-0.5 rounded-md sm:rounded-lg font-black uppercase tracking-wider ${
+            <span className={`absolute top-1 right-1 sm:top-1.5 sm:right-1.5 md:top-3 md:right-3 text-[8px] sm:text-[9px] md:text-xs px-1 sm:px-1.5 md:px-3 py-0.2 sm:py-0.5 rounded-md sm:rounded-lg font-black uppercase tracking-wider ${
               focusedId === 0 ? 'bg-sky-400 text-black font-black shadow-md' : 'bg-slate-800/90 text-slate-300 border border-slate-700'
             }`}>
               Ao Vivo
             </span>
 
             {/* Ícone Centralizado em Destaque */}
-            <div className={`w-8 h-8 sm:w-11 sm:h-11 md:w-16 md:h-16 lg:w-22 lg:h-22 rounded-xl sm:rounded-2xl md:rounded-3xl flex items-center justify-center mb-1 sm:mb-1.5 md:mb-3 transition-all duration-300 ${
+            <div className={`w-7 h-7 sm:w-9 sm:h-9 md:w-14 md:h-14 lg:w-20 lg:h-20 rounded-lg sm:rounded-xl md:rounded-2xl lg:rounded-3xl flex items-center justify-center mb-0.5 sm:mb-1 md:mb-3 transition-all duration-300 ${
               focusedId === 0
                 ? 'bg-sky-500/25 border-2 border-sky-400/80 shadow-xl shadow-sky-500/40 scale-105'
                 : 'bg-sky-500/10 border border-sky-500/25 group-hover:scale-105'
             }`}>
-              <Tv className="w-4 h-4 sm:w-6 sm:h-6 md:w-8 md:h-8 lg:w-12 lg:h-12 text-sky-400" />
+              <Tv className="w-3.5 h-3.5 sm:w-5 sm:h-5 md:w-7 md:h-7 lg:w-11 lg:h-11 text-sky-400" />
             </div>
 
             {/* Título e Contagem Centralizados */}
-            <h3 className="text-xs sm:text-sm md:text-xl lg:text-3xl font-black text-white tracking-wide group-hover:text-sky-300 transition-colors leading-tight">
+            <h3 className="text-[11px] sm:text-xs md:text-lg lg:text-2xl xl:text-3xl font-black text-white tracking-wide group-hover:text-sky-300 transition-colors leading-tight">
               Canais ao Vivo
             </h3>
-            <p className="text-[10px] sm:text-xs md:text-sm lg:text-base text-slate-300 font-semibold mt-0.5 sm:mt-1">
+            <p className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm text-slate-300 font-semibold mt-0 sm:mt-0.5 md:mt-1">
               {liveCount > 0 ? `${liveCount.toLocaleString('pt-BR')} canais` : (isLoading ? 'Sincronizando...' : 'Grade completa')}
             </p>
           </button>
@@ -512,33 +515,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
             type="button"
             onClick={() => onNavigate('vod')}
             onMouseEnter={() => setFocusedId(1)}
-            className={`group h-full rounded-xl sm:rounded-2xl md:rounded-3xl p-2 sm:p-2.5 md:p-5 lg:p-8 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
+            className={`group h-full rounded-xl sm:rounded-2xl md:rounded-3xl p-1.5 sm:p-2 md:p-4 lg:p-6 xl:p-8 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
               focusedId === 1
                 ? 'scale-[1.02] sm:scale-[1.03] border-3 border-sky-400 shadow-2xl shadow-sky-500/35 bg-gradient-to-br from-[#182a45] via-[#121c2e] to-[#0e1724] ring-2 sm:ring-4 ring-sky-400/50'
                 : 'border-2 border-[#222d42] bg-[#121722]/95 hover:border-slate-500'
             }`}
           >
             {/* Badge no canto superior direito */}
-            <span className={`absolute top-1.5 right-1.5 sm:top-2 sm:right-2 md:top-3 md:right-3 text-[9px] sm:text-[10px] md:text-xs px-1.5 sm:px-2 md:px-3 py-0.5 rounded-md sm:rounded-lg font-black uppercase tracking-wider ${
+            <span className={`absolute top-1 right-1 sm:top-1.5 sm:right-1.5 md:top-3 md:right-3 text-[8px] sm:text-[9px] md:text-xs px-1 sm:px-1.5 md:px-3 py-0.2 sm:py-0.5 rounded-md sm:rounded-lg font-black uppercase tracking-wider ${
               focusedId === 1 ? 'bg-sky-400 text-black font-black shadow-md' : 'bg-slate-800/90 text-slate-300 border border-slate-700'
             }`}>
               VOD
             </span>
 
             {/* Ícone Centralizado em Destaque */}
-            <div className={`w-8 h-8 sm:w-11 sm:h-11 md:w-16 md:h-16 lg:w-22 lg:h-22 rounded-xl sm:rounded-2xl md:rounded-3xl flex items-center justify-center mb-1 sm:mb-1.5 md:mb-3 transition-all duration-300 ${
+            <div className={`w-7 h-7 sm:w-9 sm:h-9 md:w-14 md:h-14 lg:w-20 lg:h-20 rounded-lg sm:rounded-xl md:rounded-2xl lg:rounded-3xl flex items-center justify-center mb-0.5 sm:mb-1 md:mb-3 transition-all duration-300 ${
               focusedId === 1
                 ? 'bg-sky-500/25 border-2 border-sky-400/80 shadow-xl shadow-sky-500/40 scale-105'
                 : 'bg-sky-500/10 border border-sky-500/25 group-hover:scale-105'
             }`}>
-              <Film className="w-4 h-4 sm:w-6 sm:h-6 md:w-8 md:h-8 lg:w-12 lg:h-12 text-sky-400" />
+              <Film className="w-3.5 h-3.5 sm:w-5 sm:h-5 md:w-7 md:h-7 lg:w-11 lg:h-11 text-sky-400" />
             </div>
 
             {/* Título e Contagem Centralizados */}
-            <h3 className="text-xs sm:text-sm md:text-xl lg:text-3xl font-black text-white tracking-wide group-hover:text-sky-300 transition-colors leading-tight">
+            <h3 className="text-[11px] sm:text-xs md:text-lg lg:text-2xl xl:text-3xl font-black text-white tracking-wide group-hover:text-sky-300 transition-colors leading-tight">
               Filmes
             </h3>
-            <p className="text-[10px] sm:text-xs md:text-sm lg:text-base text-slate-300 font-semibold mt-0.5 sm:mt-1">
+            <p className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm text-slate-300 font-semibold mt-0 sm:mt-0.5 md:mt-1">
               {vodCount > 0 ? `${vodCount.toLocaleString('pt-BR')} filmes • Cinema` : 'On Demand'}
             </p>
           </button>
@@ -548,33 +551,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
             type="button"
             onClick={() => onNavigate('series')}
             onMouseEnter={() => setFocusedId(2)}
-            className={`group h-full rounded-xl sm:rounded-2xl md:rounded-3xl p-2 sm:p-2.5 md:p-5 lg:p-8 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
+            className={`group h-full rounded-xl sm:rounded-2xl md:rounded-3xl p-1.5 sm:p-2 md:p-4 lg:p-6 xl:p-8 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
               focusedId === 2
                 ? 'scale-[1.02] sm:scale-[1.03] border-3 border-sky-400 shadow-2xl shadow-sky-500/35 bg-gradient-to-br from-[#182a45] via-[#121c2e] to-[#0e1724] ring-2 sm:ring-4 ring-sky-400/50'
                 : 'border-2 border-[#222d42] bg-[#121722]/95 hover:border-slate-500'
             }`}
           >
             {/* Badge no canto superior direito */}
-            <span className={`absolute top-1.5 right-1.5 sm:top-2 sm:right-2 md:top-3 md:right-3 text-[9px] sm:text-[10px] md:text-xs px-1.5 sm:px-2 md:px-3 py-0.5 rounded-md sm:rounded-lg font-black uppercase tracking-wider ${
+            <span className={`absolute top-1 right-1 sm:top-1.5 sm:right-1.5 md:top-3 md:right-3 text-[8px] sm:text-[9px] md:text-xs px-1 sm:px-1.5 md:px-3 py-0.2 sm:py-0.5 rounded-md sm:rounded-lg font-black uppercase tracking-wider ${
               focusedId === 2 ? 'bg-sky-400 text-black font-black shadow-md' : 'bg-slate-800/90 text-slate-300 border border-slate-700'
             }`}>
               Séries
             </span>
 
             {/* Ícone Centralizado em Destaque */}
-            <div className={`w-8 h-8 sm:w-11 sm:h-11 md:w-16 md:h-16 lg:w-22 lg:h-22 rounded-xl sm:rounded-2xl md:rounded-3xl flex items-center justify-center mb-1 sm:mb-1.5 md:mb-3 transition-all duration-300 ${
+            <div className={`w-7 h-7 sm:w-9 sm:h-9 md:w-14 md:h-14 lg:w-20 lg:h-20 rounded-lg sm:rounded-xl md:rounded-2xl lg:rounded-3xl flex items-center justify-center mb-0.5 sm:mb-1 md:mb-3 transition-all duration-300 ${
               focusedId === 2
                 ? 'bg-sky-500/25 border-2 border-sky-400/80 shadow-xl shadow-sky-500/40 scale-105'
                 : 'bg-sky-500/10 border border-sky-500/25 group-hover:scale-105'
             }`}>
-              <Clapperboard className="w-4 h-4 sm:w-6 sm:h-6 md:w-8 md:h-8 lg:w-12 lg:h-12 text-sky-400" />
+              <Clapperboard className="w-3.5 h-3.5 sm:w-5 sm:h-5 md:w-7 md:h-7 lg:w-11 lg:h-11 text-sky-400" />
             </div>
 
             {/* Título e Contagem Centralizados */}
-            <h3 className="text-xs sm:text-sm md:text-xl lg:text-3xl font-black text-white tracking-wide group-hover:text-sky-300 transition-colors leading-tight">
+            <h3 className="text-[11px] sm:text-xs md:text-lg lg:text-2xl xl:text-3xl font-black text-white tracking-wide group-hover:text-sky-300 transition-colors leading-tight">
               Séries
             </h3>
-            <p className="text-[10px] sm:text-xs md:text-sm lg:text-base text-slate-300 font-semibold mt-0.5 sm:mt-1">
+            <p className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm text-slate-300 font-semibold mt-0 sm:mt-0.5 md:mt-1">
               {seriesCount > 0 ? `${seriesCount.toLocaleString('pt-BR')} séries • Temporadas` : 'Episódios'}
             </p>
           </button>
@@ -584,33 +587,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
             type="button"
             onClick={() => onNavigate('live', { categoryId: 'sports' })}
             onMouseEnter={() => setFocusedId(3)}
-            className={`group h-full rounded-xl sm:rounded-2xl md:rounded-3xl p-2 sm:p-2.5 md:p-5 lg:p-8 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
+            className={`group h-full rounded-xl sm:rounded-2xl md:rounded-3xl p-1.5 sm:p-2 md:p-4 lg:p-6 xl:p-8 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer focus:outline-none relative overflow-hidden ${
               focusedId === 3
                 ? 'scale-[1.02] sm:scale-[1.03] border-3 border-emerald-400 shadow-2xl shadow-emerald-500/35 bg-gradient-to-br from-[#11271f] via-[#0f211a] to-[#0c1813] ring-2 sm:ring-4 ring-emerald-400/50'
                 : 'border-2 border-[#222d42] bg-[#121722]/95 hover:border-slate-500'
             }`}
           >
             {/* Badge no canto superior direito */}
-            <span className={`absolute top-1.5 right-1.5 sm:top-2 sm:right-2 md:top-3 md:right-3 text-[9px] sm:text-[10px] md:text-xs px-1.5 sm:px-2 md:px-3 py-0.5 rounded-md sm:rounded-lg font-black uppercase tracking-wider ${
+            <span className={`absolute top-1 right-1 sm:top-1.5 sm:right-1.5 md:top-3 md:right-3 text-[8px] sm:text-[9px] md:text-xs px-1 sm:px-1.5 md:px-3 py-0.2 sm:py-0.5 rounded-md sm:rounded-lg font-black uppercase tracking-wider ${
               focusedId === 3 ? 'bg-emerald-400 text-black font-black shadow-md' : 'bg-slate-800/90 text-slate-300 border border-slate-700'
             }`}>
               Ao Vivo
             </span>
 
             {/* Ícone Centralizado em Destaque */}
-            <div className={`w-8 h-8 sm:w-11 sm:h-11 md:w-16 md:h-16 lg:w-22 lg:h-22 rounded-xl sm:rounded-2xl md:rounded-3xl flex items-center justify-center mb-1 sm:mb-1.5 md:mb-3 transition-all duration-300 ${
+            <div className={`w-7 h-7 sm:w-9 sm:h-9 md:w-14 md:h-14 lg:w-20 lg:h-20 rounded-lg sm:rounded-xl md:rounded-2xl lg:rounded-3xl flex items-center justify-center mb-0.5 sm:mb-1 md:mb-3 transition-all duration-300 ${
               focusedId === 3
                 ? 'bg-emerald-500/25 border-2 border-emerald-400/80 shadow-xl shadow-emerald-500/40 scale-105'
                 : 'bg-emerald-500/10 border border-emerald-500/25 group-hover:scale-105'
             }`}>
-              <Trophy className="w-4 h-4 sm:w-6 sm:h-6 md:w-8 md:h-8 lg:w-12 lg:h-12 text-emerald-400" />
+              <Trophy className="w-3.5 h-3.5 sm:w-5 sm:h-5 md:w-7 md:h-7 lg:w-11 lg:h-11 text-emerald-400" />
             </div>
 
             {/* Título e Contagem Centralizados */}
-            <h3 className="text-xs sm:text-sm md:text-xl lg:text-3xl font-black text-white tracking-wide group-hover:text-emerald-300 transition-colors leading-tight">
+            <h3 className="text-[11px] sm:text-xs md:text-lg lg:text-2xl xl:text-3xl font-black text-white tracking-wide group-hover:text-emerald-300 transition-colors leading-tight">
               Esportes
             </h3>
-            <p className="text-[10px] sm:text-xs md:text-sm lg:text-base text-emerald-300 font-semibold mt-0.5 sm:mt-1">
+            <p className="text-[9px] sm:text-[10px] md:text-xs lg:text-sm text-emerald-300 font-semibold mt-0 sm:mt-0.5 md:mt-1">
               Futebol • Lutas • Ao Vivo
             </p>
           </button>

@@ -44,7 +44,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render() {
     if (this.state.hasError) {
       return (
-        <div className="w-full h-full min-h-[100dvh] bg-[#0a0d14] flex flex-col items-center justify-center p-6 text-center select-none text-white">
+        <div 
+          className="w-full h-full min-h-screen bg-[#0a0d14] flex flex-col items-center justify-center p-6 text-center select-none text-white"
+          style={{ minHeight: '100vh', height: '100%' }}
+        >
           <div className="max-w-md w-full bg-[#121722] border-2 border-slate-800 rounded-3xl p-8 shadow-2xl flex flex-col items-center">
             <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-4">
               <AlertCircle className="w-10 h-10" />

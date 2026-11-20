@@ -566,6 +566,13 @@ export const Player: React.FC<PlayerProps> = ({
         if (isMutedByAutoplay) {
           handleUnmute();
         }
+        showOsdTemporarily(6000);
+      }}
+      onTouchStart={() => {
+        if (isMutedByAutoplay) {
+          handleUnmute();
+        }
+        showOsdTemporarily(6000);
       }}
       className={`relative bg-black overflow-hidden flex items-center justify-center ${isFullScreen ? 'w-full h-full' : 'w-full h-full rounded-xl'}`}
     >
@@ -581,6 +588,24 @@ export const Player: React.FC<PlayerProps> = ({
           WebkitBackfaceVisibility: 'hidden'
         }}
       />
+
+      {/* Botão Flutuante Voltar (Touch e Mobile Friendly no topo esquerdo) */}
+      {onBack && isFullScreen && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onBack();
+          }}
+          className={`absolute top-4 left-4 z-40 px-3.5 py-2 rounded-xl bg-black/80 hover:bg-black text-white font-bold text-xs sm:text-sm flex items-center gap-2 border border-white/20 shadow-2xl backdrop-blur-md cursor-pointer transition select-none safe-area-padding ${
+            showOsd ? 'opacity-100 pointer-events-auto' : 'opacity-40 hover:opacity-100 pointer-events-auto'
+          }`}
+          title="Voltar ao Catálogo [VOLTAR]"
+        >
+          <ArrowLeft className="w-4 h-4 text-emerald-400" />
+          <span>Voltar</span>
+        </button>
+      )}
 
       {/* Botão Flutuante de Desmutar (Autoplay Inteligente para iPhone / iOS WebKit) */}
       {isMutedByAutoplay && (

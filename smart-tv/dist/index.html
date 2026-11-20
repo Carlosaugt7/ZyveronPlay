@@ -21,24 +21,29 @@
         margin: 0;
         padding: 0;
       }
-      html, body {
+      html, body, #root {
         background-color: #0a0d14;
         color: #ffffff;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         overflow: hidden;
         width: 100%;
         height: 100%;
-        height: 100dvh;
+        min-height: 100vh;
+      }
+      @supports (min-height: 100dvh) {
+        html, body, #root {
+          min-height: 100dvh;
+        }
       }
       :focus {
         outline: none;
       }
     </style>
-    <script type="module" crossorigin src="./assets/index-2jRK1E-3.js"></script>
-    <link rel="modulepreload" crossorigin href="./assets/vendor-icons-dXHSjyOJ.js">
-    <link rel="modulepreload" crossorigin href="./assets/vendor-react-BRwGB6QU.js">
+    <script type="module" crossorigin src="./assets/index-C9aoxSa6.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/vendor-icons-BS6KPxyz.js">
+    <link rel="modulepreload" crossorigin href="./assets/vendor-react-B14Hw_rE.js">
     <link rel="modulepreload" crossorigin href="./assets/vendor-hls-ButOOUi4.js">
-    <link rel="stylesheet" crossorigin href="./assets/index-DvmDXZt3.css">
+    <link rel="stylesheet" crossorigin href="./assets/index-DegJXnTy.css">
   </head>
   <body>
     <div id="root"></div>
