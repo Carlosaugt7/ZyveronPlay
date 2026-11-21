@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets" 
+        xmlns:tizen="http://tizen.org/ns/widgets" 
+        id="http://zyveron.play/samsung" 
+        version="2.0.0" 
+        viewmodes="maximized">
+    <tizen:application id="zyveronply.ZyveronPlay" 
+                       package="zyveronply" 
+                       exec="index.html" 
+                       screen-orientation="landscape" 
+                       required_version="4.0"/>
+    <name>Zyveron Play</name>
+    <description>Reprodutor de Mídia e Conteúdo Pessoal Zyveron Play</description>
+    <author email="suporte@zyveron.play" href="https://tvplay.loja-am.top">Zyveron Play Team</author>
+    <icon src="icon.png"/>
+    <content src="index.html"/>
+    
+    <!-- Recursos de Tela e Conectividade -->
+    <feature name="http://tizen.org/feature/screen.size.all"/>
+    <feature name="http://tizen.org/feature/network.internet"/>
+    <feature name="http://tizen.org/feature/tv.audio"/>
+    <feature name="http://tizen.org/feature/tv.display"/>
+    
+    <!-- Privilégios Oficiais Tizen e Samsung TV SDK -->
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.audio"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.display"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+    <tizen:privilege name="http://developer.samsung.com/privilege/network.public"/>
+    
+    <!-- Metadados de Hardware Player AVPlay e Otimização de Inicialização -->
+    <tizen:metadata key="http://samsung.com/tv/metadata/use.avplay" value="true"/>
+    <tizen:metadata key="http://samsung.com/tv/metadata/prelaunch.support" value="true"/>
+    <tizen:metadata key="http://samsung.com/tv/metadata/devel.api.version" value="4.0"/>
+    
+    <!-- Configurações de Display e Instalação -->
+    <tizen:setting screen-orientation="landscape" 
+                   context-menu="enable" 
+                   background-support="disable" 
+                   encryption="disable" 
+                   install-location="auto"/>
+    <tizen:profile name="tv-samsung"/>
+    
+    <!-- Acesso de Rede Amplo para Conexão aos Servidores IPTV e Firebase -->
+    <access origin="*" subdomains="true"/>
+</widget>

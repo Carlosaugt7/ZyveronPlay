@@ -1,0 +1,1304 @@
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { XtreamClient } from '../lib/xtream';
+import { XtreamCategory, XtreamSeries, XtreamSeason, XtreamEpisode } from '../types';
+import { Player } from '../components/Player';
+import { useSpatialNav } from '../hooks/useSpatialNav';
+import { Clapperboard, Play, Star, Loader2, X, ArrowLeft, Calendar, Info, Heart, Search, Lock, History, Sparkles } from 'lucide-react';
+import { getFavorites, toggleFavorite, getRecent, addRecent } from '../lib/storage';
+import { AdultContentHelper } from '../lib/adultContent';
+import { AdultPinModal } from '../components/AdultPinModal';
+import { TvSearchModal } from '../components/TvSearchModal';
+
+interface SeriesViewProps {
+  client: XtreamClient;
+  isFocusedContent?: boolean;
+  onRequestFocusSidebar?: () => void;
+  onFullScreenChange?: (full: boolean) => void;
+  onBackToHome?: () => void;
+  initialStreamId?: number;
+  reloadKey?: number;
+}
+
+const BATCH_SIZE = 30; // Proteção de memória para Smart TVs
+
+export const SeriesView: React.FC<SeriesViewProps> = ({
+  client,
+  isFocusedContent = true,
+  onRequestFocusSidebar,
+  onFullScreenChange,
+  onBackToHome,
+  initialStreamId,
+  reloadKey = 0
+}) => {
+  // Detecção reativa de iPhone / dispositivo móvel compacto em landscape
+  const [isCompactMobile, setIsCompactMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerHeight < 550 || (navigator.maxTouchPoints > 0 && window.innerWidth < 1100);
+  });
+
+  useEffect(() => {
+    const handleCheckScreen = () => {
+      setIsCompactMobile(window.innerHeight < 550 || (navigator.maxTouchPoints > 0 && window.innerWidth < 1100));
+    };
+    window.addEventListener('resize', handleCheckScreen);
+    window.addEventListener('orientationchange', handleCheckScreen);
+    return () => {
+      window.removeEventListener('resize', handleCheckScreen);
+      window.removeEventListener('orientationchange', handleCheckScreen);
+    };
+  }, []);
+
+  const [categories, setCategories] = useState<XtreamCategory[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('favorites');
+  const [selectedCategoryIdx, setSelectedCategoryIdx] = useState<number>(0);
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
+  const [totalSeriesCount, setTotalSeriesCount] = useState<number>(0);
+  const [recentSeriesIds, setRecentSeriesIds] = useState<number[]>(() => getRecent('series'));
+  const [allSeries, setAllSeries] = useState<XtreamSeries[]>([]);
+  const globalSeriesCatalogRef = useRef<XtreamSeries[]>([]);
+  const [displayedCount, setDisplayedCount] = useState<number>(BATCH_SIZE);
+  const [selectedSeriesIdx, setSelectedSeriesIdx] = useState<number>(0);
+  const [isLoadingCats, setIsLoadingCats] = useState<boolean>(true);
+  const [isLoadingSeries, setIsLoadingSeries] = useState<boolean>(false);
+  const [favorites, setFavorites] = useState<number[]>(() => getFavorites('series'));
+
+  // Detalhes da Série
+  const [selectedSeries, setSelectedSeries] = useState<XtreamSeries | null>(null);
+  const [seriesDetails, setSeriesDetails] = useState<{
+    seasons: XtreamSeason[];
+    episodes: Record<string, XtreamEpisode[]>;
+    info?: any;
+  } | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState<boolean>(false);
+  const [selectedSeason, setSelectedSeason] = useState<string>('1');
+  const [selectedSeasonIdx, setSelectedSeasonIdx] = useState<number>(0);
+  const [selectedEpisodeIdx, setSelectedEpisodeIdx] = useState<number>(0);
+
+  // Player de Episódio
+  const [playingEpisode, setPlayingEpisode] = useState<{
+    id: string;
+    title: string;
+    ext: string;
+    season: string;
+    episodeIdx: number;
+  } | null>(null);
+
+  // Reprodução Automática do Próximo Episódio (Persistente no localStorage)
+  const [autoPlayNextEpisode, setAutoPlayNextEpisode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('zyveron_autoplay_next_episode');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleAutoPlayNext = () => {
+    setAutoPlayNextEpisode((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('zyveron_autoplay_next_episode', String(next));
+      } catch { }
+      return next;
+    });
+  };
+
+  // Foco espacial: 'categories' | 'grid' | 'details-header' | 'seasons' | 'episodes' | 'search'
+  const [activeFocusColumn, setActiveFocusColumn] = useState<'categories' | 'grid' | 'details-header' | 'seasons' | 'episodes' | 'search'>('categories');
+  const [headerBtnIdx, setHeaderBtnIdx] = useState<number>(0);
+
+  // Proteção Parental (+18)
+  const [showAdultPinModal, setShowAdultPinModal] = useState<boolean>(false);
+  const [pendingAdultCategory, setPendingAdultCategory] = useState<{ id: string; idx: number } | null>(null);
+
+  const activeCategoryBtnRef = useRef<HTMLButtonElement>(null);
+  const backHomeBtnRef = useRef<HTMLButtonElement>(null);
+  const activeSeriesBtnRef = useRef<HTMLButtonElement>(null);
+  const activeSeasonBtnRef = useRef<HTMLButtonElement>(null);
+  const activeEpBtnRef = useRef<HTMLButtonElement>(null);
+  const activeHeaderBtnRef = useRef<HTMLButtonElement>(null);
+  const searchBtnRef = useRef<HTMLButtonElement>(null);
+
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState<boolean>(false);
+
+  // Pastas Especiais Fixas e Categorias de Séries (Fiel ao APK: Favoritos, Últimos Assistidos, Todas as Séries, Recém Adicionados)
+  const specialCats = useMemo(() => [
+    { id: 'favorites', name: 'Meus Favoritos', count: favorites.length, icon: Star },
+    { id: 'recently_watched', name: 'Últimos Assistidos', count: recentSeriesIds.length, icon: History },
+    { id: 'all', name: 'Todas as Séries', count: totalSeriesCount, icon: Clapperboard },
+    { id: 'recently_added', name: 'Recém Adicionados', count: Math.min(100, totalSeriesCount), icon: Sparkles },
+  ], [favorites.length, recentSeriesIds.length, totalSeriesCount]);
+
+  const selectableCategories = useMemo(() => {
+    const list: {
+      id: string;
+      name: string;
+      count: number;
+      isSpecial?: boolean;
+      isAdult?: boolean;
+      icon?: any;
+    }[] = [];
+
+    specialCats.forEach((c) => {
+      list.push({ ...c, isSpecial: true });
+    });
+
+    categories.forEach((cat) => {
+      list.push({
+        id: cat.category_id,
+        name: cat.category_name,
+        count: categoryCounts[cat.category_id] ?? 0,
+        isAdult: AdultContentHelper.isAdultCategory(cat.category_name)
+      });
+    });
+
+    return list;
+  }, [specialCats, categories, categoryCounts]);
+
+  // Séries atualmente renderizadas no DOM (busca global em TODAS as categorias de séries quando pesquisando)
+  const displayedSeries = useMemo(() => {
+    if (!searchQuery || !searchQuery.trim()) {
+      return allSeries.slice(0, displayedCount);
+    }
+    const q = searchQuery.toLowerCase().trim();
+    const sourceList = globalSeriesCatalogRef.current.length > 0 ? globalSeriesCatalogRef.current : allSeries;
+    const isAdultUnlocked = AdultContentHelper.isSessionUnlocked();
+
+    return sourceList.filter((s) => {
+      if (!s) return false;
+      // Não exibe conteúdo adulto na busca global se o PIN não estiver desbloqueado
+      if (!isAdultUnlocked && AdultContentHelper.isAdultCategory(s.name || '')) {
+        return false;
+      }
+      const name = (s.name || '').toLowerCase();
+      return name.includes(q);
+    }).slice(0, displayedCount);
+  }, [allSeries, displayedCount, searchQuery]);
+
+  // Reseta paginação e posição ao alterar termo de busca
+  useEffect(() => {
+    if (searchQuery) {
+      setDisplayedCount(60);
+      setSelectedSeriesIdx(0);
+    }
+  }, [searchQuery]);
+
+  const seasonKeys = useMemo(() => {
+    return Object.keys(seriesDetails?.episodes || {});
+  }, [seriesDetails]);
+
+  // Carrega categorias e contagens ao iniciar
+  useEffect(() => {
+    setIsLoadingCats(true);
+    setFavorites(getFavorites('series'));
+    setRecentSeriesIds(getRecent('series'));
+    client.getSeriesCategories()
+      .then((rawCats) => {
+        if (rawCats && rawCats.length > 0) {
+          const sortedCats = AdultContentHelper.partitionAdultCategories(rawCats, (c) => c.category_name);
+          setCategories(sortedCats);
+          const currentFavs = getFavorites('series');
+          if (currentFavs.length > 0) {
+            setSelectedCategory('favorites');
+            setSelectedCategoryIdx(0);
+          } else {
+            setSelectedCategory('all');
+            setSelectedCategoryIdx(2);
+          }
+        } else {
+          setCategories([]);
+        }
+      })
+      .catch((err) => {
+        console.error("[Series] Erro ao carregar categorias de séries:", err);
+        setCategories([]);
+      })
+      .finally(() => setIsLoadingCats(false));
+
+    // Carrega estatísticas de séries por categoria e armazena catálogo global para busca
+    client.getSeries()
+      .then((allSeriesData) => {
+        if (allSeriesData && Array.isArray(allSeriesData)) {
+          globalSeriesCatalogRef.current = allSeriesData;
+          const counts: Record<string, number> = {};
+          allSeriesData.forEach((s) => {
+            const cid = String(s.category_id);
+            counts[cid] = (counts[cid] || 0) + 1;
+          });
+          setCategoryCounts(counts);
+          setTotalSeriesCount(allSeriesData.length);
+        }
+      })
+      .catch((err) => console.warn("[Series] Erro ao carregar contagens:", err));
+  }, [client, reloadKey]);
+
+  // Carrega séries da categoria selecionada ou filtra por favoritos/recentes/lançamentos
+  useEffect(() => {
+    if (!selectedCategory) return;
+
+    setIsLoadingSeries(true);
+    setDisplayedCount(BATCH_SIZE);
+    setSelectedSeriesIdx(0);
+
+    if (selectedCategory === 'favorites') {
+      client.getSeries()
+        .then((data) => {
+          const all = data || [];
+          const seen = new Set<number>();
+          const favs: XtreamSeries[] = [];
+          all.forEach((s) => {
+            const sid = Number(s.series_id);
+            if (favorites.includes(sid) && !seen.has(sid)) {
+              seen.add(sid);
+              favs.push(s);
+            }
+          });
+          setAllSeries(favs);
+        })
+        .catch((err) => {
+          console.error("[Series] Erro ao carregar séries favoritas:", err);
+          setAllSeries([]);
+        })
+        .finally(() => setIsLoadingSeries(false));
+    } else if (selectedCategory === 'recently_watched') {
+      const recents = getRecent('series');
+      setRecentSeriesIds(recents);
+      client.getSeries()
+        .then((data) => {
+          const all = data || [];
+          const seriesMap = new Map<number, XtreamSeries>();
+          all.forEach((s) => seriesMap.set(Number(s.series_id), s));
+          const list: XtreamSeries[] = [];
+          const seen = new Set<number>();
+          recents.forEach((id) => {
+            const s = seriesMap.get(id);
+            if (s && !seen.has(id)) {
+              seen.add(id);
+              list.push(s);
+            }
+          });
+          setAllSeries(list);
+        })
+        .catch((err) => {
+          console.error("[Series] Erro ao carregar séries recentes:", err);
+          setAllSeries([]);
+        })
+        .finally(() => setIsLoadingSeries(false));
+    } else if (selectedCategory === 'recently_added') {
+      client.getSeries()
+        .then((data) => {
+          const all = [...(data || [])];
+          all.sort((a, b) => {
+            const tA = a.last_modified ? new Date(a.last_modified).getTime() : 0;
+            const tB = b.last_modified ? new Date(b.last_modified).getTime() : 0;
+            if (tB !== tA) return tB - tA;
+            return Number(b.series_id) - Number(a.series_id);
+          });
+          const seen = new Set<number>();
+          const uniqueList: XtreamSeries[] = [];
+          all.forEach((s) => {
+            const sid = Number(s.series_id);
+            if (!seen.has(sid)) {
+              seen.add(sid);
+              uniqueList.push(s);
+            }
+          });
+          setAllSeries(uniqueList.slice(0, 100));
+        })
+        .catch((err) => {
+          console.error("[Series] Erro ao carregar séries recém adicionadas:", err);
+          setAllSeries([]);
+        })
+        .finally(() => setIsLoadingSeries(false));
+    } else if (selectedCategory === 'all') {
+      client.getSeries()
+        .then((data) => {
+          const all = data || [];
+          const seen = new Set<number>();
+          const uniqueList: XtreamSeries[] = [];
+          all.forEach((s) => {
+            const sid = Number(s.series_id);
+            if (!seen.has(sid)) {
+              seen.add(sid);
+              uniqueList.push(s);
+            }
+          });
+          setAllSeries(uniqueList);
+        })
+        .catch((err) => {
+          console.error("[Series] Erro ao carregar todas as séries:", err);
+          setAllSeries([]);
+        })
+        .finally(() => setIsLoadingSeries(false));
+    } else {
+      client.getSeries(selectedCategory)
+        .then((data) => {
+          const all = data || [];
+          const seen = new Set<number>();
+          const uniqueList: XtreamSeries[] = [];
+          all.forEach((s) => {
+            const sid = Number(s.series_id);
+            if (!seen.has(sid)) {
+              seen.add(sid);
+              uniqueList.push(s);
+            }
+          });
+          setAllSeries(uniqueList);
+        })
+        .catch((err) => {
+          console.error("[Series] Erro ao carregar séries da categoria:", err);
+          setAllSeries([]);
+        })
+        .finally(() => setIsLoadingSeries(false));
+    }
+  }, [client, selectedCategory, favorites.length]);
+
+  // Se receber initialStreamId (vindo da Home), abre direto a série
+  useEffect(() => {
+    if (!initialStreamId) return;
+
+    client.getSeriesInfo(initialStreamId)
+      .then((details) => {
+        if (details) {
+          const fakeSeries: XtreamSeries = {
+            num: 0,
+            name: details.info?.name || 'Série em Destaque',
+            series_id: initialStreamId,
+            cover: details.info?.cover || '',
+            plot: details.info?.plot || '',
+            cast: details.info?.cast || '',
+            director: details.info?.director || '',
+            genre: details.info?.genre || '',
+            releaseDate: details.info?.releaseDate || '',
+            last_modified: '',
+            rating: details.info?.rating || '',
+            rating_5based: details.info?.rating_5based || 0,
+            backdrop_path: details.info?.backdrop_path || [],
+            category_id: ''
+          };
+          setSelectedSeries(fakeSeries);
+          setSeriesDetails(details);
+          const firstSeason = Object.keys(details.episodes || {})[0] || '1';
+          setSelectedSeason(firstSeason);
+          setSelectedSeasonIdx(0);
+          setActiveFocusColumn('episodes');
+          setSelectedEpisodeIdx(0);
+        }
+      })
+      .catch((err) => console.warn('[Series] Erro ao carregar série inicial:', err));
+  }, [initialStreamId, client]);
+
+  // Força foco real no DOM
+  useEffect(() => {
+    if (!playingEpisode && isFocusedContent && !isSearchModalOpen) {
+      if (activeFocusColumn === 'categories') {
+        if (selectedCategoryIdx === -1 && backHomeBtnRef.current) {
+          backHomeBtnRef.current.focus();
+        } else if (activeCategoryBtnRef.current) {
+          activeCategoryBtnRef.current.focus();
+          activeCategoryBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      } else if (activeFocusColumn === 'grid' && activeSeriesBtnRef.current) {
+        activeSeriesBtnRef.current.focus();
+        activeSeriesBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (activeFocusColumn === 'details-header' && activeHeaderBtnRef.current) {
+        activeHeaderBtnRef.current.focus();
+      } else if (activeFocusColumn === 'seasons' && activeSeasonBtnRef.current) {
+        activeSeasonBtnRef.current.focus();
+        activeSeasonBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (activeFocusColumn === 'episodes' && activeEpBtnRef.current) {
+        activeEpBtnRef.current.focus();
+        activeEpBtnRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (activeFocusColumn === 'search' && searchBtnRef.current) {
+        searchBtnRef.current.focus();
+      }
+    }
+  }, [selectedCategoryIdx, selectedSeriesIdx, selectedSeasonIdx, selectedEpisodeIdx, headerBtnIdx, activeFocusColumn, isFocusedContent, playingEpisode, displayedSeries.length, isSearchModalOpen]);
+
+  // Tecla 'F' para favoritar no controle remoto
+  useEffect(() => {
+    const handleFavKey = (e: KeyboardEvent) => {
+      if (playingEpisode || isSearchModalOpen) return;
+      if (e.key === 'f' || e.key === 'F') {
+        const target = selectedSeries || displayedSeries[selectedSeriesIdx];
+        if (target) {
+          handleToggleFav(Number(target.series_id));
+        }
+      }
+    };
+    window.addEventListener('keydown', handleFavKey);
+    return () => window.removeEventListener('keydown', handleFavKey);
+  }, [selectedSeries, displayedSeries, selectedSeriesIdx, playingEpisode, isSearchModalOpen]);
+
+  const handleCategoryClick = (catId: string, catIndex: number, catName?: string) => {
+    const isAdult = AdultContentHelper.isAdultCategory(catName);
+    if (isAdult && !AdultContentHelper.isSessionUnlocked()) {
+      setPendingAdultCategory({ id: catId, idx: catIndex });
+      setShowAdultPinModal(true);
+      return;
+    }
+    setSelectedCategory(catId);
+    setSelectedCategoryIdx(catIndex);
+    setActiveFocusColumn('grid');
+  };
+
+  const handleToggleFav = (seriesId: number | string) => {
+    const numId = Number(seriesId);
+    if (isNaN(numId)) return;
+    toggleFavorite(numId, 'series');
+    setFavorites(getFavorites('series'));
+  };
+
+  const handleOpenSeries = async (series: XtreamSeries) => {
+    setSelectedSeries(series);
+    setIsLoadingDetails(true);
+    setSeriesDetails(null);
+    setActiveFocusColumn('episodes');
+    setSelectedEpisodeIdx(0);
+    setSelectedSeasonIdx(0);
+
+    try {
+      const details = await client.getSeriesInfo(series.series_id);
+      setSeriesDetails(details);
+      const firstSeasonKey = Object.keys(details.episodes || {})[0] || '1';
+      setSelectedSeason(firstSeasonKey);
+    } catch (err) {
+      console.error("[Series] Erro ao carregar temporadas da série:", err);
+    } finally {
+      setIsLoadingDetails(false);
+    }
+  };
+
+  const closeSeriesDetails = () => {
+    setSelectedSeries(null);
+    setSeriesDetails(null);
+    setActiveFocusColumn('grid');
+  };
+
+  const startPlayingEpisode = (epData: { id: string; title: string; ext: string; season: string; episodeIdx: number }) => {
+    if (selectedSeries) {
+      addRecent(selectedSeries.series_id, 'series');
+      setRecentSeriesIds(getRecent('series'));
+    }
+    setPlayingEpisode(epData);
+    onFullScreenChange?.(true);
+  };
+
+  const stopPlayingEpisode = () => {
+    setPlayingEpisode(null);
+    onFullScreenChange?.(false);
+  };
+
+  // Navegação Sequencial de Episódios para Séries (Auto-Play e Botões Próximo/Anterior)
+  const currentSeasonIndex = playingEpisode ? seasonKeys.indexOf(playingEpisode.season) : -1;
+  const currentSeasonEpisodes = playingEpisode ? seriesDetails?.episodes?.[playingEpisode.season] || [] : [];
+
+  let hasPrevEpisode = false;
+  let prevSeason = '';
+  let prevEpIdx = -1;
+
+  if (playingEpisode) {
+    if (playingEpisode.episodeIdx > 0) {
+      hasPrevEpisode = true;
+      prevSeason = playingEpisode.season;
+      prevEpIdx = playingEpisode.episodeIdx - 1;
+    } else if (currentSeasonIndex > 0) {
+      const prevSeasonKey = seasonKeys[currentSeasonIndex - 1];
+      const prevSeasonEps = seriesDetails?.episodes?.[prevSeasonKey] || [];
+      if (prevSeasonEps.length > 0) {
+        hasPrevEpisode = true;
+        prevSeason = prevSeasonKey;
+        prevEpIdx = prevSeasonEps.length - 1;
+      }
+    }
+  }
+
+  let hasNextEpisode = false;
+  let nextSeason = '';
+  let nextEpIdx = -1;
+  let nextEpisodeTitle = '';
+
+  if (playingEpisode) {
+    if (playingEpisode.episodeIdx < currentSeasonEpisodes.length - 1) {
+      hasNextEpisode = true;
+      nextSeason = playingEpisode.season;
+      nextEpIdx = playingEpisode.episodeIdx + 1;
+      const nextEp = currentSeasonEpisodes[nextEpIdx];
+      if (nextEp) {
+        nextEpisodeTitle = `T${nextSeason}:E${nextEp.episode_num} - ${nextEp.title}`;
+      }
+    } else if (currentSeasonIndex !== -1 && currentSeasonIndex < seasonKeys.length - 1) {
+      const nextSeasonKey = seasonKeys[currentSeasonIndex + 1];
+      const nextSeasonEps = seriesDetails?.episodes?.[nextSeasonKey] || [];
+      if (nextSeasonEps.length > 0) {
+        hasNextEpisode = true;
+        nextSeason = nextSeasonKey;
+        nextEpIdx = 0;
+        const nextEp = nextSeasonEps[0];
+        if (nextEp) {
+          nextEpisodeTitle = `T${nextSeason}:E${nextEp.episode_num} - ${nextEp.title}`;
+        }
+      }
+    }
+  }
+
+  const handleGoToNextEpisode = () => {
+    if (!hasNextEpisode) return;
+    const targetEps = seriesDetails?.episodes?.[nextSeason] || [];
+    const ep = targetEps[nextEpIdx];
+    if (ep) {
+      setSelectedSeason(nextSeason);
+      setSelectedEpisodeIdx(nextEpIdx);
+      setPlayingEpisode({
+        id: ep.id,
+        title: `T${nextSeason}:E${ep.episode_num} - ${ep.title}`,
+        ext: ep.container_extension || 'mp4',
+        season: nextSeason,
+        episodeIdx: nextEpIdx
+      });
+    }
+  };
+
+  const handleGoToPrevEpisode = () => {
+    if (!hasPrevEpisode) return;
+    const targetEps = seriesDetails?.episodes?.[prevSeason] || [];
+    const ep = targetEps[prevEpIdx];
+    if (ep) {
+      setSelectedSeason(prevSeason);
+      setSelectedEpisodeIdx(prevEpIdx);
+      setPlayingEpisode({
+        id: ep.id,
+        title: `T${prevSeason}:E${ep.episode_num} - ${ep.title}`,
+        ext: ep.container_extension || 'mp4',
+        season: prevSeason,
+        episodeIdx: prevEpIdx
+      });
+    }
+  };
+
+  // Navegação D-Pad para Smart TV
+  useSpatialNav({
+    onUp: () => {
+      if (playingEpisode) return;
+      if (activeFocusColumn === 'categories') {
+        setSelectedCategoryIdx((prev) => {
+          if (prev <= 0) return -1;
+          return prev - 1;
+        });
+      } else if (activeFocusColumn === 'grid') {
+        if (selectedSeriesIdx < 5) {
+          setActiveFocusColumn('search');
+          searchBtnRef.current?.focus();
+        } else {
+          setSelectedSeriesIdx((prev) => Math.max(0, prev - 5));
+        }
+      } else if (activeFocusColumn === 'seasons') {
+        if (selectedSeasonIdx === 0) {
+          setActiveFocusColumn('details-header');
+          setHeaderBtnIdx(0);
+        } else {
+          setSelectedSeasonIdx((prev) => {
+            const next = Math.max(0, prev - 1);
+            if (seasonKeys[next]) setSelectedSeason(seasonKeys[next]);
+            return next;
+          });
+        }
+      } else if (activeFocusColumn === 'episodes') {
+        if (selectedEpisodeIdx === 0) {
+          setActiveFocusColumn('details-header');
+          setHeaderBtnIdx(0);
+        } else {
+          setSelectedEpisodeIdx((prev) => Math.max(0, prev - 1));
+        }
+      }
+    },
+    onDown: () => {
+      if (playingEpisode) return;
+      if (activeFocusColumn === 'search') {
+        setActiveFocusColumn('grid');
+        setSelectedSeriesIdx(0);
+      } else if (activeFocusColumn === 'details-header') {
+        setActiveFocusColumn('seasons');
+      } else if (activeFocusColumn === 'categories') {
+        setSelectedCategoryIdx((prev) => {
+          if (prev === -1) return 0;
+          return Math.min(selectableCategories.length - 1, prev + 1);
+        });
+      } else if (activeFocusColumn === 'grid') {
+        setSelectedSeriesIdx((prev) => {
+          const totalListLen = searchQuery ? (globalSeriesCatalogRef.current.length || allSeries.length) : allSeries.length;
+          const nextIdx = Math.min(displayedSeries.length - 1, prev + 5);
+          if (nextIdx >= displayedCount - 5 && displayedCount < totalListLen) {
+            setDisplayedCount((c) => Math.min(totalListLen, c + BATCH_SIZE));
+          }
+          return nextIdx;
+        });
+      } else if (activeFocusColumn === 'seasons') {
+        setSelectedSeasonIdx((prev) => {
+          const next = Math.min(seasonKeys.length - 1, prev + 1);
+          if (seasonKeys[next]) setSelectedSeason(seasonKeys[next]);
+          return next;
+        });
+      } else if (activeFocusColumn === 'episodes') {
+        const totalEps = (seriesDetails?.episodes?.[selectedSeason] || []).length;
+        setSelectedEpisodeIdx((prev) => Math.min(totalEps - 1, prev + 1));
+      }
+    },
+    onLeft: () => {
+      if (playingEpisode) return;
+      if (activeFocusColumn === 'search') {
+        setActiveFocusColumn('categories');
+        setSelectedCategoryIdx(-1);
+      } else if (activeFocusColumn === 'details-header') {
+        setHeaderBtnIdx(0); // Favoritar
+      } else if (activeFocusColumn === 'grid') {
+        if (selectedSeriesIdx % 5 === 0 || displayedSeries.length === 0) {
+          setActiveFocusColumn('categories');
+        } else {
+          setSelectedSeriesIdx((prev) => Math.max(0, prev - 1));
+        }
+      } else if (activeFocusColumn === 'episodes') {
+        setActiveFocusColumn('seasons');
+      }
+    },
+    onRight: () => {
+      if (playingEpisode) return;
+      if (activeFocusColumn === 'details-header') {
+        setHeaderBtnIdx(1); // Fechar
+      } else if (activeFocusColumn === 'categories') {
+        if (selectedCategoryIdx === -1) {
+          setActiveFocusColumn('search');
+          searchBtnRef.current?.focus();
+          return;
+        }
+        if (displayedSeries.length > 0) {
+          setActiveFocusColumn('grid');
+          setSelectedSeriesIdx(0);
+        }
+      } else if (activeFocusColumn === 'grid') {
+        setSelectedSeriesIdx((prev) => {
+          const totalListLen = searchQuery ? (globalSeriesCatalogRef.current.length || allSeries.length) : allSeries.length;
+          const nextIdx = Math.min(displayedSeries.length - 1, prev + 1);
+          if (nextIdx >= displayedCount - 2 && displayedCount < totalListLen) {
+            setDisplayedCount((c) => Math.min(totalListLen, c + BATCH_SIZE));
+          }
+          return nextIdx;
+        });
+      } else if (activeFocusColumn === 'seasons') {
+        setActiveFocusColumn('episodes');
+      }
+    },
+    onSelect: () => {
+      if (playingEpisode) return;
+      if (activeFocusColumn === 'search') {
+        setIsSearchModalOpen(true);
+        return;
+      }
+      if (activeFocusColumn === 'details-header') {
+        if (headerBtnIdx === 0 && selectedSeries) {
+          handleToggleFav(Number(selectedSeries.series_id));
+        } else if (headerBtnIdx === 1) {
+          closeSeriesDetails();
+        }
+      } else if (activeFocusColumn === 'categories') {
+        if (selectedCategoryIdx === -1) {
+          onBackToHome?.();
+          return;
+        }
+        const item = selectableCategories[selectedCategoryIdx];
+        if (item) {
+          if (item.isSpecial) {
+            setSelectedCategory(item.id);
+            setActiveFocusColumn('grid');
+          } else {
+            handleCategoryClick(item.id, selectedCategoryIdx, item.name);
+          }
+        }
+      } else if (activeFocusColumn === 'grid' && displayedSeries[selectedSeriesIdx]) {
+        handleOpenSeries(displayedSeries[selectedSeriesIdx]);
+      } else if (activeFocusColumn === 'seasons') {
+        setActiveFocusColumn('episodes');
+      } else if (activeFocusColumn === 'episodes') {
+        const eps = seriesDetails?.episodes?.[selectedSeason] || [];
+        const ep = eps[selectedEpisodeIdx];
+        if (ep) {
+          startPlayingEpisode({
+            id: ep.id,
+            title: `T${selectedSeason}:E${ep.episode_num} - ${ep.title}`,
+            ext: ep.container_extension || 'mp4',
+            season: selectedSeason,
+            episodeIdx: selectedEpisodeIdx
+          });
+        }
+      }
+    },
+    onGreen: () => {
+      const target = selectedSeries || displayedSeries[selectedSeriesIdx];
+      if (target) {
+        handleToggleFav(Number(target.series_id));
+      }
+    },
+    onYellow: () => {
+      const target = selectedSeries || displayedSeries[selectedSeriesIdx];
+      if (target) {
+        handleToggleFav(Number(target.series_id));
+      }
+    },
+    onLongSelect: () => {
+      const target = selectedSeries || displayedSeries[selectedSeriesIdx];
+      if (target) {
+        handleToggleFav(Number(target.series_id));
+      }
+    },
+    onBack: () => {
+      if (showAdultPinModal) {
+        setShowAdultPinModal(false);
+        setPendingAdultCategory(null);
+        return;
+      }
+      if (playingEpisode) {
+        stopPlayingEpisode();
+        return;
+      }
+      if (selectedSeries) {
+        closeSeriesDetails();
+        return;
+      }
+      if (activeFocusColumn === 'search') {
+        if (searchQuery) {
+          setSearchQuery('');
+        } else {
+          setActiveFocusColumn('grid');
+        }
+        return;
+      }
+      onBackToHome?.();
+    },
+    disabled: !isFocusedContent || showAdultPinModal || isSearchModalOpen,
+    priority: 15
+  }, [
+    playingEpisode,
+    activeFocusColumn,
+    headerBtnIdx,
+    selectedCategoryIdx,
+    selectedSeriesIdx,
+    selectedSeasonIdx,
+    selectedEpisodeIdx,
+    displayedSeries,
+    allSeries.length,
+    displayedCount,
+    selectableCategories,
+    selectedSeries,
+    seriesDetails,
+    selectedSeason,
+    seasonKeys,
+    isFocusedContent,
+    showAdultPinModal,
+    isSearchModalOpen,
+    onBackToHome
+  ]);
+
+  // Player de Episódio (VOD com Seekbar & Próximo/Anterior Episódio)
+  if (playingEpisode) {
+    return (
+      <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black">
+        <Player
+          streamUrl={client.buildEpisodeUrl(playingEpisode.id, playingEpisode.ext)}
+          title={playingEpisode.title}
+          subtitle={selectedSeries?.name}
+          isLive={false}
+          onBack={stopPlayingEpisode}
+          isFullScreen={true}
+          onNextEpisode={handleGoToNextEpisode}
+          onPreviousEpisode={handleGoToPrevEpisode}
+          hasNextEpisode={hasNextEpisode}
+          hasPreviousEpisode={hasPrevEpisode}
+          autoPlayNext={autoPlayNextEpisode}
+          onToggleAutoPlayNext={toggleAutoPlayNext}
+          nextEpisodeTitle={nextEpisodeTitle}
+        />
+      </div>
+    );
+  }
+
+  const isCurrentSeriesFav = selectedSeries ? favorites.includes(Number(selectedSeries.series_id)) : false;
+
+  return (
+    <div className="w-full h-full flex bg-[#0a0d14] overflow-hidden select-none relative">
+      {/* Coluna de Categorias (Responsivo e Legível para Smart TVs e iPhones) */}
+      <div className={`${
+        isCompactMobile ? 'w-56 sm:w-64' : 'w-52 md:w-60 lg:w-80 xl:w-96'
+      } h-full bg-[#121722]/90 border-r border-[#2a3449] p-2.5 sm:p-3 md:p-4 flex flex-col transition-all duration-200 shrink-0 ${
+        isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
+      }`}>
+        <div className="flex items-center justify-between mb-3 sm:mb-4 px-1">
+          <h2 className="text-xs sm:text-sm md:text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5 sm:gap-2">
+            <span>GÊNEROS SÉRIES</span>
+            <span className="text-sky-400 font-mono text-xs sm:text-sm">({selectableCategories.length})</span>
+          </h2>
+          {onBackToHome && (
+            <button
+              ref={backHomeBtnRef}
+              type="button"
+              onClick={onBackToHome}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl transition cursor-pointer border shadow ${isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === -1
+                ? 'bg-rose-600 text-white font-black ring-4 ring-rose-400 scale-105 border-white shadow-xl'
+                : 'bg-slate-800 hover:bg-sky-600 text-[10px] sm:text-xs font-black text-slate-200 hover:text-white border-slate-700'
+                }`}
+              title="Voltar para a Home"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>Início</span>
+            </button>
+          )}
+        </div>
+
+        {isLoadingCats ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+            <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 animate-spin text-emerald-400 mb-2 sm:mb-3" />
+            <span className="text-xs sm:text-base font-semibold">Carregando gêneros...</span>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto space-y-1.5 sm:space-y-2.5 pr-1 custom-scrollbar">
+            {selectableCategories.map((item, idx) => {
+              const isCatFocused = isFocusedContent && activeFocusColumn === 'categories' && selectedCategoryIdx === idx;
+              const isSelected = selectedCategory === item.id;
+              const Icon = item.icon;
+
+              return (
+                <button
+                  type="button"
+                  key={`${item.id}-${idx}`}
+                  ref={isCatFocused ? activeCategoryBtnRef : null}
+                  tabIndex={0}
+                  onClick={() => {
+                    setSelectedCategoryIdx(idx);
+                    if (item.isSpecial) {
+                      setSelectedCategory(item.id);
+                      setActiveFocusColumn('grid');
+                    } else {
+                      handleCategoryClick(item.id, idx, item.name);
+                    }
+                  }}
+                  className={`w-full text-left px-2.5 py-2 sm:px-3.5 sm:py-2.5 md:px-4 md:py-3 lg:px-5 lg:py-3.5 rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base lg:text-lg font-black transition truncate cursor-pointer flex items-center justify-between ${isSelected
+                    ? item.isAdult
+                      ? 'bg-rose-500 text-white font-black shadow'
+                      : item.id === 'favorites'
+                        ? 'bg-amber-400 text-black shadow font-black'
+                        : item.id === 'recently_watched'
+                          ? 'bg-sky-400 text-black shadow font-black'
+                          : 'bg-emerald-500 text-black font-black shadow'
+                    : item.isAdult
+                      ? 'text-rose-400 hover:bg-rose-950/30'
+                      : item.id === 'favorites'
+                        ? 'text-amber-300 hover:bg-[#1b2234]'
+                        : item.id === 'recently_watched'
+                          ? 'text-sky-300 hover:bg-[#1b2234]'
+                          : 'text-slate-200 hover:bg-[#1b2234] hover:text-white'
+                    } ${isCatFocused
+                      ? item.isAdult
+                        ? 'ring-4 ring-rose-400 shadow-2xl scale-102 font-black outline-none bg-rose-500 text-white'
+                        : item.id === 'favorites'
+                          ? 'ring-4 ring-amber-300 shadow-2xl scale-102 font-black outline-none bg-amber-400 text-black'
+                          : item.id === 'recently_watched'
+                            ? 'ring-4 ring-sky-300 shadow-2xl scale-102 font-black outline-none bg-sky-400 text-black'
+                            : 'ring-4 ring-emerald-300 shadow-2xl scale-102 font-black outline-none bg-emerald-400 text-black'
+                      : ''
+                    }`}
+                >
+                  <div className="flex items-center gap-1.5 sm:gap-2 truncate">
+                    {Icon ? (
+                      <Icon className={`w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 shrink-0 ${item.id === 'favorites'
+                        ? isSelected || isCatFocused ? 'fill-current text-black' : 'text-amber-400'
+                        : item.id === 'recently_watched'
+                          ? isSelected || isCatFocused ? 'text-black' : 'text-sky-400'
+                          : isSelected || isCatFocused ? 'text-black' : 'text-emerald-400'
+                        }`} />
+                    ) : null}
+                    <span className="truncate">{item.name}</span>
+                    {item.isAdult && <Lock className="w-3.5 h-3.5 ml-1 shrink-0 opacity-80" />}
+                  </div>
+                  <span className={`font-mono text-[10px] sm:text-xs md:text-sm px-1.5 sm:px-2 py-0.5 rounded-lg ml-1.5 shrink-0 ${isCatFocused
+                    ? 'bg-black/30 text-black font-bold'
+                    : isSelected
+                      ? 'bg-black/40 text-white font-bold'
+                      : 'bg-slate-800/80 text-slate-400'
+                    }`}>
+                    {item.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Grade de Séries */}
+      <div
+        className={`flex-1 h-full p-2.5 sm:p-4 md:p-6 overflow-y-auto custom-scrollbar transition-all ${isFocusedContent && activeFocusColumn === 'grid' ? 'ring-2 ring-emerald-500/30' : ''
+          }`}
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-4 mb-3 sm:mb-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <h2 className="text-base sm:text-xl md:text-2xl font-black text-white flex items-center gap-2">
+              <Clapperboard className="w-5 h-5 sm:w-7 sm:h-7 text-emerald-400" />
+              <span>Catálogo de Séries</span>
+              {allSeries.length > 0 && (
+                <span className="text-xs sm:text-base font-normal text-slate-400 ml-1">
+                  ({displayedSeries.length} de {allSeries.length})
+                </span>
+              )}
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* Campo de Busca Rápida de Séries */}
+            <button
+              type="button"
+              ref={searchBtnRef}
+              tabIndex={0}
+              onClick={() => setIsSearchModalOpen(true)}
+              className={`relative w-48 sm:w-64 md:w-80 px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-[#121722] border rounded-xl flex items-center justify-between text-left transition cursor-pointer select-none ${isFocusedContent && activeFocusColumn === 'search'
+                ? 'border-emerald-400 ring-4 ring-emerald-400/80 bg-[#161d2b]'
+                : 'border-slate-700/80 hover:border-slate-600'
+                }`}
+            >
+              <div className="flex items-center gap-2 overflow-hidden flex-1">
+                <Search className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className={`text-xs md:text-sm truncate ${searchQuery ? 'text-emerald-300 font-bold' : 'text-slate-400'}`}>
+                  {searchQuery ? `"${searchQuery}"` : 'Buscar série por título...'}
+                </span>
+              </div>
+              {searchQuery ? (
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSearchQuery('');
+                  }}
+                  className="p-1 text-slate-400 hover:text-white shrink-0 cursor-pointer"
+                  title="Limpar pesquisa"
+                >
+                  <X className="w-4 h-4" />
+                </span>
+              ) : (
+                <span className="text-[10px] sm:text-[11px] text-slate-500 font-mono shrink-0 hidden sm:inline">
+                  [OK: Buscar]
+                </span>
+              )}
+            </button>
+
+            <div className="hidden sm:flex text-xs text-slate-400 items-center gap-2">
+              <span className="font-mono bg-[#1a2233] px-3 py-1.5 rounded-lg text-emerald-400 font-bold">
+                [OK] Abrir Série
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {isLoadingSeries ? (
+          <div className="w-full h-80 flex flex-col items-center justify-center text-slate-400">
+            <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 animate-spin text-emerald-400 mb-3" />
+            <span className="text-sm sm:text-base font-semibold">Carregando catálogo de séries...</span>
+          </div>
+        ) : allSeries.length === 0 ? (
+          <div className="w-full h-80 flex flex-col items-center justify-center text-slate-500 p-6 text-center">
+            {selectedCategory === 'favorites' ? (
+              <>
+                <Star className="w-12 h-12 sm:w-16 sm:h-16 mb-2 sm:mb-3 text-amber-500/40" />
+                <p className="text-base sm:text-lg font-bold text-slate-200">Nenhuma série favoritada ainda.</p>
+                <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-sm">Abra qualquer série e clique no botão [Favoritar] ou aperte a tecla 'F' no controle.</p>
+              </>
+            ) : (
+              <>
+                <Clapperboard className="w-12 h-12 sm:w-16 sm:h-16 mb-2 sm:mb-3 text-slate-600" />
+                <p className="text-sm sm:text-base font-semibold text-slate-400">Nenhuma série disponível nesta categoria.</p>
+                <p className="text-xs text-slate-500 mt-1">Selecione outro gênero no menu à esquerda.</p>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3.5 md:gap-5">
+            {displayedSeries.map((series, seriesIdx) => {
+              const isSeriesFocused = isFocusedContent && activeFocusColumn === 'grid' && selectedSeriesIdx === seriesIdx;
+              const isFav = favorites.includes(series.series_id);
+
+              return (
+                <button
+                  type="button"
+                  tabIndex={0}
+                  key={`${series.series_id}-${seriesIdx}`}
+                  ref={isSeriesFocused ? activeSeriesBtnRef : null}
+                  onClick={() => {
+                    setSelectedSeriesIdx(seriesIdx);
+                    handleOpenSeries(series);
+                  }}
+                  className={`group relative bg-[#121722] border rounded-2xl overflow-hidden cursor-pointer transition-all duration-150 shadow-lg text-left ${isSeriesFocused
+                    ? 'border-emerald-400 ring-4 ring-emerald-400/80 scale-104 shadow-2xl z-10 bg-[#161d2b]'
+                    : 'border-[#2a3449] hover:border-emerald-500/50'
+                    }`}
+                >
+                  <div className="aspect-[2/3] w-full bg-slate-900 overflow-hidden relative">
+                    {series.cover ? (
+                      <img
+                        src={series.cover}
+                        alt={series.name}
+                        loading="lazy"
+                        className="w-full h-full object-cover group-hover:opacity-80 transition"
+                        onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-600">
+                        <Clapperboard className="w-12 h-12" />
+                      </div>
+                    )}
+
+                    {isFav && (
+                      <div className="absolute top-2.5 right-2.5 p-2 rounded-full bg-black/75 text-amber-400 z-10 shadow">
+                        <Star className="w-4 h-4 fill-current" />
+                      </div>
+                    )}
+
+                    <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition ${isSeriesFocused ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}>
+                      <div className="w-14 h-14 rounded-full bg-emerald-500 text-black flex items-center justify-center shadow-2xl">
+                        <Info className="w-7 h-7 ml-0.5" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`p-2 sm:p-3 md:p-3.5 ${isSeriesFocused ? 'bg-emerald-500/20' : ''}`}>
+                    <h3 className="text-xs sm:text-sm md:text-base font-bold text-white truncate leading-snug">{series.name}</h3>
+                    {series.rating && (
+                      <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-amber-400 mt-1 font-semibold">
+                        <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
+                        <span>{series.rating}</span>
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* MODAL DE DETALHES DA SÉRIE (CAPA, SINOPSE, TEMPORADAS E EPISÓDIOS) */}
+      {selectedSeries && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 md:p-8 animate-in fade-in duration-200">
+          <div className="w-full max-w-5xl max-h-[94vh] bg-[#121722] border border-[#2a3449] rounded-2xl md:rounded-3xl flex flex-col overflow-hidden shadow-2xl">
+
+            {/* Header da Série: Capa + Sinopse + Botão Favoritar + Botão Fechar */}
+            <div className="p-3 sm:p-4 md:p-6 border-b border-[#2a3449] flex items-start gap-3 sm:gap-4 md:gap-6 bg-gradient-to-r from-[#161f30] to-[#121722]">
+              {selectedSeries.cover && (
+                <div className="w-14 sm:w-20 md:w-28 aspect-[2/3] rounded-xl md:rounded-2xl overflow-hidden shrink-0 border border-slate-700 shadow-xl">
+                  <img src={seriesDetails?.info?.cover || selectedSeries.cover} alt={selectedSeries.name} className="w-full h-full object-cover" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base sm:text-xl md:text-3xl font-black text-white truncate">{selectedSeries.name}</h3>
+                  <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-2">
+                    <button
+                      type="button"
+                      ref={activeFocusColumn === 'details-header' && headerBtnIdx === 0 ? activeHeaderBtnRef : null}
+                      tabIndex={0}
+                      onClick={() => handleToggleFav(selectedSeries.series_id)}
+                      className={`px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 border transition cursor-pointer ${activeFocusColumn === 'details-header' && headerBtnIdx === 0
+                        ? 'ring-4 ring-amber-300 scale-105 shadow-2xl bg-amber-400 text-black border-amber-300'
+                        : isCurrentSeriesFav
+                          ? 'bg-amber-400/20 text-amber-300 border-amber-400/50 hover:bg-amber-400/30'
+                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                        }`}
+                    >
+                      <Star className={`w-4 h-4 sm:w-5 sm:h-5 ${isCurrentSeriesFav || (activeFocusColumn === 'details-header' && headerBtnIdx === 0) ? 'fill-current' : 'text-amber-400'}`} />
+                      <span className="hidden sm:inline">{isCurrentSeriesFav ? 'Favoritada' : 'Favoritar'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      ref={activeFocusColumn === 'details-header' && headerBtnIdx === 1 ? activeHeaderBtnRef : null}
+                      tabIndex={0}
+                      onClick={closeSeriesDetails}
+                      className={`p-1.5 sm:p-2 md:p-2.5 rounded-full transition cursor-pointer ${activeFocusColumn === 'details-header' && headerBtnIdx === 1
+                        ? 'ring-4 ring-rose-400 scale-105 shadow-2xl bg-rose-600 text-white'
+                        : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                        }`}
+                      title="Fechar (Voltar)"
+                    >
+                      <X className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1.5 sm:mt-2 text-[11px] sm:text-xs md:text-sm text-slate-300">
+                  {selectedSeries.rating && (
+                    <div className="flex items-center gap-1 text-amber-400 font-bold">
+                      <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
+                      <span>{selectedSeries.rating}</span>
+                    </div>
+                  )}
+                  {selectedSeries.genre && (
+                    <span className="text-sky-300 bg-sky-950/60 px-2 py-0.5 rounded font-medium">
+                      {selectedSeries.genre}
+                    </span>
+                  )}
+                  {seasonKeys.length > 0 && (
+                    <span className="text-slate-400">
+                      {seasonKeys.length} Temporada(s)
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-xs sm:text-sm md:text-base text-slate-200 mt-1.5 sm:mt-2.5 line-clamp-2 sm:line-clamp-3 leading-relaxed">
+                  {seriesDetails?.info?.plot || selectedSeries.plot || 'Sinopse não disponível para esta série.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Conteúdo: Abas de Temporadas e Lista de Episódios */}
+            <div className="flex-1 flex overflow-hidden">
+              {isLoadingDetails ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-400 py-12 sm:py-16">
+                  <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 animate-spin text-emerald-400 mb-3" />
+                  <span className="text-xs sm:text-base font-semibold">Carregando episódios e temporadas...</span>
+                </div>
+              ) : (
+                <>
+                  {/* Coluna de Temporadas */}
+                  <div className={`w-36 sm:w-48 md:w-64 bg-[#161d2b]/80 border-r border-[#2a3449] p-2 sm:p-3 md:p-4 overflow-y-auto space-y-1 sm:space-y-2 shrink-0 transition ${isFocusedContent && activeFocusColumn === 'seasons' ? 'ring-2 ring-emerald-500/50' : ''
+                    }`}>
+                    <h4 className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-400 px-1 sm:px-2 mb-1 sm:mb-2">
+                      Temporadas
+                    </h4>
+                    {seasonKeys.map((seasonKey, sIdx) => {
+                      const isSeasonFocused = isFocusedContent && activeFocusColumn === 'seasons' && selectedSeasonIdx === sIdx;
+                      const isSeasonSelected = selectedSeason === seasonKey;
+
+                      return (
+                        <button
+                          key={seasonKey}
+                          type="button"
+                          tabIndex={0}
+                          ref={isSeasonFocused ? activeSeasonBtnRef : null}
+                          onClick={() => {
+                            setSelectedSeason(seasonKey);
+                            setSelectedSeasonIdx(sIdx);
+                            setActiveFocusColumn('episodes');
+                            setSelectedEpisodeIdx(0);
+                          }}
+                          className={`w-full text-left px-2.5 py-1.5 sm:px-3 sm:py-2 md:px-4 md:py-3 rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base font-bold transition cursor-pointer ${isSeasonFocused
+                            ? 'bg-emerald-400 text-black shadow-xl ring-2 ring-emerald-300 scale-102 font-black'
+                            : isSeasonSelected
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              : 'text-slate-300 hover:bg-[#1b2234]'
+                            }`}
+                        >
+                          Temporada {seasonKey}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Lista de Episódios com Botão Play e Foco */}
+                  <div className={`flex-1 p-2.5 sm:p-3.5 md:p-5 overflow-y-auto space-y-2 sm:space-y-3 custom-scrollbar transition min-w-0 ${isFocusedContent && activeFocusColumn === 'episodes' ? 'ring-2 ring-emerald-500/50' : ''
+                    }`}>
+                    <div className="flex items-center justify-between mb-1 sm:mb-2">
+                      <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-300">
+                        Episódios da Temporada {selectedSeason} ({(seriesDetails?.episodes?.[selectedSeason] || []).length})
+                      </h4>
+                      <span className="text-[10px] sm:text-xs text-slate-400 font-mono hidden sm:inline">
+                        [◀] Temporadas • [OK] Assistir
+                      </span>
+                    </div>
+
+                    {(seriesDetails?.episodes?.[selectedSeason] || []).map((ep, epIdx) => {
+                      const isEpFocused = isFocusedContent && activeFocusColumn === 'episodes' && selectedEpisodeIdx === epIdx;
+                      return (
+                        <button
+                          key={ep.id}
+                          type="button"
+                          tabIndex={0}
+                          ref={isEpFocused ? activeEpBtnRef : null}
+                          onClick={() => {
+                            setSelectedEpisodeIdx(epIdx);
+                            startPlayingEpisode({
+                              id: ep.id,
+                              title: `T${selectedSeason}:E${ep.episode_num} - ${ep.title}`,
+                              ext: ep.container_extension || 'mp4',
+                              season: selectedSeason,
+                              episodeIdx: epIdx
+                            });
+                          }}
+                          className={`w-full flex items-center justify-between p-2.5 sm:p-3 md:p-4 rounded-xl md:rounded-2xl cursor-pointer transition select-none text-left ${isEpFocused
+                            ? 'bg-emerald-400 text-black font-black shadow-2xl scale-[1.02] ring-2 sm:ring-4 ring-emerald-300'
+                            : 'bg-[#1b2234]/70 hover:bg-[#1b2234] border border-[#2a3449] text-white'
+                            }`}
+                        >
+                          <div className="flex items-center gap-2.5 sm:gap-4 overflow-hidden flex-1 min-w-0 pr-2">
+                            <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center font-black text-xs sm:text-sm shrink-0 ${isEpFocused ? 'bg-black text-emerald-400' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                              }`}>
+                              E{ep.episode_num}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="font-bold text-xs sm:text-sm md:text-base lg:text-lg block truncate leading-tight">{ep.title}</span>
+                              {ep.info?.duration && (
+                                <span className={`text-[10px] sm:text-xs block mt-0.5 ${isEpFocused ? 'text-black/80 font-medium' : 'text-slate-400'}`}>
+                                  Duração: {ep.info.duration}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className={`w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shrink-0 ${isEpFocused ? 'bg-black text-emerald-400' : 'bg-emerald-500 text-black'
+                            }`}>
+                            <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 fill-current ml-0.5" />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Modal de PIN Parental (+18) */}
+      <AdultPinModal
+        isOpen={showAdultPinModal}
+        onDismiss={() => {
+          setShowAdultPinModal(false);
+          setPendingAdultCategory(null);
+        }}
+        onSuccess={() => {
+          setShowAdultPinModal(false);
+          if (pendingAdultCategory) {
+            setSelectedCategory(pendingAdultCategory.id);
+            setSelectedCategoryIdx(pendingAdultCategory.idx);
+            setActiveFocusColumn('grid');
+            setPendingAdultCategory(null);
+          }
+        }}
+      />
+
+      {/* Modal de Teclado Virtual para Busca de Séries em Smart TV */}
+      <TvSearchModal
+        isOpen={isSearchModalOpen}
+        title="Buscar Séries"
+        initialQuery={searchQuery}
+        totalResultsCount={displayedSeries.length}
+        onSearch={(q) => setSearchQuery(q)}
+        onClose={() => {
+          setIsSearchModalOpen(false);
+          if (displayedSeries.length > 0) {
+            setActiveFocusColumn('grid');
+            setSelectedSeriesIdx(0);
+          } else {
+            setActiveFocusColumn('search');
+          }
+        }}
+      />
+    </div>
+  );
+};
