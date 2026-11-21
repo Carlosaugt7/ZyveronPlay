@@ -97,7 +97,37 @@ export default function App() {
     setSelectedVodId(undefined);
     setSelectedSeriesId(undefined);
     setCurrentSection('home');
+    try {
+      window.history.pushState({ section: 'home' }, '', '#home');
+    } catch {}
   };
+
+  // Sincronização do Histórico do Navegador / Media Station X (MSX)
+  // Permite que gestos de voltar e botões de navegação no iPhone e Smart TV voltem sempre para a Home
+  useEffect(() => {
+    try {
+      window.history.replaceState({ section: 'home' }, '', '#home');
+      window.history.pushState({ section: 'home' }, '', '#home');
+    } catch {}
+
+    const onPopState = () => {
+      setCurrentSection((prev) => {
+        if (prev !== 'home') {
+          setSelectedLiveCategory(undefined);
+          setSelectedVodId(undefined);
+          setSelectedSeriesId(undefined);
+          return 'home';
+        }
+        return 'home';
+      });
+      try {
+        window.history.pushState({ section: 'home' }, '', '#home');
+      } catch {}
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   // Força revalidação no Firestore caso o usuário clique em "Verificar Agora"
   const handleRefreshActivation = () => {
@@ -229,6 +259,9 @@ export default function App() {
                   setSelectedVodId(section === 'vod' ? extra?.streamId : undefined);
                   setSelectedSeriesId(section === 'series' ? extra?.streamId : undefined);
                   setCurrentSection(section);
+                  try {
+                    window.history.pushState({ section }, '', '#' + section);
+                  } catch {}
                 }}
                 onSyncContent={handleSyncContent}
                 reloadKey={contentReloadKey}

@@ -755,9 +755,9 @@ export const LiveTvView: React.FC<LiveTvViewProps> = ({
   return (
     <div className="w-full h-full flex bg-[#0a0d14] relative overflow-hidden select-none">
       
-      {/* Coluna 1: Categorias de Canais (Responsivo para Smart TVs e iPhones) */}
+      {/* Coluna 1: Categorias de Canais (Responsivo e Legível para Smart TVs e iPhones) */}
       <div className={`${
-        isCompactMobile ? 'w-36 sm:w-44' : 'w-44 sm:w-52 md:w-60 lg:w-80 xl:w-96'
+        isCompactMobile ? 'w-56 sm:w-64' : 'w-52 md:w-60 lg:w-80 xl:w-96'
       } h-full bg-[#121722]/90 border-r border-[#2a3449] p-2 sm:p-3 md:p-4 flex flex-col transition-all duration-200 shrink-0 ${
         isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
       }`}>

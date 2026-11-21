@@ -177,36 +177,74 @@ export const HomeView: React.FC<HomeViewProps> = ({
           setIsLoading(false); // Libera o spinner da Home imediatamente
         }
 
-        // Prioridade 2: Filmes e Séries em segundo plano
-        const [vods, seriesList] = await Promise.all([
-          client.getVodStreams().catch((err) => {
-            console.warn('[HomeView] Erro ao carregar filmes:', err);
-            return null;
-          }),
-          client.getSeries().catch((err) => {
-            console.warn('[HomeView] Erro ao carregar séries:', err);
-            return null;
-          }),
-        ]);
-
-        if (isMounted) {
-          if (vods) {
-            setVodCount(vods.length);
-            localStorage.setItem('zyveron_vod_count', String(vods.length));
-            const topVods = deduplicateVods(vods, 10);
-            setFeaturedVods(topVods);
-            try {
-              localStorage.setItem('zyveron_featured_vods', JSON.stringify(topVods));
-            } catch {}
+        // Prioridade 2: Filmes em Destaque (Busca rápida via categorias de lançamentos/recentes para evitar download pesado de 11MB na TV)
+        let foundVods: XtreamVod[] = [];
+        try {
+          const vodCats = await client.getVodCategories().catch(() => []);
+          if (vodCats && vodCats.length > 0) {
+            const targetCat = vodCats.find(c => /lançamento|cinema|novidade|estreia|2026|2025/i.test(c.category_name)) || vodCats[0];
+            if (targetCat) {
+              const catStreams = await client.getVodStreams(targetCat.category_id).catch(() => []);
+              if (catStreams && catStreams.length > 0) {
+                foundVods = deduplicateVods(catStreams, 10);
+                if (isMounted) {
+                  setFeaturedVods(foundVods);
+                  try { localStorage.setItem('zyveron_featured_vods', JSON.stringify(foundVods)); } catch {}
+                }
+              }
+            }
           }
-          if (seriesList) {
-            setSeriesCount(seriesList.length);
-            localStorage.setItem('zyveron_series_count', String(seriesList.length));
-            const topSeries = deduplicateSeries(seriesList, 10);
-            setFeaturedSeries(topSeries);
-            try {
-              localStorage.setItem('zyveron_featured_series', JSON.stringify(topSeries));
-            } catch {}
+        } catch (catErr) {
+          console.warn('[HomeView] Erro ao buscar destaques de filmes por categoria:', catErr);
+        }
+
+        // Prioridade 3: Séries em Destaque (Busca rápida via categoria principal para carregar em menos de 2 segundos)
+        let foundSeries: XtreamSeries[] = [];
+        try {
+          const seriesCats = await client.getSeriesCategories().catch(() => []);
+          if (seriesCats && seriesCats.length > 0) {
+            const targetCat = seriesCats.find(c => /lançamento|novidade|destaque|netflix|globo|hbo/i.test(c.category_name)) || seriesCats[0];
+            if (targetCat) {
+              const catSeries = await client.getSeries(targetCat.category_id).catch(() => []);
+              if (catSeries && catSeries.length > 0) {
+                foundSeries = deduplicateSeries(catSeries, 10);
+                if (isMounted) {
+                  setFeaturedSeries(foundSeries);
+                  try { localStorage.setItem('zyveron_featured_series', JSON.stringify(foundSeries)); } catch {}
+                }
+              }
+            }
+          }
+        } catch (catErr) {
+          console.warn('[HomeView] Erro ao buscar destaques de séries por categoria:', catErr);
+        }
+
+        // Prioridade 4 (Segundo plano assíncrono): Busca completa para contagens totais e fallback
+        if (foundVods.length === 0 || foundSeries.length === 0 || !vodCount || !seriesCount) {
+          const [allVods, allSeries] = await Promise.all([
+            foundVods.length === 0 ? client.getVodStreams().catch(() => null) : Promise.resolve(null),
+            foundSeries.length === 0 ? client.getSeries().catch(() => null) : Promise.resolve(null),
+          ]);
+
+          if (isMounted) {
+            if (allVods && allVods.length > 0) {
+              setVodCount(allVods.length);
+              localStorage.setItem('zyveron_vod_count', String(allVods.length));
+              if (foundVods.length === 0) {
+                const top = deduplicateVods(allVods, 10);
+                setFeaturedVods(top);
+                try { localStorage.setItem('zyveron_featured_vods', JSON.stringify(top)); } catch {}
+              }
+            }
+            if (allSeries && allSeries.length > 0) {
+              setSeriesCount(allSeries.length);
+              localStorage.setItem('zyveron_series_count', String(allSeries.length));
+              if (foundSeries.length === 0) {
+                const top = deduplicateSeries(allSeries, 10);
+                setFeaturedSeries(top);
+                try { localStorage.setItem('zyveron_featured_series', JSON.stringify(top)); } catch {}
+              }
+            }
           }
         }
       } catch (err) {
@@ -689,7 +727,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 })
               ) : (
                 <div className="w-full h-16 sm:h-24 flex items-center justify-center text-slate-500 text-xs sm:text-sm">
-                  Carregando lançamentos...
+                  {isLoading ? 'Carregando lançamentos...' : 'Acesse o catálogo completo de Filmes pelo menu ao lado.'}
                 </div>
               )}
             </div>
@@ -761,7 +799,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 })
               ) : (
                 <div className="w-full h-16 sm:h-24 flex items-center justify-center text-slate-500 text-xs sm:text-sm">
-                  Carregando séries...
+                  {isLoading ? 'Carregando séries...' : 'Acesse o catálogo completo de Séries pelo menu ao lado.'}
                 </div>
               )}
             </div>

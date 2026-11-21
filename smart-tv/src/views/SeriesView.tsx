@@ -30,6 +30,24 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
   initialStreamId,
   reloadKey = 0
 }) => {
+  // Detecção reativa de iPhone / dispositivo móvel compacto em landscape
+  const [isCompactMobile, setIsCompactMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerHeight < 550 || (navigator.maxTouchPoints > 0 && window.innerWidth < 1100);
+  });
+
+  useEffect(() => {
+    const handleCheckScreen = () => {
+      setIsCompactMobile(window.innerHeight < 550 || (navigator.maxTouchPoints > 0 && window.innerWidth < 1100));
+    };
+    window.addEventListener('resize', handleCheckScreen);
+    window.addEventListener('orientationchange', handleCheckScreen);
+    return () => {
+      window.removeEventListener('resize', handleCheckScreen);
+      window.removeEventListener('orientationchange', handleCheckScreen);
+    };
+  }, []);
+
   const [categories, setCategories] = useState<XtreamCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('favorites');
   const [selectedCategoryIdx, setSelectedCategoryIdx] = useState<number>(0);
@@ -808,9 +826,12 @@ export const SeriesView: React.FC<SeriesViewProps> = ({
 
   return (
     <div className="w-full h-full flex bg-[#0a0d14] overflow-hidden select-none relative">
-      {/* Coluna de Categorias */}
-      <div className={`w-44 sm:w-52 md:w-60 lg:w-80 xl:w-96 h-full bg-[#121722]/90 border-r border-[#2a3449] p-2.5 sm:p-3 md:p-4 flex flex-col transition-all duration-200 shrink-0 ${isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
-        }`}>
+      {/* Coluna de Categorias (Responsivo e Legível para Smart TVs e iPhones) */}
+      <div className={`${
+        isCompactMobile ? 'w-56 sm:w-64' : 'w-52 md:w-60 lg:w-80 xl:w-96'
+      } h-full bg-[#121722]/90 border-r border-[#2a3449] p-2.5 sm:p-3 md:p-4 flex flex-col transition-all duration-200 shrink-0 ${
+        isFocusedContent && activeFocusColumn === 'categories' ? 'ring-2 ring-emerald-500/60 bg-[#161d2b]' : ''
+      }`}>
         <div className="flex items-center justify-between mb-3 sm:mb-4 px-1">
           <h2 className="text-xs sm:text-sm md:text-base font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5 sm:gap-2">
             <span>GÊNEROS SÉRIES</span>

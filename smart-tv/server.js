@@ -109,7 +109,40 @@ const server = http.createServer(async (req, res) => {
         } catch (_) {}
       }
 
-      const contentType = upstreamRes.headers.get('content-type') || 'application/octet-stream';
+      const rawContentType = upstreamRes.headers.get('content-type') || 'application/octet-stream';
+      const isM3u8 = target.includes('.m3u8') || rawContentType.includes('mpegurl') || rawContentType.includes('application/x-mpegURL');
+
+      // Se for manifesto HLS (.m3u8), reescreve links absolutos HTTP para o proxy seguro HTTPS
+      // evitando bloqueio de Mixed Content pelos navegadores Safari / WebKit no iOS
+      if (isM3u8 && upstreamRes.status === 200) {
+        const text = await upstreamRes.text();
+        const proto = req.headers['x-forwarded-proto'] || 'https';
+        const host = req.headers.host || 'tvplay.loja-am.top';
+        const proxyPrefix = `${proto}://${host}/api/proxy?url=`;
+
+        const rewritten = text.replace(/^(https?:\/\/[^\r\n]+)/gm, (match) => {
+          return `${proxyPrefix}${encodeURIComponent(match)}`;
+        });
+
+        res.writeHead(200, {
+          'Content-Type': 'application/vnd.apple.mpegurl',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, HEAD',
+          'Cache-Control': 'no-cache'
+        });
+        res.end(rewritten);
+        return;
+      }
+
+      let contentType = rawContentType;
+      if (target.includes('.mp4')) {
+        contentType = 'video/mp4';
+      } else if (target.includes('.ts')) {
+        contentType = 'video/mp2t';
+      } else if (target.includes('.m3u8')) {
+        contentType = 'application/vnd.apple.mpegurl';
+      }
+
       const contentLength = upstreamRes.headers.get('content-length');
       const acceptRanges = upstreamRes.headers.get('accept-ranges');
       const contentRange = upstreamRes.headers.get('content-range');
@@ -121,7 +154,8 @@ const server = http.createServer(async (req, res) => {
         'Cache-Control': 'no-cache'
       };
 
-      if (contentLength) headers['Content-Length'] = contentLength;
+      // Não repassa Content-Length se a resposta tiver sido descompactada (evita mismatch de tamanho em listagens)
+      if (contentLength && !upstreamRes.headers.get('content-encoding')) headers['Content-Length'] = contentLength;
       if (acceptRanges) headers['Accept-Ranges'] = acceptRanges;
       if (contentRange) headers['Content-Range'] = contentRange;
 

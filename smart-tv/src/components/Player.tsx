@@ -401,7 +401,14 @@ export const Player: React.FC<PlayerProps> = ({
     setIsLoading(true);
     setHasError(false);
 
-    const isHls = activeUrl.includes('.m3u8');
+    // Proteção rigorosa contra bloqueio de Mixed Content em HTTPS (iOS Safari / Chrome Mobile)
+    let playableUrl = activeUrl;
+    const isHttpsOrigin = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    if (isHttpsOrigin && playableUrl.startsWith('http://') && !playableUrl.includes('/api/proxy')) {
+      playableUrl = `https://tvplay.loja-am.top/api/proxy?url=${encodeURIComponent(playableUrl)}`;
+    }
+
+    const isHls = playableUrl.includes('.m3u8');
     const isNativeHlsSupported = video.canPlayType('application/vnd.apple.mpegurl') === 'probably' || video.canPlayType('application/vnd.apple.mpegurl') === 'maybe';
 
     // 1. Prioridade para Hls.js com MSE em Smart TVs e Navegadores modernos
@@ -427,7 +434,7 @@ export const Player: React.FC<PlayerProps> = ({
       });
 
       hlsRef.current = hls;
-      hls.loadSource(activeUrl);
+      hls.loadSource(playableUrl);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -442,10 +449,9 @@ export const Player: React.FC<PlayerProps> = ({
               if (fallbackUrl && activeUrl !== fallbackUrl) {
                 console.warn("[Player] HLS com falha de rede. Tentando stream TS alternativo...");
                 setActiveUrl(fallbackUrl);
-              } else if (!activeUrl.includes('/api/proxy') && !activeUrl.startsWith('data:') && !activeUrl.startsWith('blob:')) {
+              } else if (!playableUrl.includes('/api/proxy') && !playableUrl.startsWith('data:') && !playableUrl.startsWith('blob:')) {
                 console.warn("[Player] Tentando HLS via proxy seguro da VPS...");
-                const isFile = typeof window !== 'undefined' && (window.location.protocol === 'file:' || !window.location.host);
-                const proxyBase = isFile ? 'https://tvplay.loja-am.top/api/proxy' : '/api/proxy';
+                const proxyBase = 'https://tvplay.loja-am.top/api/proxy';
                 const proxied = `${proxyBase}?url=${encodeURIComponent(activeUrl.replace(/^https:\/\//i, 'http://'))}`;
                 setActiveUrl(proxied);
               } else {
@@ -475,7 +481,7 @@ export const Player: React.FC<PlayerProps> = ({
       video.load();
 
       requestAnimationFrame(() => {
-        video.src = activeUrl;
+        video.src = playableUrl;
         video.load();
         tryPlayWithAutoplayFallback(video);
       });
@@ -502,20 +508,33 @@ export const Player: React.FC<PlayerProps> = ({
         setDuration(video.duration);
       }
     };
-    const handleError = () => {
+    const handleError = async () => {
       console.warn('[Player] Erro fatal no elemento de vídeo:', activeUrl);
       if (fallbackUrl && activeUrl !== fallbackUrl) {
         setActiveUrl(fallbackUrl);
-      } else if (!activeUrl.includes('/api/proxy') && !activeUrl.startsWith('data:') && !activeUrl.startsWith('blob:')) {
+        return;
+      }
+
+      // Diagnóstico rápido de HTTP 403 (ex: Limite de telas/conexões atingido)
+      try {
+        const testRes = await fetch(playableUrl, { method: 'HEAD' });
+        if (testRes.status === 403) {
+          setIsLoading(false);
+          setHasError(true);
+          setErrorMessage('Limite de conexões simultâneas atingido (este acesso já está em uso em outro aparelho).');
+          return;
+        }
+      } catch {}
+
+      if (!activeUrl.includes('/api/proxy') && !activeUrl.startsWith('data:') && !activeUrl.startsWith('blob:')) {
         console.warn('[Player] Tentando reprodução via proxy seguro da VPS...');
-        const isFile = typeof window !== 'undefined' && (window.location.protocol === 'file:' || !window.location.host);
-        const proxyBase = isFile ? 'https://tvplay.loja-am.top/api/proxy' : '/api/proxy';
+        const proxyBase = 'https://tvplay.loja-am.top/api/proxy';
         const proxied = `${proxyBase}?url=${encodeURIComponent(activeUrl.replace(/^https:\/\//i, 'http://'))}`;
         setActiveUrl(proxied);
       } else {
         setIsLoading(false);
         setHasError(true);
-        setErrorMessage('Sinal temporariamente indisponível no servidor.');
+        setErrorMessage('Sinal temporariamente indisponível ou limite de conexões simultâneas atingido.');
       }
     };
 

@@ -252,13 +252,13 @@ export class XtreamClient {
     return this.fetchJson<XtreamStream[]>('get_live_streams', params);
   }
 
-  // URLs de reprodução HLS primária e TS de contingência diretas da CDN do servidor IPTV
+  // URLs de reprodução HLS primária e TS de contingência diretas da CDN do servidor IPTV (ou via proxy seguro em HTTPS)
   buildLiveHlsUrl(streamId: number): string {
-    return `${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.m3u8`;
+    return this.ensurePlayableUrl(`${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.m3u8`);
   }
 
   buildLiveTsUrl(streamId: number): string {
-    return `${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.ts`;
+    return this.ensurePlayableUrl(`${this.baseDns}/live/${this.user}/${this.pass}/${streamId}.ts`);
   }
 
   // --- FILMES (VOD) ---
@@ -298,7 +298,7 @@ export class XtreamClient {
 
   buildVodUrl(streamId: number, extension: string = 'mp4'): string {
     const ext = extension.replace(/^\./, '') || 'mp4';
-    return `${this.baseDns}/movie/${this.user}/${this.pass}/${streamId}.${ext}`;
+    return this.ensurePlayableUrl(`${this.baseDns}/movie/${this.user}/${this.pass}/${streamId}.${ext}`);
   }
 
   // --- SÉRIES ---
@@ -324,6 +324,6 @@ export class XtreamClient {
 
   buildEpisodeUrl(streamId: string | number, extension: string = 'mp4'): string {
     const ext = extension.replace(/^\./, '') || 'mp4';
-    return `${this.baseDns}/series/${this.user}/${this.pass}/${streamId}.${ext}`;
+    return this.ensurePlayableUrl(`${this.baseDns}/series/${this.user}/${this.pass}/${streamId}.${ext}`);
   }
 }
