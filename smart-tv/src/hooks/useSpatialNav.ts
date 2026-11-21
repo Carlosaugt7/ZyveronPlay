@@ -140,6 +140,9 @@ if (typeof window !== 'undefined') {
 
   // 6. Histórico PopState (para WebViews que disparam history.back())
   window.addEventListener('popstate', () => {
+    if ((window as any).__ZYVERON_IS_EXITING__) {
+      return;
+    }
     triggerGlobalBack();
     try {
       window.history.pushState({ nav: 'smart-tv-layer' }, '');

@@ -5,12 +5,21 @@
 export function executeExitApp(): void {
   console.log('[ExitApp] Solicitando saída da aplicação...');
 
+  // Sinalizador global para impedir que listeners de popstate empurrem pushState de volta
+  try {
+    (window as any).__ZYVERON_IS_EXITING__ = true;
+    window.dispatchEvent(new CustomEvent('zyveron:exit'));
+  } catch {}
+
   // 1. Media Station X (MSX) - Comandos oficiais de navegação e postMessage
   try {
     if (typeof window !== 'undefined') {
       // Protocolo oficial MSX via hash / URL scheme
       try {
         window.location.href = 'msx:leave';
+      } catch {}
+      try {
+        window.location.href = 'msx:exit';
       } catch {}
 
       if (window.parent && window.parent !== window) {
@@ -78,17 +87,9 @@ export function executeExitApp(): void {
   // 6. Navegador Web / Mobile (iOS Safari, Android Chrome)
   try {
     if (typeof window !== 'undefined') {
-      if (window.history.length > 1) {
-        window.history.back();
-      }
       window.close();
-      // Se não fechar após 300ms, volta para a tela inicial / recarrega limpo
-      setTimeout(() => {
-        try {
-          window.location.hash = '#exit';
-        } catch {}
-      }, 300);
     }
   } catch {}
 }
+
 

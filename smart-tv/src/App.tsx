@@ -13,7 +13,7 @@ import { SettingsView } from './views/SettingsView';
 import { TitleBar } from './components/TitleBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { RotateDevicePrompt } from './components/RotateDevicePrompt';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle2, RefreshCw } from 'lucide-react';
 
 const SECTIONS: MainSection[] = ['home', 'live', 'vod', 'series', 'settings'];
 
@@ -36,6 +36,16 @@ export default function App() {
   // Chaves de controle para revalidação reativa sem travamento
   const [authReloadKey, setAuthReloadKey] = useState<number>(0);
   const [contentReloadKey, setContentReloadKey] = useState<number>(0);
+  const [isAppTerminated, setIsAppTerminated] = useState<boolean>(false);
+
+  // Escuta encerramento do app disparado pelo modal de saída (iOS Safari, navegadores mobile e web)
+  useEffect(() => {
+    const onExitApp = () => {
+      setIsAppTerminated(true);
+    };
+    window.addEventListener('zyveron:exit', onExitApp);
+    return () => window.removeEventListener('zyveron:exit', onExitApp);
+  }, []);
 
   // Escuta alteração de tela cheia disparada pelo Electron (F11 ou botão da TitleBar)
   useEffect(() => {
@@ -111,6 +121,9 @@ export default function App() {
     } catch {}
 
     const onPopState = () => {
+      if ((window as any).__ZYVERON_IS_EXITING__) {
+        return;
+      }
       setCurrentSection((prev) => {
         if (prev !== 'home') {
           setSelectedLiveCategory(undefined);
@@ -194,6 +207,33 @@ export default function App() {
     setIdentity(getOrCreateDeviceIdentity());
     setAuthReloadKey((prev) => prev + 1);
   };
+
+  // 0. Tela de Aplicação Encerrada (Mobile / Safari / Chrome / Web)
+  if (isAppTerminated) {
+    return (
+      <div className="w-screen h-screen bg-[#0a0d14] flex flex-col items-center justify-center p-6 text-center text-white select-none">
+        <div className="w-20 h-20 rounded-full bg-emerald-500/15 border-2 border-emerald-500/40 flex items-center justify-center mb-6 text-emerald-400 shadow-2xl">
+          <CheckCircle2 className="w-10 h-10" />
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-black mb-2 tracking-wide">Zyveron Play Finalizado</h1>
+        <p className="text-sm sm:text-base text-slate-400 max-w-md mb-8 leading-relaxed">
+          Sua sessão foi encerrada com sucesso. Você já pode fechar esta aba no seu navegador ou clicar no botão abaixo para reiniciar o aplicativo.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            (window as any).__ZYVERON_IS_EXITING__ = false;
+            setIsAppTerminated(false);
+            window.location.reload();
+          }}
+          className="px-8 py-3.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-black font-black text-sm sm:text-base rounded-2xl shadow-xl transition-all cursor-pointer flex items-center gap-2"
+        >
+          <RefreshCw className="w-4 h-4" />
+          <span>Reiniciar Aplicativo</span>
+        </button>
+      </div>
+    );
+  }
 
   // 1. Tela de Carregamento Inicial
   if (activationStatus === 'loading') {

@@ -93,7 +93,7 @@ export class XtreamClient {
         return '/api/proxy';
       }
       if (window.location.host.includes('tvplay.loja-am.top')) {
-        return '/api/proxy';
+        return window.location.protocol === 'https:' ? '/api/proxy' : 'https://tvplay.loja-am.top/api/proxy';
       }
     }
     return 'https://tvplay.loja-am.top/api/proxy';
