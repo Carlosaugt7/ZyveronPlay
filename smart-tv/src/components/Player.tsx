@@ -480,11 +480,9 @@ export const Player: React.FC<PlayerProps> = ({
       video.removeAttribute('src');
       video.load();
 
-      requestAnimationFrame(() => {
-        video.src = playableUrl;
-        video.load();
-        tryPlayWithAutoplayFallback(video);
-      });
+      video.src = playableUrl;
+      video.load();
+      tryPlayWithAutoplayFallback(video);
     }
 
     const handleLoadStart = () => setIsLoading(true);
@@ -601,6 +599,7 @@ export const Player: React.FC<PlayerProps> = ({
         autoPlay
         playsInline
         preload="auto"
+        crossOrigin="anonymous"
         style={{
           transform: 'translate3d(0, 0, 0)',
           backfaceVisibility: 'hidden',

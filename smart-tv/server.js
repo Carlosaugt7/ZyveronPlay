@@ -58,8 +58,15 @@ const server = http.createServer(async (req, res) => {
       const isIpv4 = typeof rawIp === 'string' && /^(\d{1,3}\.){3}\d{1,3}$/.test(rawIp.trim());
       const clientIp = isIpv4 ? rawIp.trim() : '';
 
+      // Provedores IPTV / CDN utilizam Cloudflare para bloquear User-Agents de navegadores comuns em streams ao vivo.
+      // O User-Agent 'IPTVSmartersPro' é universalmente aceito pelas CDNs e balanceadores de carga IPTV.
+      const isMediaTarget = target.includes('/live/') || target.includes('/movie/') || target.includes('/series/') || target.includes('.m3u8') || target.includes('.ts');
+      const defaultUserAgent = isMediaTarget
+        ? 'IPTVSmartersPro'
+        : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
       const upstreamHeaders = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'User-Agent': defaultUserAgent,
         'Accept': '*/*', // Aceita streams de vídeo, m3u8, ts, json sem disparar HTTP 406
         'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
         'Connection': 'keep-alive'
@@ -83,8 +90,10 @@ const server = http.createServer(async (req, res) => {
           signal: AbortSignal.timeout(25000)
         });
       } catch (fetchErr) {
-        // Se a chamada falhou (possível bloqueio de User-Agent de browser), tenta com User-Agent de IPTV Player
-        upstreamHeaders['User-Agent'] = 'IPTVSmartersPro';
+        // Se a chamada falhou com UA padrão, tenta com o alternativo
+        upstreamHeaders['User-Agent'] = upstreamHeaders['User-Agent'] === 'IPTVSmartersPro'
+          ? 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+          : 'IPTVSmartersPro';
         upstreamRes = await fetch(target, {
           method: req.method === 'HEAD' ? 'HEAD' : 'GET',
           headers: upstreamHeaders,
@@ -112,16 +121,48 @@ const server = http.createServer(async (req, res) => {
       const rawContentType = upstreamRes.headers.get('content-type') || 'application/octet-stream';
       const isM3u8 = target.includes('.m3u8') || rawContentType.includes('mpegurl') || rawContentType.includes('application/x-mpegURL');
 
-      // Se for manifesto HLS (.m3u8), reescreve links absolutos HTTP para o proxy seguro HTTPS
-      // evitando bloqueio de Mixed Content pelos navegadores Safari / WebKit no iOS
+      // Se for manifesto HLS (.m3u8), reescreve links absolutos e relativos para o proxy seguro HTTPS
+      // resolvendo os caminhos contra a URL final de redirecionamento do balanceador de carga da CDN (ex: lb16.ohovepi35.online)
       if (isM3u8 && upstreamRes.status === 200) {
         const text = await upstreamRes.text();
         const proto = req.headers['x-forwarded-proto'] || 'https';
         const host = req.headers.host || 'tvplay.loja-am.top';
         const proxyPrefix = `${proto}://${host}/api/proxy?url=`;
 
-        const rewritten = text.replace(/^(https?:\/\/[^\r\n]+)/gm, (match) => {
-          return `${proxyPrefix}${encodeURIComponent(match)}`;
+        const finalUrlObj = new URL(upstreamRes.url || target);
+        const finalOrigin = finalUrlObj.origin;
+        const finalPath = finalUrlObj.pathname;
+        const finalDir = finalPath.substring(0, finalPath.lastIndexOf('/') + 1);
+        const finalBase = finalOrigin + finalDir;
+
+        const lines = text.split(/\r?\n/);
+        const rewrittenLines = lines.map((line) => {
+          const trimmed = line.trim();
+          if (!trimmed) return line;
+
+          // Se for chave de criptografia HLS (#EXT-X-KEY)
+          if (trimmed.startsWith('#EXT-X-KEY:') && trimmed.includes('URI=')) {
+            return line.replace(/URI="([^"]+)"/, (_, uri) => {
+              let fullUri = uri;
+              if (!fullUri.startsWith('http://') && !fullUri.startsWith('https://')) {
+                fullUri = fullUri.startsWith('/') ? (finalOrigin + fullUri) : (finalBase + fullUri);
+              }
+              return `URI="${proxyPrefix}${encodeURIComponent(fullUri)}"`;
+            });
+          }
+
+          // Se for outra tag ou comentário HLS
+          if (trimmed.startsWith('#')) {
+            return line;
+          }
+
+          // É segmento .ts, fMP4 ou sub-playlist m3u8
+          let fullUrl = trimmed;
+          if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
+            fullUrl = fullUrl.startsWith('/') ? (finalOrigin + fullUrl) : (finalBase + fullUrl);
+          }
+
+          return `${proxyPrefix}${encodeURIComponent(fullUrl)}`;
         });
 
         res.writeHead(200, {
@@ -130,7 +171,7 @@ const server = http.createServer(async (req, res) => {
           'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, HEAD',
           'Cache-Control': 'no-cache'
         });
-        res.end(rewritten);
+        res.end(rewrittenLines.join('\n'));
         return;
       }
 
