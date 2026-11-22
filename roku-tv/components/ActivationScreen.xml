@@ -19,8 +19,8 @@
       <Rectangle width="1000" height="4" color="#06b6d4" />
 
       <!-- Ícone ou Título -->
-      <Label text="Ativação do Aparelho" font="font:LargeBoldSystemFont" horizAlign="center" width="1000" translation="[0, 40]" color="#ffffff" />
-      <Label text="Para liberar o acesso, informe estes dados ao seu revendedor:" font="font:MediumSystemFont" horizAlign="center" width="1000" translation="[0, 100]" color="#94a3b8" />
+      <Label text="Vincular Dispositivo" font="font:LargeBoldSystemFont" horizAlign="center" width="1000" translation="[0, 40]" color="#ffffff" />
+      <Label text="Para sincronizar suas listas, vincule os dados abaixo no painel:" font="font:MediumSystemFont" horizAlign="center" width="1000" translation="[0, 100]" color="#94a3b8" />
 
       <!-- Caixa do Device ID (Equivalente ao MAC) -->
       <Group translation="[150, 170]">
@@ -41,9 +41,12 @@
       <Label text="A tela atualizará automaticamente assim que o aparelho for liberado." font="font:SmallSystemFont" horizAlign="center" width="1000" translation="[0, 505]" color="#64748b" />
 
       <!-- Botão de Verificação Manual -->
-      <ButtonGroup id="btnGroup" layoutDirection="horiz" translation="[375, 570]">
+      <ButtonGroup id="btnGroup" layoutDirection="horiz" translation="[375, 560]">
         <Button id="btnCheck" text="Verificar Agora" minWidth="250" />
       </ButtonGroup>
+
+      <!-- Nota de Isenção de Responsabilidade (Roku Store Compliance) -->
+      <Label text="O Zyveron Play é um reprodutor de mídia e não inclui conteúdos pré-carregados." font="font:SmallSystemFont" horizAlign="center" width="1000" translation="[0, 655]" color="#64748b" />
     </Group>
   </children>
 </component>

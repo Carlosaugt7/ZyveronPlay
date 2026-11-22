@@ -6,17 +6,26 @@ import { useTheme } from "@/context/ThemeContext";
 import { Sidebar } from "@/components/Sidebar";
 import { LoginView } from "@/components/LoginView";
 import { Menu, Tv, Sun, Moon } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     const handleToggle = () => setIsMobileMenuOpen((prev) => !prev);
     window.addEventListener("toggle-mobile-sidebar", handleToggle);
     return () => window.removeEventListener("toggle-mobile-sidebar", handleToggle);
   }, []);
+
+  // Rotas públicas que não exigem autenticação (para conformidade com Google Play, Samsung, LG e Roku)
+  const isPublicLegalRoute = pathname === "/privacy" || pathname === "/terms";
+
+  if (isPublicLegalRoute) {
+    return <main className="min-h-screen bg-[#070b10] text-zinc-100">{children}</main>;
+  }
 
   if (loading) {
     return (

@@ -108,9 +108,9 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({
         ) : (
           <div>
             <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-white mb-2">Ativação do Dispositivo</h2>
+              <h2 className="text-2xl font-bold text-white mb-2">Vincular Dispositivo</h2>
               <p className="text-slate-400 text-sm">
-                Envie o <b className="text-white">MAC</b> e a <b className="text-white">Chave</b> abaixo para seu revendedor liberar o acesso.
+                Para sincronizar suas listas de reprodução, utilize o <b className="text-white">MAC</b> e a <b className="text-white">Chave</b> abaixo no painel.
               </p>
             </div>
 
@@ -211,6 +211,10 @@ export const ActivationScreen: React.FC<ActivationScreenProps> = ({
             </button>
           </form>
         )}
+        {/* Disclaimer Legal Obrigatório para Lojas Oficiais */}
+        <p className="text-center text-[10px] text-slate-500 mt-4 leading-relaxed">
+          O Zyveron Play é estritamente um reprodutor de mídia e não inclui conteúdos pré-carregados. O usuário é o único responsável pelo fornecimento de suas próprias listas legais.
+        </p>
       </div>
 
       <div className="mt-8 text-xs text-slate-500">

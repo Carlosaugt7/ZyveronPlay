@@ -134,14 +134,14 @@ fun ActivationScreen(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "Aparelho Não Ativado",
+                        text = "Aparelho Não Vinculado",
                         color = TextPrimary,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Para liberar o acesso a canais, filmes e séries, cadastre este dispositivo no Painel Administrativo usando as credenciais abaixo:",
+                        text = "Para sincronizar suas listas de reprodução e gerenciar seu reprodutor, vincule este dispositivo usando as credenciais abaixo:",
                         color = TextSecondary,
                         fontSize = 11.sp,
                         textAlign = TextAlign.Center,
@@ -328,6 +328,18 @@ fun ActivationScreen(
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Nota de Isenção Legal para Conformidade com Lojas de Aplicativos
+                    Text(
+                        text = "O Zyveron Play é exclusivamente um reprodutor multimídia e não fornece conteúdos pré-carregados. O usuário é responsável pelo fornecimento de suas próprias listas de reprodução legais.",
+                        color = TextSecondary.copy(alpha = 0.5f),
+                        fontSize = 9.sp,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 12.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
                 }
             }
         }
