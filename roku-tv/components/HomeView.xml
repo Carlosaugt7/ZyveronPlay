@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="HomeView" extends="Group">
+  <script type="text/brightscript" uri="pkg:/components/HomeView.brs" />
+
+  <interface>
+    <field id="accountData" type="assocarray" onChange="OnAccountDataChange" />
+  </interface>
+
+  <children>
+    <!-- Top Header Bar -->
+    <Rectangle width="1920" height="100" color="#0e131f" translation="[0, 0]" />
+    <Label text="ZYVERON PLAY" font="font:LargeBoldSystemFont" color="#06b6d4" translation="[80, 30]" />
+
+    <!-- Badges de Informação no Header -->
+    <Group translation="[1100, 32]">
+      <!-- Servidor Ativo (Dinâmico) -->
+      <Label id="lblServerName" text="Servidor Ativo" font="font:SmallBoldSystemFont" color="#ffffff" translation="[0, 5]" />
+      <!-- Validade -->
+      <Label id="lblExpiration" text="Validade: --" font="font:SmallSystemFont" color="#94a3b8" translation="[350, 5]" />
+    </Group>
+
+    <!-- Título Principal da Tela -->
+    <Label text="O que você deseja assistir hoje?" font="font:LargeBoldSystemFont" color="#ffffff" translation="[80, 200]" />
+    <Label text="Navegue pelas opções abaixo com o controle remoto" font="font:MediumSystemFont" color="#94a3b8" translation="[80, 260]" />
+
+    <!-- Menu Cards Container (D-Pad Horiz / Grid) -->
+    <Group id="cardsContainer" translation="[80, 360]">
+      <!-- Card 1: Canais Ao Vivo -->
+      <Group id="cardLive" translation="[0, 0]">
+        <Rectangle id="bgLive" width="410" height="480" color="#121826" />
+        <Rectangle id="borderLive" width="410" height="4" color="#06b6d4" visible="false" />
+        <Label text="TV AO VIVO" font="font:LargeBoldSystemFont" color="#ffffff" translation="[30, 240]" />
+        <Label text="Assista canais abertos, esportes, notícias e variedades em tempo real." wrap="true" width="350" font="font:SmallSystemFont" color="#94a3b8" translation="[30, 300]" />
+        <Rectangle width="120" height="32" color="#06b6d422" translation="[30, 400]" />
+        <Label text="EXPLORAR" font="font:SmallBoldSystemFont" color="#06b6d4" translation="[45, 407]" />
+      </Group>
+
+      <!-- Card 2: Filmes -->
+      <Group id="cardMovies" translation="[440, 0]">
+        <Rectangle id="bgMovies" width="410" height="480" color="#121826" />
+        <Rectangle id="borderMovies" width="410" height="4" color="#06b6d4" visible="false" />
+        <Label text="FILMES" font="font:LargeBoldSystemFont" color="#ffffff" translation="[30, 240]" />
+        <Label text="Catálogo completo de lançamentos, ação, comédia, drama e muito mais." wrap="true" width="350" font="font:SmallSystemFont" color="#94a3b8" translation="[30, 300]" />
+        <Rectangle width="120" height="32" color="#06b6d422" translation="[30, 400]" />
+        <Label text="CATÁLOGO" font="font:SmallBoldSystemFont" color="#06b6d4" translation="[45, 407]" />
+      </Group>
+
+      <!-- Card 3: Séries -->
+      <Group id="cardSeries" translation="[880, 0]">
+        <Rectangle id="bgSeries" width="410" height="480" color="#121826" />
+        <Rectangle id="borderSeries" width="410" height="4" color="#06b6d4" visible="false" />
+        <Label text="SÉRIES" font="font:LargeBoldSystemFont" color="#ffffff" translation="[30, 240]" />
+        <Label text="Temporadas completas, episódios atualizados e grandes produções." wrap="true" width="350" font="font:SmallSystemFont" color="#94a3b8" translation="[30, 300]" />
+        <Rectangle width="120" height="32" color="#06b6d422" translation="[30, 400]" />
+        <Label text="EPISÓDIOS" font="font:SmallBoldSystemFont" color="#06b6d4" translation="[45, 407]" />
+      </Group>
+
+      <!-- Card 4: Sair -->
+      <Group id="cardExit" translation="[1320, 0]">
+        <Rectangle id="bgExit" width="410" height="480" color="#121826" />
+        <Rectangle id="borderExit" width="410" height="4" color="#ef4444" visible="false" />
+        <Label text="SAIR DO APP" font="font:LargeBoldSystemFont" color="#ffffff" translation="[30, 240]" />
+        <Label text="Encerrar a sessão com segurança e voltar para a tela inicial da Roku." wrap="true" width="350" font="font:SmallSystemFont" color="#94a3b8" translation="[30, 300]" />
+        <Rectangle width="120" height="32" color="#ef444422" translation="[30, 400]" />
+        <Label text="FECHAR" font="font:SmallBoldSystemFont" color="#ef4444" translation="[55, 407]" />
+      </Group>
+    </Group>
+  </children>
+</component>

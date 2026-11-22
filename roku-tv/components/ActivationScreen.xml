@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="ActivationScreen" extends="Group">
+  <script type="text/brightscript" uri="pkg:/components/ActivationScreen.brs" />
+
+  <interface>
+    <field id="viewParams" type="assocarray" onChange="OnViewParamsChange" />
+    <field id="statusMessage" type="string" onChange="OnStatusMessageChange" />
+  </interface>
+
+  <children>
+    <!-- Background do Header -->
+    <Rectangle width="1920" height="90" color="#0e131f" translation="[0, 0]" />
+    <Label text="ZYVERON PLAY" font="font:LargeBoldSystemFont" color="#06b6d4" translation="[80, 25]" />
+    <Label text="ROKU SMART TV" font="font:SmallSystemFont" color="#64748b" translation="[360, 35]" />
+
+    <!-- Card Central de Ativação -->
+    <Group translation="[460, 180]">
+      <Rectangle width="1000" height="720" color="#121826" />
+      <Rectangle width="1000" height="4" color="#06b6d4" />
+
+      <!-- Ícone ou Título -->
+      <Label text="Ativação do Aparelho" font="font:LargeBoldSystemFont" horizAlign="center" width="1000" translation="[0, 40]" color="#ffffff" />
+      <Label text="Para liberar o acesso, informe estes dados ao seu revendedor:" font="font:MediumSystemFont" horizAlign="center" width="1000" translation="[0, 100]" color="#94a3b8" />
+
+      <!-- Caixa do Device ID (Equivalente ao MAC) -->
+      <Group translation="[150, 170]">
+        <Rectangle width="700" height="110" color="#1e293b" />
+        <Label text="ID DO DISPOSITIVO (ROKU)" font="font:SmallBoldSystemFont" color="#06b6d4" translation="[30, 15]" />
+        <Label id="lblDeviceId" text="ROKU:00:00:00:00:00:00" font="font:LargeBoldSystemFont" color="#ffffff" translation="[30, 48]" />
+      </Group>
+
+      <!-- Caixa do Código de Ativação -->
+      <Group translation="[150, 310]">
+        <Rectangle width="700" height="110" color="#1e293b" />
+        <Label text="CÓDIGO DE ATIVAÇÃO" font="font:SmallBoldSystemFont" color="#06b6d4" translation="[30, 15]" />
+        <Label id="lblActivationCode" text="------" font="font:LargeBoldSystemFont" color="#ffffff" translation="[30, 48]" />
+      </Group>
+
+      <!-- Mensagem de Status -->
+      <Label id="lblStatus" text="Aguardando liberação no painel..." font="font:MediumSystemFont" horizAlign="center" width="1000" translation="[0, 460]" color="#e2e8f0" />
+      <Label text="A tela atualizará automaticamente assim que o aparelho for liberado." font="font:SmallSystemFont" horizAlign="center" width="1000" translation="[0, 505]" color="#64748b" />
+
+      <!-- Botão de Verificação Manual -->
+      <ButtonGroup id="btnGroup" layoutDirection="horiz" translation="[375, 570]">
+        <Button id="btnCheck" text="Verificar Agora" minWidth="250" />
+      </ButtonGroup>
+    </Group>
+  </children>
+</component>

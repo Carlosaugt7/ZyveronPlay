@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="MainScene" extends="Scene">
+  <script type="text/brightscript" uri="pkg:/source/device.brs" />
+  <script type="text/brightscript" uri="pkg:/source/storage.brs" />
+  <script type="text/brightscript" uri="pkg:/source/utils.brs" />
+  <script type="text/brightscript" uri="pkg:/source/api.brs" />
+  <script type="text/brightscript" uri="pkg:/components/MainScene.brs" />
+
+  <children>
+    <!-- Fundo Escuro Moderno (Sem roxo) -->
+    <Rectangle id="background" width="1920" height="1080" color="#0b0f19" />
+
+    <!-- Container Dinâmico de Views -->
+    <Group id="viewContainer" />
+
+    <!-- Modal de Confirmação de Saída -->
+    <ExitDialog id="exitDialog" visible="false" />
+
+    <!-- Indicador de Carregamento Global -->
+    <Group id="globalLoading" visible="false">
+      <Rectangle width="1920" height="1080" color="#000000AA" />
+      <Label id="loadingLabel" text="Carregando Zyveron Play..." font="font:MediumSystemFont" horizAlign="center" vertAlign="center" width="1920" height="1080" color="#06b6d4" />
+    </Group>
+
+    <!-- Timer de Polling de Ativação (a cada 8 segundos) -->
+    <Timer id="activationTimer" repeat="true" duration="8" />
+  </children>
+</component>

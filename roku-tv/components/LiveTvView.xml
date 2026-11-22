@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="LiveTvView" extends="Group">
+  <script type="text/brightscript" uri="pkg:/source/api.brs" />
+  <script type="text/brightscript" uri="pkg:/components/LiveTvView.brs" />
+
+  <interface>
+    <field id="accountData" type="assocarray" onChange="OnAccountDataChange" />
+  </interface>
+
+  <children>
+    <!-- Header -->
+    <Rectangle width="1920" height="90" color="#0e131f" translation="[0, 0]" />
+    <Label text="ZYVERON PLAY" font="font:MediumBoldSystemFont" color="#06b6d4" translation="[60, 28]" />
+    <Label text="|  TV AO VIVO" font="font:MediumSystemFont" color="#ffffff" translation="[240, 28]" />
+    <Label text="Pressione [VOLTAR] para a Home" font="font:SmallSystemFont" color="#64748b" translation="[1550, 32]" />
+
+    <!-- Coluna Esquerda: Categorias -->
+    <Group translation="[60, 120]">
+      <Rectangle width="440" height="900" color="#121826" />
+      <Label text="CATEGORIAS" font="font:SmallBoldSystemFont" color="#06b6d4" translation="[25, 20]" />
+      <LabelList id="categoryList" itemSize="[400, 56]" textPadding="[20, 15]" font="font:SmallSystemFont" focusedFont="font:SmallBoldSystemFont" color="#94a3b8" focusedColor="#ffffff" translation="[20, 65]" numRows="14" />
+    </Group>
+
+    <!-- Coluna Direita: Canais -->
+    <Group translation="[530, 120]">
+      <Rectangle width="1330" height="900" color="#121826" />
+      <Label id="lblCategoryTitle" text="CANAIS DISPONÍVEIS" font="font:SmallBoldSystemFont" color="#06b6d4" translation="[30, 20]" />
+      <LabelList id="channelList" itemSize="[1270, 56]" textPadding="[25, 15]" font="font:SmallSystemFont" focusedFont="font:SmallBoldSystemFont" color="#94a3b8" focusedColor="#ffffff" translation="[30, 65]" numRows="14" />
+    </Group>
+
+    <!-- Indicador de Carregamento -->
+    <Label id="lblLoading" text="Carregando canais..." font="font:MediumSystemFont" color="#06b6d4" horizAlign="center" width="1330" translation="[530, 480]" visible="false" />
+  </children>
+</component>

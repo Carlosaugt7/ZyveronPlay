@@ -1,0 +1,4 @@
+# Roku local artifacts
+*.pkg
+.DS_Store
+Thumbs.db

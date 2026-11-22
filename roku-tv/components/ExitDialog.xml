@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="ExitDialog" extends="Group">
+  <script type="text/brightscript" uri="pkg:/components/ExitDialog.brs" />
+
+  <children>
+    <!-- Overlay Escuro -->
+    <Rectangle width="1920" height="1080" color="#000000DD" />
+
+    <!-- Card de Diálogo Centralizado -->
+    <Group translation="[560, 360]">
+      <Rectangle width="800" height="360" color="#121826" />
+      <!-- Borda Superior Cyan -->
+      <Rectangle width="800" height="4" color="#06b6d4" />
+
+      <!-- Título -->
+      <Label text="Sair do Aplicativo" font="font:LargeBoldSystemFont" horizAlign="center" width="800" translation="[0, 50]" color="#ffffff" />
+
+      <!-- Mensagem -->
+      <Label text="Deseja realmente sair do Zyveron Play?" font="font:MediumSystemFont" horizAlign="center" width="800" translation="[0, 130]" color="#94a3b8" />
+
+      <!-- Botões de Ação -->
+      <ButtonGroup id="actionButtons" layoutDirection="horiz" itemSpacings="[40]" translation="[220, 220]">
+        <Button id="btnExit" text="Sim, Sair" minWidth="160" />
+        <Button id="btnCancel" text="Cancelar" minWidth="160" />
+      </ButtonGroup>
+    </Group>
+  </children>
+</component>

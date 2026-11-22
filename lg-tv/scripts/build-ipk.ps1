@@ -1,4 +1,4 @@
-﻿# Script de Compilação e Empacotamento Zyveron Play para LG Smart TV (webOS)
+# Script de Compilação e Empacotamento Zyveron Play para LG Smart TV (webOS)
 $ErrorActionPreference = "Stop"
 
 Write-Host "====================================================" -ForegroundColor Cyan

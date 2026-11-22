@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="PlayerView" extends="Group">
+  <script type="text/brightscript" uri="pkg:/components/PlayerView.brs" />
+
+  <interface>
+    <field id="viewParams" type="assocarray" onChange="OnViewParamsChange" />
+  </interface>
+
+  <children>
+    <!-- Player de Vídeo Nativo do Roku OS -->
+    <Video id="videoPlayer" width="1920" height="1080" translation="[0, 0]" />
+
+    <!-- Overlay de Informações (Auto-oculta após 5s) -->
+    <Group id="playerOverlay" visible="true">
+      <!-- Gradiente/Fundo Superior Escuro -->
+      <Rectangle width="1920" height="180" color="#000000CC" translation="[0, 0]" />
+      <Label id="lblStreamTitle" text="Carregando..." font="font:LargeBoldSystemFont" color="#ffffff" translation="[80, 50]" />
+      <Label id="lblStreamStatus" text="Conectando ao fluxo de transmissão..." font="font:MediumSystemFont" color="#06b6d4" translation="[80, 110]" />
+
+      <!-- Indicador de Buffer / Loading -->
+      <Label id="lblBuffering" text="Buffering..." font="font:MediumBoldSystemFont" horizAlign="center" width="1920" color="#06b6d4" translation="[0, 520]" visible="false" />
+    </Group>
+
+    <!-- Timer de Ocultação do Overlay -->
+    <Timer id="overlayTimer" duration="5" repeat="false" />
+  </children>
+</component>
