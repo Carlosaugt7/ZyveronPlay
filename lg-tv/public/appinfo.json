@@ -1,0 +1,22 @@
+{
+  "id": "com.zyveron.play",
+  "version": "2.0.0",
+  "vendor": "Zyveron Play Team",
+  "type": "web",
+  "main": "index.html",
+  "title": "Zyveron Play",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "resolution": "1920x1080",
+  "uiRevision": 2,
+  "supportGIP": true,
+  "requiredPermissions": [
+    "network",
+    "media.audio",
+    "media.video"
+  ],
+  "accessibility": {
+    "sound": true,
+    "highContrast": true
+  }
+}

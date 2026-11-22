@@ -1,4 +1,4 @@
-﻿# Script de Compilação e Empacotamento Zyveron Play para Samsung Tizen OS
+# Script de Compilação e Empacotamento Zyveron Play para Samsung Tizen OS
 $ErrorActionPreference = "Stop"
 
 Write-Host "====================================================" -ForegroundColor Cyan

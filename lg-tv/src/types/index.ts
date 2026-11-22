@@ -1,0 +1,126 @@
+export interface PlaylistAccount {
+  listIndex: number; // 1 ou 2
+  serverName: string;
+  serverDns: string;
+  username: string;
+  password: string;
+  expirationDate?: string;
+}
+
+export interface DeviceActivation {
+  mac: string;
+  deviceKey: string;
+  status: 'active' | 'expired' | 'blocked' | 'pending';
+  expirationDate: string;
+  note?: string;
+  resellerId?: string;
+  serverId?: string;
+  activeDns?: string;
+  username?: string;
+  password?: string;
+  serverName?: string;
+  // Campos Lista 2
+  serverId2?: string;
+  serverName2?: string;
+  serverDns2?: string;
+  username2?: string;
+  password2?: string;
+  expirationDate2?: string;
+  // Lista de contas disponíveis e índice ativo
+  playlists: PlaylistAccount[];
+  activePlaylistIndex: number;
+}
+
+export interface XtreamCategory {
+  category_id: string;
+  category_name: string;
+  parent_id?: number;
+}
+
+export interface XtreamStream {
+  num?: number;
+  name: string;
+  stream_type: string;
+  stream_id: number;
+  stream_icon: string;
+  epg_channel_id?: string;
+  added?: string;
+  category_id: string;
+  custom_sid?: string;
+  tv_archive?: number;
+  direct_source?: string;
+}
+
+export interface XtreamVod {
+  num?: number;
+  name: string;
+  stream_type: string;
+  stream_id: number;
+  stream_icon: string;
+  rating?: string;
+  rating_5based?: number;
+  added?: string;
+  category_id: string;
+  container_extension: string;
+}
+
+export interface XtreamSeries {
+  num?: number;
+  name: string;
+  series_id: number;
+  cover: string;
+  plot?: string;
+  cast?: string;
+  director?: string;
+  genre?: string;
+  releaseDate?: string;
+  last_modified?: string;
+  rating?: string;
+  rating_5based?: number;
+  backdrop_path?: string[];
+  youtube_trailer?: string;
+  episode_run_time?: string;
+  category_id: string;
+}
+
+export interface XtreamEpisode {
+  id: string;
+  episode_num: number;
+  title: string;
+  container_extension: string;
+  info?: {
+    plot?: string;
+    duration?: string;
+    movie_image?: string;
+  };
+}
+
+export interface XtreamSeason {
+  season_number: number;
+  name: string;
+  episode_count: number;
+  air_date?: string;
+  overview?: string;
+}
+
+export interface ElectronAPI {
+  isElectron: boolean;
+  platform: string;
+  hardwareMac: string | null;
+  getHardwareMac: () => Promise<string | null>;
+  minimize: () => void;
+  maximize: () => void;
+  close: () => void;
+  toggleFullScreen: () => void;
+  isFullScreen: () => boolean;
+  isMaximized: () => boolean;
+  onFullScreenChange: (callback: (isFull: boolean) => void) => () => void;
+  onMaximizeChange: (callback: (isMax: boolean) => void) => () => void;
+}
+
+declare global {
+  interface Window {
+    electronAPI?: ElectronAPI;
+  }
+}
+

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Zyveron Play - LG Smart TV</title>
+    <!-- Favicon e Ícone -->
+    <link rel="icon" type="image/png" href="./icon.png" />
+    <meta name="screen-orientation" content="landscape" />
+    <style>
+      /* Evita scrollbars nativas em Smart TVs LG webOS e ajusta foco */
+      * {
+        box-sizing: border-box;
+        user-select: none;
+        -webkit-user-select: none;
+        margin: 0;
+        padding: 0;
+      }
+      html, body, #root {
+        background-color: #0a0d14;
+        color: #ffffff;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+        min-height: 100vh;
+      }
+      @supports (min-height: 100dvh) {
+        html, body, #root {
+          min-height: 100dvh;
+        }
+      }
+      :focus {
+        outline: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>
